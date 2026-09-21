@@ -31,6 +31,7 @@ import {
   initialReplacements,
   mockProfiles
 } from './mockData';
+import { supabase } from '../supabase/client';
 
 const STORAGE_KEY_PREFIX = 'arts_fest_db_';
 
@@ -54,6 +55,58 @@ class FestService {
       localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(value));
     } catch (e) {
       console.warn(`Error writing ${key} to storage:`, e);
+    }
+  }
+
+  // --- Live Supabase Sync ---
+  public async syncWithSupabase(): Promise<boolean> {
+    if (!supabase) return false;
+    try {
+      // 1. Sync fest_settings
+      const { data: festData } = await supabase.from('fest_settings').select('*').limit(1).maybeSingle();
+      if (festData) {
+        this.setStorage('festSettings', festData);
+      }
+
+      // 2. Sync colleges
+      const { data: colData } = await supabase.from('colleges').select('*');
+      if (colData && colData.length > 0) {
+        this.setStorage('colleges', colData);
+      }
+
+      // 3. Sync items
+      const { data: itemData } = await supabase.from('items').select('*');
+      if (itemData && itemData.length > 0) {
+        this.setStorage('items', itemData);
+      }
+
+      // 4. Sync students
+      const { data: stuData } = await supabase.from('students').select('*');
+      if (stuData && stuData.length > 0) {
+        this.setStorage('students', stuData);
+      }
+
+      // 5. Sync stages & schedules
+      const { data: stgData } = await supabase.from('stages').select('*');
+      if (stgData && stgData.length > 0) {
+        this.setStorage('stages', stgData);
+      }
+
+      const { data: schData } = await supabase.from('schedules').select('*');
+      if (schData && schData.length > 0) {
+        this.setStorage('schedules', schData);
+      }
+
+      // 6. Sync results
+      const { data: resData } = await supabase.from('results').select('*');
+      if (resData && resData.length > 0) {
+        this.setStorage('results', resData);
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('Notice: Supabase sync deferred (using local cache until tables populated):', err);
+      return false;
     }
   }
 

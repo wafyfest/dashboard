@@ -14,6 +14,7 @@ interface FestContextType {
   refreshKey: number;
   triggerRefresh: () => void;
   resetDatabase: () => void;
+  isSupabaseConnected: boolean;
 }
 
 const FestContext = createContext<FestContextType | undefined>(undefined);
@@ -24,8 +25,17 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
   const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('admin'));
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
 
   useEffect(() => {
+    // Sync with live Supabase if available
+    festService.syncWithSupabase().then(connected => {
+      setIsSupabaseConnected(connected);
+      if (connected) {
+        setFestSettings(festService.getFestSettings());
+      }
+    });
+
     // Check localStorage for saved role
     if (typeof window !== 'undefined') {
       const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
@@ -79,7 +89,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
         festSettings,
         refreshKey,
         triggerRefresh,
-        resetDatabase
+        resetDatabase,
+        isSupabaseConnected
       }}
     >
       {children}
