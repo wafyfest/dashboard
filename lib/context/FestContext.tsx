@@ -10,6 +10,8 @@ interface FestContextType {
   currentProfile: Profile;
   currentCollegeId: string;
   setCurrentCollegeId: (id: string) => void;
+  currentCollegeAfflNo: number;
+  setCurrentCollegeAfflNo: (afflNo: number) => void;
   festSettings: FestSettings;
   refreshKey: number;
   triggerRefresh: () => void;
@@ -21,7 +23,8 @@ const FestContext = createContext<FestContextType | undefined>(undefined);
 
 export function FestProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRoleState] = useState<UserRole>('admin');
-  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-1');
+  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-11');
+  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(11);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
   const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('admin'));
@@ -42,9 +45,12 @@ export function FestProvider({ children }: { children: ReactNode }) {
       if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
         setCurrentRoleState(savedRole);
       }
-      const savedCollege = localStorage.getItem('arts_fest_active_college');
-      if (savedCollege) {
-        setCurrentCollegeIdState(savedCollege);
+      const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+      if (savedAffl) {
+        const affl = parseInt(savedAffl);
+        if (!isNaN(affl)) {
+          setCurrentCollegeAfflNoState(affl);
+        }
       }
     }
   }, []);
@@ -63,8 +69,17 @@ export function FestProvider({ children }: { children: ReactNode }) {
 
   const setCurrentCollegeId = (colId: string) => {
     setCurrentCollegeIdState(colId);
+    const col = festService.getCollege(colId);
+    if (col) {
+      setCurrentCollegeAfflNo(col.affl_no);
+    }
+  };
+
+  const setCurrentCollegeAfflNo = (afflNo: number) => {
+    setCurrentCollegeAfflNoState(afflNo);
+    setCurrentCollegeIdState(`col-${afflNo}`);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('arts_fest_active_college', colId);
+      localStorage.setItem('arts_fest_active_affl_no', afflNo.toString());
     }
   };
 
@@ -86,6 +101,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
         currentProfile,
         currentCollegeId,
         setCurrentCollegeId,
+        currentCollegeAfflNo,
+        setCurrentCollegeAfflNo,
         festSettings,
         refreshKey,
         triggerRefresh,

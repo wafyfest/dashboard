@@ -142,7 +142,7 @@ export function StageControllerView() {
                       <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
                         <span className="flex items-center gap-1 font-mono">
                           <Clock className="w-3 h-3" />
-                          {new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <span>{sch.item?.item_type} ({sch.item?.category})</span>
                       </div>

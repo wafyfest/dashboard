@@ -36,14 +36,15 @@ export function StudentView() {
     s =>
       s.chest_no?.toLowerCase() === searchQuery.trim().toLowerCase() ||
       s.admission_no.toLowerCase() === searchQuery.trim().toLowerCase() ||
-      s.full_name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      (s.full_name || s.name || '').toLowerCase().includes(searchQuery.trim().toLowerCase())
   ) || students[0];
 
-  const studentCollege = colleges.find(c => c.id === currentStudent?.college_id);
+  const studentCollege = colleges.find(c => c.affl_no === currentStudent?.college_affl_no || c.id === currentStudent?.college_id);
 
   // Events this student is registered for
   const studentRegistrations = registrations.filter(r =>
-    r.participants?.some(p => p.id === currentStudent?.id)
+    r.chest_no === currentStudent?.chest_no ||
+    r.participants?.some(p => p.id === currentStudent?.id || p.chest_no === currentStudent?.chest_no)
   );
 
   const studentItemIds = new Set(studentRegistrations.map(r => r.item_id));
@@ -156,7 +157,7 @@ export function StudentView() {
                             <span className="text-[11px] text-slate-500">{sch.stage?.location}</span>
                           </TableCell>
                           <TableCell className="font-mono text-slate-700">
-                            {new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </TableCell>
                           <TableCell>
                             {reg?.code_letter ? (
@@ -221,11 +222,11 @@ export function StudentView() {
                 </div>
               )}
               <div className="space-y-1 text-xs">
-                <h4 className="text-base font-bold text-[#132238]">{currentStudent.full_name}</h4>
+                <h4 className="text-base font-bold text-[#132238]">{currentStudent.full_name || currentStudent.name}</h4>
                 <div className="text-slate-600">Institution: <strong className="text-slate-800">{studentCollege?.name}</strong></div>
                 <div className="text-slate-600">Admission No: <span className="font-mono">{currentStudent.admission_no}</span></div>
                 <div className="pt-1">
-                  <CategoryBadge category={currentStudent.category} />
+                  <CategoryBadge category={currentStudent.category || currentStudent.phase || 'Senior'} />
                 </div>
               </div>
             </div>
@@ -250,7 +251,7 @@ export function StudentView() {
                       <div className="text-right">
                         <div className="font-medium text-slate-800">{sch?.stage?.name.split(':')[0] || 'TBA'}</div>
                         <span className="text-[11px] text-slate-500 font-mono">
-                          {sch ? new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}
+                          {sch ? new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}
                         </span>
                       </div>
                     </div>
@@ -310,21 +311,21 @@ export function StudentView() {
                           <TableRow key={res.id}>
                             <TableCell className="font-semibold text-[#132238]">{res.item?.name}</TableCell>
                             <TableCell>
-                              <div className="font-bold text-amber-600">{res.first_reg?.college?.code}</div>
+                              <div className="font-bold text-amber-600">{res.first_reg?.college?.code || res.first_reg?.college?.short_name}</div>
                               <span className="text-[11px] text-slate-500">
-                                {res.first_reg?.participants?.map(p => p.full_name).join(', ')}
+                                {res.first_reg?.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="font-bold text-slate-600">{res.second_reg?.college?.code || '-'}</div>
+                              <div className="font-bold text-slate-600">{res.second_reg?.college?.code || res.second_reg?.college?.short_name || '-'}</div>
                               <span className="text-[11px] text-slate-500">
-                                {res.second_reg?.participants?.map(p => p.full_name).join(', ') || ''}
+                                {res.second_reg?.participants?.map((p: any) => p.name || p.full_name).join(', ') || ''}
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="font-bold text-amber-700">{res.third_reg?.college?.code || '-'}</div>
+                              <div className="font-bold text-amber-700">{res.third_reg?.college?.code || res.third_reg?.college?.short_name || '-'}</div>
                               <span className="text-[11px] text-slate-500">
-                                {res.third_reg?.participants?.map(p => p.full_name).join(', ') || ''}
+                                {res.third_reg?.participants?.map((p: any) => p.name || p.full_name).join(', ') || ''}
                               </span>
                             </TableCell>
                           </TableRow>

@@ -1,72 +1,218 @@
 -- ====================================================================
--- Inter-College Arts Fest Management System: Schema & RLS Migrations
+-- Wafy Inter-College Arts Fest Management System: Database Schema & RLS
 -- ====================================================================
 
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Enums
 CREATE TYPE user_role AS ENUM ('admin', 'college', 'stage_controller', 'result_entry');
-CREATE TYPE student_category AS ENUM ('Sub_Junior', 'Junior', 'Senior', 'General');
-CREATE TYPE item_type AS ENUM ('Single', 'Group');
+CREATE TYPE college_type AS ENUM ('wafy', 'prof');
+CREATE TYPE item_mode AS ENUM ('onstage', 'offstage', 'submission');
+CREATE TYPE point_type AS ENUM ('individual', 'group');
+CREATE TYPE submission_status AS ENUM ('on_time', 'fine', 'late');
 CREATE TYPE stage_status AS ENUM ('Upcoming', 'Next_Item', 'Starting_Soon', 'On_Going', 'Ended');
 CREATE TYPE appeal_status AS ENUM ('Pending', 'Approved', 'Rejected');
 
 -- 2. Colleges Table
 CREATE TABLE colleges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  affl_no INT UNIQUE NOT NULL, -- 3-digit number (e.g. 101, 102...)
   name TEXT NOT NULL,
-  code TEXT UNIQUE NOT NULL,
-  affiliation_no TEXT,
+  short_name TEXT NOT NULL,
+  type college_type NOT NULL DEFAULT 'wafy',
+  st_foundation INT DEFAULT 0,
+  st_thamheediya INT DEFAULT 0,
+  st_aliya INT DEFAULT 0,
   email TEXT,
   address TEXT,
-  coordinator_name TEXT,
-  coordinator_phone TEXT,
-  manager_name TEXT,
-  manager_phone TEXT,
+  union_name TEXT,
+  contact_no TEXT,
+  union_email TEXT,
+  staff_coordinator_name TEXT,
+  staff_coordinator_phone TEXT,
+  staff_coordinator_whatsapp TEXT,
+  team_manager_name TEXT,
+  team_manager_phone TEXT,
+  team_manager_whatsapp TEXT,
+  asst_team_manager_name TEXT,
+  asst_team_manager_phone TEXT,
+  asst_team_manager_whatsapp TEXT,
   fine_status BOOLEAN DEFAULT false,
-  manual_lock_override BOOLEAN DEFAULT false, -- If true, overrides global locks
+  manual_lock_override BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 3. Profiles & Roles (Tied to Supabase auth.users)
+-- 3. Profiles (Tied to Supabase auth.users)
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role user_role NOT NULL DEFAULT 'college',
-  college_id UUID REFERENCES colleges(id) ON DELETE SET NULL,
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE SET NULL,
   full_name TEXT NOT NULL,
   phone TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 4. Students
-CREATE TABLE students (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  college_id UUID REFERENCES colleges(id) ON DELETE CASCADE,
-  admission_no TEXT NOT NULL,
-  full_name TEXT NOT NULL,
-  category student_category NOT NULL,
-  phone TEXT,
-  photo_url TEXT,
-  chest_no TEXT UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(college_id, admission_no)
-);
-
--- 5. Items (Events)
+-- 4. Items (Events)
 CREATE TABLE items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  category student_category NOT NULL,
-  item_type item_type NOT NULL,
-  min_participants INT DEFAULT 1,
-  max_participants INT DEFAULT 1,
+  item_id INT UNIQUE NOT NULL, -- 2-digit number (e.g. 1, 2, 10...)
+  item_code TEXT UNIQUE NOT NULL, -- Alphanumeric (e.g. ITM-01)
+  name_eng TEXT NOT NULL,
+  name_mal TEXT NOT NULL,
+  phase TEXT NOT NULL, -- Sub_Junior, Junior, Senior, General, Thamheediya, Aliya
+  mode item_mode NOT NULL DEFAULT 'onstage',
+  category CHAR(1) DEFAULT 'A', -- A, B, C
+  tabulation BOOLEAN DEFAULT true,
+  point_type point_type NOT NULL DEFAULT 'individual',
+  no_of_participants INT DEFAULT 1,
+  reg_deadline TIMESTAMPTZ,
+  fine_deadline TIMESTAMPTZ,
+  l_star BOOLEAN DEFAULT false,
+  em_star BOOLEAN DEFAULT false,
   is_locked BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 6. System Settings (Registration Deadlines)
+-- 5. Students
+CREATE TABLE students (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  admission_no TEXT NOT NULL,
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  class TEXT,
+  phase TEXT NOT NULL,
+  chest_no TEXT UNIQUE NOT NULL,
+  phone TEXT,
+  photo_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(college_affl_no, admission_no)
+);
+
+-- 6. Max Participation Quotas
+CREATE TABLE max_participation (
+  phase TEXT PRIMARY KEY,
+  off_max INT NOT NULL DEFAULT 3,
+  on_max INT NOT NULL DEFAULT 2,
+  total_max INT NOT NULL DEFAULT 4,
+  group_max INT NOT NULL DEFAULT 2
+);
+
+-- 7. Registrations (Multiple rows for group entries!)
+CREATE TABLE registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  chest_no TEXT REFERENCES students(chest_no) ON DELETE CASCADE,
+  code_letter CHAR(2), -- Optional fast reference
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(item_id, chest_no)
+);
+
+-- 8. Registration Audit Log
+CREATE TABLE registration_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id INT REFERENCES items(item_id),
+  college_affl_no INT,
+  chest_no TEXT,
+  process TEXT NOT NULL, -- 'ADD' or 'DELETE'
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+
+-- 9. Code Letters (Blind Judging Allotment)
+CREATE TABLE code_letters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  chest_no TEXT REFERENCES students(chest_no) ON DELETE CASCADE,
+  code_letter CHAR(2) NOT NULL, -- A, B, C...
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 10. Submission Entries (Offstage / Digital Submissions)
+CREATE TABLE submission_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  chest_no TEXT REFERENCES students(chest_no) ON DELETE CASCADE,
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  status submission_status DEFAULT 'on_time',
+  file_url TEXT,
+  submitted_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 11. Stages & Schedules
+CREATE TABLE stages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stage_number INT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  location TEXT
+);
+
+CREATE TABLE schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  stage_number INT REFERENCES stages(stage_number),
+  starting TIMESTAMPTZ NOT NULL,
+  ending TIMESTAMPTZ,
+  status stage_status DEFAULT 'Upcoming',
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 12. Points Rubric Matrix
+CREATE TABLE points_matrix (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phase TEXT NOT NULL,
+  category CHAR(1) NOT NULL, -- A, B, C
+  grade TEXT, -- A, B, C
+  rank INT, -- 1, 2, 3
+  points NUMERIC NOT NULL
+);
+
+-- 13. Results
+CREATE TABLE results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  code_letter CHAR(2),
+  college_affl_no INT REFERENCES colleges(affl_no),
+  chest_no TEXT REFERENCES students(chest_no),
+  mark_percentage NUMERIC(5, 2),
+  grade TEXT,
+  rank INT,
+  points NUMERIC,
+  published BOOLEAN DEFAULT false,
+  best_in_fest BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 14. Appeals
+CREATE TABLE appeals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phase TEXT NOT NULL,
+  item_id INT REFERENCES items(item_id),
+  chest_no TEXT REFERENCES students(chest_no),
+  code_letter CHAR(2),
+  appeal_description TEXT,
+  reason_for_appeal TEXT NOT NULL,
+  transaction_number TEXT NOT NULL,
+  fee_receipt_url TEXT,
+  team_manager_name TEXT NOT NULL,
+  mobile_number TEXT NOT NULL,
+  acknowledgment BOOLEAN NOT NULL DEFAULT false,
+  current_status appeal_status DEFAULT 'Pending',
+  admin_remarks TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 15. College Item Granular Locks
+CREATE TABLE college_item_locks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
+  is_unlocked BOOLEAN NOT NULL DEFAULT true,
+  unlocked_until TIMESTAMPTZ,
+  UNIQUE(college_affl_no, item_id)
+);
+
+-- 16. System Settings
 CREATE TABLE fest_settings (
   id INT PRIMARY KEY DEFAULT 1,
   fest_name TEXT NOT NULL,
@@ -75,314 +221,148 @@ CREATE TABLE fest_settings (
   rulebook_url TEXT
 );
 
--- 7. College Specific Item Overrides (Granular Unlocks)
-CREATE TABLE college_item_locks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  college_id UUID REFERENCES colleges(id) ON DELETE CASCADE,
-  item_id UUID REFERENCES items(id) ON DELETE CASCADE,
-  is_unlocked BOOLEAN NOT NULL DEFAULT true,
-  unlocked_until TIMESTAMPTZ,
-  UNIQUE(college_id, item_id)
-);
-
--- 8. Registrations & Group Members
-CREATE TABLE registrations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  college_id UUID REFERENCES colleges(id) ON DELETE CASCADE,
-  item_id UUID REFERENCES items(id) ON DELETE CASCADE,
-  code_letter TEXT, -- Assigned by stage controller for blind judging (A, B, C...)
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(college_id, item_id)
-);
-
-CREATE TABLE registration_participants (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  registration_id UUID REFERENCES registrations(id) ON DELETE CASCADE,
-  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
-  UNIQUE(registration_id, student_id)
-);
-
--- 9. Stages & Schedules
-CREATE TABLE stages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  location TEXT
-);
-
-CREATE TABLE schedules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id UUID REFERENCES items(id) ON DELETE CASCADE,
-  stage_id UUID REFERENCES stages(id) ON DELETE CASCADE,
-  scheduled_start TIMESTAMPTZ NOT NULL,
-  status stage_status DEFAULT 'Upcoming',
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 10. Results & Points
-CREATE TABLE results (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id UUID REFERENCES items(id) UNIQUE,
-  first_reg_id UUID REFERENCES registrations(id),
-  second_reg_id UUID REFERENCES registrations(id),
-  third_reg_id UUID REFERENCES registrations(id),
-  published BOOLEAN DEFAULT false,
-  published_at TIMESTAMPTZ,
-  created_by UUID REFERENCES auth.users(id),
-  last_edited_by UUID REFERENCES auth.users(id)
-);
-
--- 11. Appeals & Replacements
-CREATE TABLE appeals (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  college_id UUID REFERENCES colleges(id),
-  item_id UUID REFERENCES items(id),
-  reason TEXT NOT NULL,
-  fee_receipt_url TEXT,
-  status appeal_status DEFAULT 'Pending',
-  admin_remarks TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE replacements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  registration_id UUID REFERENCES registrations(id),
-  original_student_id UUID REFERENCES students(id),
-  replacement_student_id UUID REFERENCES students(id),
-  reason TEXT NOT NULL,
-  status appeal_status DEFAULT 'Pending',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
 -- ====================================================================
 -- Row Level Security (RLS) Configuration
 -- ====================================================================
 
--- Helper Functions to read current user role & college from profiles
+-- Helper functions
 CREATE OR REPLACE FUNCTION auth_user_role()
 RETURNS user_role AS $$
   SELECT role FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION auth_user_college_id()
-RETURNS UUID AS $$
-  SELECT college_id FROM profiles WHERE id = auth.uid();
+CREATE OR REPLACE FUNCTION auth_user_affl_no()
+RETURNS INT AS $$
+  SELECT college_affl_no FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE colleges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE fest_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE college_item_locks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE max_participation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE registration_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registration_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE code_letters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE submission_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE points_matrix ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appeals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE replacements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE college_item_locks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fest_settings ENABLE ROW LEVEL SECURITY;
 
--- --------------------------------------------------------------------
--- Policies: profiles
--- --------------------------------------------------------------------
-CREATE POLICY "Profiles viewable by owner or admin"
-  ON profiles FOR SELECT
-  USING (id = auth.uid() OR auth_user_role() = 'admin');
+-- Profiles
+CREATE POLICY "Profiles readable by owner or admin"
+  ON profiles FOR SELECT USING (id = auth.uid() OR auth_user_role() = 'admin');
 
-CREATE POLICY "Profiles updatable by admin or owner"
-  ON profiles FOR UPDATE
-  USING (id = auth.uid() OR auth_user_role() = 'admin');
+CREATE POLICY "Profiles updatable by owner or admin"
+  ON profiles FOR UPDATE USING (id = auth.uid() OR auth_user_role() = 'admin');
 
--- --------------------------------------------------------------------
--- Policies: colleges
--- --------------------------------------------------------------------
-CREATE POLICY "Colleges viewable by everyone authenticated"
-  ON colleges FOR SELECT
-  TO authenticated
-  USING (true);
+-- Colleges
+CREATE POLICY "Colleges readable by all authenticated"
+  ON colleges FOR SELECT USING (true);
 
 CREATE POLICY "Colleges managed by admin"
-  ON colleges FOR ALL
-  USING (auth_user_role() = 'admin');
+  ON colleges FOR ALL USING (auth_user_role() = 'admin');
 
 CREATE POLICY "Colleges update own contact info"
   ON colleges FOR UPDATE
-  USING (id = auth_user_college_id())
-  WITH CHECK (id = auth_user_college_id());
+  USING (affl_no = auth_user_affl_no())
+  WITH CHECK (affl_no = auth_user_affl_no());
 
--- --------------------------------------------------------------------
--- Policies: students
--- --------------------------------------------------------------------
-CREATE POLICY "Students readable by authenticated or public viewers"
-  ON students FOR SELECT
-  USING (true);
+-- Items & Fest Settings
+CREATE POLICY "Items readable by everyone" ON items FOR SELECT USING (true);
+CREATE POLICY "Items managed by admin" ON items FOR ALL USING (auth_user_role() = 'admin');
 
-CREATE POLICY "Colleges manage own students"
+CREATE POLICY "Fest settings readable by all" ON fest_settings FOR SELECT USING (true);
+CREATE POLICY "Fest settings managed by admin" ON fest_settings FOR ALL USING (auth_user_role() = 'admin');
+
+CREATE POLICY "Max participation readable by all" ON max_participation FOR SELECT USING (true);
+CREATE POLICY "Max participation managed by admin" ON max_participation FOR ALL USING (auth_user_role() = 'admin');
+
+CREATE POLICY "Points matrix readable by all" ON points_matrix FOR SELECT USING (true);
+CREATE POLICY "Points matrix managed by admin" ON points_matrix FOR ALL USING (auth_user_role() = 'admin');
+
+-- Students
+CREATE POLICY "Students readable by all" ON students FOR SELECT USING (true);
+CREATE POLICY "Students managed by admin or owning college"
   ON students FOR ALL
-  USING (auth_user_role() = 'admin' OR college_id = auth_user_college_id())
-  WITH CHECK (auth_user_role() = 'admin' OR college_id = auth_user_college_id());
+  USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no())
+  WITH CHECK (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
--- --------------------------------------------------------------------
--- Policies: items & fest_settings
--- --------------------------------------------------------------------
-CREATE POLICY "Items readable by everyone"
-  ON items FOR SELECT
-  USING (true);
+-- Registrations & Logs
+CREATE POLICY "Registrations readable by all authenticated" ON registrations FOR SELECT USING (true);
+CREATE POLICY "Registrations managed by admin or owning college"
+  ON registrations FOR ALL
+  USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no())
+  WITH CHECK (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Items modifiable by admin"
-  ON items FOR ALL
-  USING (auth_user_role() = 'admin');
+CREATE POLICY "Registration logs insertable by college or admin"
+  ON registration_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Registration logs readable by admin or owning college"
+  ON registration_logs FOR SELECT
+  USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Fest settings readable by all"
-  ON fest_settings FOR SELECT
-  USING (true);
+-- Code Letters
+CREATE POLICY "Code letters readable by admin and stage controller"
+  ON code_letters FOR SELECT
+  USING (auth_user_role() IN ('admin', 'stage_controller') OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Fest settings modifiable by admin"
-  ON fest_settings FOR ALL
-  USING (auth_user_role() = 'admin');
-
--- --------------------------------------------------------------------
--- Policies: college_item_locks
--- --------------------------------------------------------------------
-CREATE POLICY "Locks viewable by admin and respective college"
-  ON college_item_locks FOR SELECT
-  USING (auth_user_role() = 'admin' OR college_id = auth_user_college_id());
-
-CREATE POLICY "Locks managed by admin"
-  ON college_item_locks FOR ALL
-  USING (auth_user_role() = 'admin');
-
--- --------------------------------------------------------------------
--- Policies: registrations & participants
--- --------------------------------------------------------------------
-CREATE POLICY "Registrations viewable by related college, admin, stage controller"
-  ON registrations FOR SELECT
-  USING (
-    auth_user_role() IN ('admin', 'stage_controller')
-    OR college_id = auth_user_college_id()
-  );
-
-CREATE POLICY "Colleges insert registrations if unlocked"
-  ON registrations FOR INSERT
-  WITH CHECK (
-    auth_user_role() = 'admin'
-    OR (
-      college_id = auth_user_college_id()
-      AND (
-        EXISTS (
-          SELECT 1 FROM college_item_locks cil
-          WHERE cil.college_id = auth_user_college_id()
-            AND cil.item_id = registrations.item_id
-            AND cil.is_unlocked = true
-            AND (cil.unlocked_until IS NULL OR cil.unlocked_until > now())
-        )
-        OR EXISTS (
-          SELECT 1 FROM colleges c, fest_settings fs
-          WHERE c.id = auth_user_college_id()
-            AND (c.manual_lock_override = true OR fs.reg_deadline > now())
-        )
-      )
-    )
-  );
-
-CREATE POLICY "Stage controller update code_letter"
-  ON registrations FOR UPDATE
+CREATE POLICY "Code letters managed by stage controller or admin"
+  ON code_letters FOR ALL
   USING (auth_user_role() IN ('admin', 'stage_controller'));
 
-CREATE POLICY "Participants viewable by related users"
-  ON registration_participants FOR SELECT
-  USING (
-    auth_user_role() IN ('admin', 'stage_controller')
-    OR EXISTS (
-      SELECT 1 FROM registrations r
-      WHERE r.id = registration_participants.registration_id
-        AND r.college_id = auth_user_college_id()
-    )
-  );
+-- Submissions
+CREATE POLICY "Submissions viewable by owning college or admin"
+  ON submission_entries FOR SELECT
+  USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Participants modifiable by admin or college"
-  ON registration_participants FOR ALL
-  USING (
-    auth_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM registrations r
-      WHERE r.id = registration_participants.registration_id
-        AND r.college_id = auth_user_college_id()
-    )
-  );
+CREATE POLICY "Submissions insertable by owning college"
+  ON submission_entries FOR INSERT
+  WITH CHECK (college_affl_no = auth_user_affl_no() OR auth_user_role() = 'admin');
 
--- --------------------------------------------------------------------
--- Policies: stages & schedules
--- --------------------------------------------------------------------
-CREATE POLICY "Stages and schedules readable by everyone"
-  ON stages FOR SELECT USING (true);
+-- Stages & Schedules
+CREATE POLICY "Stages readable by all" ON stages FOR SELECT USING (true);
+CREATE POLICY "Stages managed by admin" ON stages FOR ALL USING (auth_user_role() = 'admin');
 
-CREATE POLICY "Stages modifiable by admin"
-  ON stages FOR ALL USING (auth_user_role() = 'admin');
-
-CREATE POLICY "Schedules readable by everyone"
-  ON schedules FOR SELECT USING (true);
-
-CREATE POLICY "Schedules updatable by stage_controller or admin"
+CREATE POLICY "Schedules readable by all" ON schedules FOR SELECT USING (true);
+CREATE POLICY "Schedules updatable by stage controller or admin"
   ON schedules FOR UPDATE
   USING (auth_user_role() IN ('admin', 'stage_controller'));
 
-CREATE POLICY "Schedules insert/delete by admin"
-  ON schedules FOR ALL
-  USING (auth_user_role() = 'admin');
-
--- --------------------------------------------------------------------
--- Policies: results
--- --------------------------------------------------------------------
-CREATE POLICY "Results viewable if published or user is admin/result_entry"
+-- Results
+CREATE POLICY "Results readable if published or staff"
   ON results FOR SELECT
   USING (published = true OR auth_user_role() IN ('admin', 'result_entry'));
 
-CREATE POLICY "Result entry write-once insert"
+CREATE POLICY "Results insertable by result entry or admin"
   ON results FOR INSERT
   WITH CHECK (auth_user_role() IN ('admin', 'result_entry'));
 
-CREATE POLICY "Results update restricted to admin"
+CREATE POLICY "Results updatable by admin only"
   ON results FOR UPDATE
   USING (auth_user_role() = 'admin');
 
--- --------------------------------------------------------------------
--- Policies: appeals & replacements
--- --------------------------------------------------------------------
-CREATE POLICY "Appeals viewable by author college or admin"
+-- Appeals
+CREATE POLICY "Appeals readable by author college or admin"
   ON appeals FOR SELECT
-  USING (auth_user_role() = 'admin' OR college_id = auth_user_college_id());
+  USING (auth_user_role() = 'admin' OR mobile_number IS NOT NULL);
 
-CREATE POLICY "Appeals insertable by college"
-  ON appeals FOR INSERT
-  WITH CHECK (college_id = auth_user_college_id());
+CREATE POLICY "Appeals insertable by anyone"
+  ON appeals FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Appeals updatable by admin"
   ON appeals FOR UPDATE
   USING (auth_user_role() = 'admin');
 
-CREATE POLICY "Replacements viewable by author college or admin"
-  ON replacements FOR SELECT
-  USING (
-    auth_user_role() = 'admin'
-    OR EXISTS (
-      SELECT 1 FROM registrations r
-      WHERE r.id = replacements.registration_id
-        AND r.college_id = auth_user_college_id()
-    )
-  );
+-- Granular Locks
+CREATE POLICY "Locks readable by admin or college"
+  ON college_item_locks FOR SELECT
+  USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Replacements insertable by college"
-  ON replacements FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM registrations r
-      WHERE r.id = replacements.registration_id
-        AND r.college_id = auth_user_college_id()
-    )
-  );
-
-CREATE POLICY "Replacements updatable by admin"
-  ON replacements FOR UPDATE
+CREATE POLICY "Locks managed by admin"
+  ON college_item_locks FOR ALL
   USING (auth_user_role() = 'admin');

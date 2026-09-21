@@ -31,12 +31,12 @@ interface ScoreRow {
 export function ResultEntryView() {
   const { triggerRefresh } = useFest();
   const items = festService.getItems();
-  const [selectedItemId, setSelectedItemId] = useState<string>(items[0]?.id || 'itm-101');
+  const [selectedItemId, setSelectedItemId] = useState<string>(items[0] ? String(items[0].item_id || items[0].id) : '101');
 
-  const selectedItem = items.find(i => i.id === selectedItemId);
-  const registrations = festService.getRegistrations().filter(r => r.item_id === selectedItemId);
+  const selectedItem = items.find(i => String(i.item_id) === selectedItemId || i.id === selectedItemId);
+  const registrations = festService.getRegistrations().filter(r => String(r.item_id) === selectedItemId);
   const results = festService.getResults();
-  const existingResult = results.find(r => r.item_id === selectedItemId);
+  const existingResult = results.find(r => String(r.item_id) === selectedItemId);
 
   // Initialize scoring table from registrations that have code letters assigned
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>(() => {
@@ -55,8 +55,8 @@ export function ResultEntryView() {
   // Keep scoreRows in sync when selected item changes
   const handleItemChange = (itemId: string) => {
     setSelectedItemId(itemId);
-    const itemRegs = festService.getRegistrations().filter(r => r.item_id === itemId);
-    const currentRes = festService.getResults().find(r => r.item_id === itemId);
+    const itemRegs = festService.getRegistrations().filter(r => String(r.item_id) === itemId);
+    const currentRes = festService.getResults().find(r => String(r.item_id) === itemId);
 
     if (currentRes && currentRes.scores_breakdown) {
       setScoreRows(
@@ -148,8 +148,8 @@ export function ResultEntryView() {
             className="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 text-[#132238]"
           >
             {items.map(item => (
-              <option key={item.id} value={item.id}>
-                {item.code}: {item.name} ({item.category})
+              <option key={item.id} value={item.item_id ? String(item.item_id) : item.id}>
+                {item.item_code || item.code}: {item.name_eng || item.name} ({item.phase || item.category})
               </option>
             ))}
           </select>

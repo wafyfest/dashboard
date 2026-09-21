@@ -221,7 +221,7 @@ export function AdminView() {
                           <span className="text-[10px] text-slate-400">{sch.item?.code}</span>
                         </TableCell>
                         <TableCell className="text-slate-500 font-mono">
-                          {new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -273,12 +273,12 @@ export function AdminView() {
                       </TableRow>
                     ) : (
                       locks.map(l => {
-                        const col = colleges.find(c => c.id === l.college_id);
-                        const itm = items.find(i => i.id === l.item_id);
+                        const col = colleges.find(c => c.affl_no === l.college_affl_no || c.id === l.college_id);
+                        const itm = items.find(i => i.item_id === l.item_id || i.id === String(l.item_id));
                         return (
                           <TableRow key={l.id}>
                             <TableCell className="font-medium text-[#132238]">{col?.name}</TableCell>
-                            <TableCell>{itm?.name}</TableCell>
+                            <TableCell>{itm?.name_eng || itm?.name}</TableCell>
                             <TableCell className="font-mono text-slate-500">
                               {l.unlocked_until
                                 ? new Date(l.unlocked_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -289,7 +289,7 @@ export function AdminView() {
                                 size="xs"
                                 variant="destructive"
                                 onClick={() => {
-                                  festService.setCollegeItemLock(l.college_id, l.item_id, false);
+                                  festService.setCollegeItemLock(l.college_affl_no, l.item_id, false);
                                   triggerRefresh();
                                 }}
                               >
@@ -622,7 +622,7 @@ export function AdminView() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <AppealStatusBadge status={appeal.status} />
+                          <AppealStatusBadge status={appeal.status || appeal.current_status || 'Pending'} />
                         </TableCell>
                         <TableCell className="text-right space-y-1">
                           {appeal.status === 'Pending' ? (
@@ -802,9 +802,9 @@ export function AdminView() {
                       <TableCell>
                         {res.first_reg ? (
                           <div>
-                            <span className="font-bold text-amber-600">🥇 {res.first_reg.college?.code}</span>
+                            <span className="font-bold text-amber-600">🥇 {res.first_reg.college?.code || res.first_reg.college?.short_name}</span>
                             <div className="text-[11px] text-slate-500">
-                              {res.first_reg.participants?.map(p => p.full_name).join(', ')}
+                              {res.first_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (
@@ -814,9 +814,9 @@ export function AdminView() {
                       <TableCell>
                         {res.second_reg ? (
                           <div>
-                            <span className="font-bold text-slate-600">🥈 {res.second_reg.college?.code}</span>
+                            <span className="font-bold text-slate-600">🥈 {res.second_reg.college?.code || res.second_reg.college?.short_name}</span>
                             <div className="text-[11px] text-slate-500">
-                              {res.second_reg.participants?.map(p => p.full_name).join(', ')}
+                              {res.second_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (
@@ -826,9 +826,9 @@ export function AdminView() {
                       <TableCell>
                         {res.third_reg ? (
                           <div>
-                            <span className="font-bold text-amber-700">🥉 {res.third_reg.college?.code}</span>
+                            <span className="font-bold text-amber-700">🥉 {res.third_reg.college?.code || res.third_reg.college?.short_name}</span>
                             <div className="text-[11px] text-slate-500">
-                              {res.third_reg.participants?.map(p => p.full_name).join(', ')}
+                              {res.third_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (

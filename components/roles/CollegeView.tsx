@@ -25,7 +25,7 @@ import {
 import { Item, Student, StudentCategory } from '@/lib/types/fest';
 
 export function CollegeView() {
-  const { currentCollegeId, festSettings, triggerRefresh } = useFest();
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, triggerRefresh } = useFest();
   const [activeTab, setActiveTab] = useState<'students' | 'registration' | 'admit_cards' | 'schedules' | 'appeals'>('registration');
 
   // Modal states
@@ -86,7 +86,7 @@ export function CollegeView() {
   };
 
   const handleOpenRegistrationModal = (item: Item) => {
-    const existingReg = registrations.find(r => r.item_id === item.id);
+    const existingReg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
     const preselected = existingReg?.participants?.map(p => p.id) || [];
     setSelectedItemForReg(item);
     setSelectedStudentIds(preselected);
@@ -98,8 +98,8 @@ export function CollegeView() {
     if (!selectedItemForReg) return;
 
     const res = festService.registerCollegeForItem(
-      currentCollegeId,
-      selectedItemForReg.id,
+      currentCollegeAfflNo || currentCollegeId,
+      selectedItemForReg.item_id || selectedItemForReg.id,
       selectedStudentIds
     );
 
@@ -254,8 +254,8 @@ export function CollegeView() {
               </TableHeader>
               <TableBody>
                 {allItems.map(item => {
-                  const reg = registrations.find(r => r.item_id === item.id);
-                  const lockCheck = festService.isRegistrationOpen(currentCollegeId, item.id);
+                  const reg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
+                  const lockCheck = festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
 
                   return (
                     <TableRow key={item.id}>
@@ -378,7 +378,7 @@ export function CollegeView() {
                         </TableCell>
                         <TableCell className="font-mono text-slate-600">{student.admission_no}</TableCell>
                         <TableCell>
-                          <CategoryBadge category={student.category} />
+                          <CategoryBadge category={student.category || student.phase || 'Senior'} />
                         </TableCell>
                         <TableCell className="text-slate-600 font-mono text-xs">{student.phone || 'N/A'}</TableCell>
                         <TableCell>
@@ -445,7 +445,7 @@ export function CollegeView() {
                           <span className="text-[11px] text-slate-500">{sch.stage?.location}</span>
                         </TableCell>
                         <TableCell className="font-mono text-slate-700">
-                          {new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </TableCell>
                         <TableCell>
                           <StageStatusBadge status={sch.status} />
@@ -522,7 +522,7 @@ export function CollegeView() {
                       <div className="text-slate-600">College: <span className="font-semibold">{college?.code} - {college?.name}</span></div>
                       <div className="text-slate-600">Admission No: <span className="font-mono font-medium">{student.admission_no}</span></div>
                       <div className="flex items-center gap-2 pt-0.5">
-                        <CategoryBadge category={student.category} />
+                        <CategoryBadge category={student.category || student.phase || 'Senior'} />
                       </div>
                     </div>
                   </div>
@@ -545,7 +545,7 @@ export function CollegeView() {
                             >
                               <span className="font-medium text-slate-800">{r.item?.name}</span>
                               <span className="text-slate-500 font-mono">
-                                {sch ? `${sch.stage?.name.split(':')[0]} (${new Date(sch.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : 'TBA'}
+                                {sch ? `${sch.stage?.name.split(':')[0]} (${new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : 'TBA'}
                               </span>
                             </div>
                           );
@@ -629,7 +629,7 @@ export function CollegeView() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <AppealStatusBadge status={a.status} />
+                          <AppealStatusBadge status={a.status || a.current_status || 'Pending'} />
                         </TableCell>
                         <TableCell className="text-xs text-slate-600">{a.admin_remarks || 'Pending'}</TableCell>
                       </TableRow>
@@ -723,104 +723,111 @@ export function CollegeView() {
       <Modal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
-        title={`Register: ${selectedItemForReg?.name}`}
-        description={`Item Code: ${selectedItemForReg?.code} | Required: ${selectedItemForReg?.min_participants}-${selectedItemForReg?.max_participants} participant(s)`}
+        title={`Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`}
+        description={`Item Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg?.no_of_participants || 1} participant(s)`}
         maxWidth="xl"
       >
-        {selectedItemForReg && (
-          <form onSubmit={handleConfirmRegistration} className="space-y-4">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-semibold text-slate-700">Category Requirement: </span>
-                <CategoryBadge category={selectedItemForReg.category} />
+        {selectedItemForReg && (() => {
+          const minPart = selectedItemForReg.min_participants ?? (selectedItemForReg.point_type === 'individual' ? 1 : (selectedItemForReg.no_of_participants || 1));
+          const maxPart = selectedItemForReg.max_participants ?? (selectedItemForReg.no_of_participants || 1);
+
+          return (
+            <form onSubmit={handleConfirmRegistration} className="space-y-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-semibold text-slate-700">Category Requirement: </span>
+                  <CategoryBadge category={selectedItemForReg.phase || selectedItemForReg.category || 'General'} />
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-700">Type: </span>
+                  <Badge variant="navy">{selectedItemForReg.point_type === 'group' ? 'Group' : 'Single'}</Badge>
+                </div>
               </div>
+
               <div>
-                <span className="font-semibold text-slate-700">Type: </span>
-                <Badge variant="navy">{selectedItemForReg.item_type}</Badge>
-              </div>
-            </div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Select Participants ({selectedStudentIds.length} / {maxPart} selected)
+                </label>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Select Participants ({selectedStudentIds.length} / {selectedItemForReg.max_participants} selected)
-              </label>
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                  {students.map(s => {
+                    const isSelected = selectedStudentIds.includes(s.id);
+                    const sCat = s.category || s.phase;
+                    const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
+                    const isCategoryMatch =
+                      itemCat === 'General' ||
+                      sCat === itemCat ||
+                      sCat === 'General';
 
-              <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
-                {students.map(s => {
-                  const isSelected = selectedStudentIds.includes(s.id);
-                  const isCategoryMatch =
-                    selectedItemForReg.category === 'General' ||
-                    s.category === selectedItemForReg.category ||
-                    s.category === 'General';
-
-                  return (
-                    <label
-                      key={s.id}
-                      className={`flex items-center justify-between p-2.5 text-xs hover:bg-slate-50 cursor-pointer transition-colors ${
-                        !isCategoryMatch ? 'opacity-40 bg-slate-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={!isCategoryMatch && !isSelected}
-                          onChange={e => {
-                            if (e.target.checked) {
-                              if (selectedStudentIds.length >= selectedItemForReg.max_participants) {
-                                alert(`Maximum participant limit (${selectedItemForReg.max_participants}) reached for this event.`);
-                                return;
+                    return (
+                      <label
+                        key={s.id}
+                        className={`flex items-center justify-between p-2.5 text-xs hover:bg-slate-50 cursor-pointer transition-colors ${
+                          !isCategoryMatch ? 'opacity-40 bg-slate-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!isCategoryMatch && !isSelected}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                if (selectedStudentIds.length >= maxPart) {
+                                  alert(`Maximum participant limit (${maxPart}) reached for this event.`);
+                                  return;
+                                }
+                                setSelectedStudentIds([...selectedStudentIds, s.id]);
+                              } else {
+                                setSelectedStudentIds(selectedStudentIds.filter(id => id !== s.id));
                               }
-                              setSelectedStudentIds([...selectedStudentIds, s.id]);
-                            } else {
-                              setSelectedStudentIds(selectedStudentIds.filter(id => id !== s.id));
-                            }
-                          }}
-                          className="rounded border-slate-300 text-[#132238] focus:ring-[#132238]"
-                        />
-                        <div>
-                          <div className="font-semibold text-[#132238]">{s.full_name}</div>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Chest: {s.chest_no} | Adm: {s.admission_no}
-                          </span>
+                            }}
+                            className="rounded border-slate-300 text-[#132238] focus:ring-[#132238]"
+                          />
+                          <div>
+                            <div className="font-semibold text-[#132238]">{s.full_name || s.name}</div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Chest: {s.chest_no} | Adm: {s.admission_no}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <CategoryBadge category={s.category} />
-                    </label>
-                  );
-                })}
+                        <CategoryBadge category={sCat || 'Senior'} />
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="pt-4 flex items-center justify-between">
-              <div className="text-xs">
-                {selectedStudentIds.length < selectedItemForReg.min_participants && (
-                  <span className="text-rose-600 font-medium">
-                    Need at least {selectedItemForReg.min_participants} participant(s).
-                  </span>
-                )}
-                {selectedStudentIds.length >= selectedItemForReg.min_participants &&
-                  selectedStudentIds.length <= selectedItemForReg.max_participants && (
-                    <span className="text-emerald-600 font-medium">Capacity verified!</span>
+              <div className="pt-4 flex items-center justify-between">
+                <div className="text-xs">
+                  {selectedStudentIds.length < minPart && (
+                    <span className="text-rose-600 font-medium">
+                      Need at least {minPart} participant(s).
+                    </span>
                   )}
+                  {selectedStudentIds.length >= minPart &&
+                    selectedStudentIds.length <= maxPart && (
+                      <span className="text-emerald-600 font-medium">Capacity verified!</span>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsRegisterModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={
+                      selectedStudentIds.length < minPart ||
+                      selectedStudentIds.length > maxPart
+                    }
+                  >
+                    Save Registration
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsRegisterModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={
-                    selectedStudentIds.length < selectedItemForReg.min_participants ||
-                    selectedStudentIds.length > selectedItemForReg.max_participants
-                  }
-                >
-                  Save Registration
-                </Button>
-              </div>
-            </div>
-          </form>
-        )}
+            </form>
+          );
+        })()}
       </Modal>
 
       {/* Modal: Appeal Filing */}
