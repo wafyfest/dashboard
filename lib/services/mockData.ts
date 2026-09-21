@@ -15,24 +15,26 @@ import {
 
 export const initialFestSettings: FestSettings = {
   id: 1,
-  fest_name: 'Kala Utsav 2026 - Inter-College Arts Fest',
-  reg_deadline: new Date(Date.now() + 4 * 86400000).toISOString(), // 4 days from now
-  fine_deadline: new Date(Date.now() + 7 * 86400000).toISOString(), // 7 days from now
-  rulebook_url: 'https://example.com/kala_utsav_rules.pdf'
+  fest_name: 'WSF Arts Fest 2025',
+  reg_deadline: new Date(Date.now() + 4 * 86400000).toISOString(),
+  fine_deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
+  rulebook_url: 'https://example.com/wsf_arts_manual.pdf'
 };
 
 export const initialColleges: College[] = [
   {
     id: 'col-1',
-    name: 'St. Teresa National College',
-    code: 'STNC',
-    affiliation_no: 'AF-2024-019',
-    email: 'fest@stnc.edu',
-    address: '12 Riverbank Road, City Center',
-    coordinator_name: 'Dr. Evelyn Thomas',
-    coordinator_phone: '+91 98471 23456',
-    manager_name: 'Prof. Mathew Joseph',
-    manager_phone: '+91 98471 99887',
+    name: 'PMSA POOKOYA THANGAL ISLAMIC & ARTS COLLEGE',
+    code: 'PMSA',
+    affiliation_no: '11',
+    email: 'masapmsawafy@gmail.com',
+    address: 'Kattilangadi, Athavanad, Athikkattukunnu Rd, Kurumbathur, Kerala 676310',
+    coordinator_name: 'Usthad Shafi Wafy',
+    coordinator_phone: '9645845185',
+    manager_name: 'Akbar shuhaib',
+    manager_phone: '9539629410',
+    asst_manager_name: 'Muhammed Minhaj',
+    asst_manager_phone: '7306729618',
     fine_status: false,
     manual_lock_override: false,
     created_at: new Date().toISOString()

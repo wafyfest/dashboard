@@ -28,6 +28,8 @@ export interface College {
   coordinator_phone?: string | null;
   manager_name?: string | null;
   manager_phone?: string | null;
+  asst_manager_name?: string | null;
+  asst_manager_phone?: string | null;
   fine_status: boolean;
   manual_lock_override: boolean;
   created_at?: string;
