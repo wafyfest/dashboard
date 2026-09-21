@@ -294,7 +294,7 @@ export default function CollegePortalPage() {
               </div>
             </div>
 
-            {/* Bottom Fest Manual / Fest Rulebook Button */}
+            {/* Bottom Fest_ Manual / Fest Rulebook Button */}
             <div>
               <a
                 href={festSettings.rulebook_url || '#'}
