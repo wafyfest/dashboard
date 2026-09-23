@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-canvas: #EEF2F6;
+  --color-navy: #132238;
+  --color-navy-light: #1E3354;
+  --color-navy-dark: #0C1625;
+  --color-navy-hover: #192B45;
+
+  --color-slate-850: #15202E;
+  --color-slate-950: #080E18;
+
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+
+  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --shadow-elevated: 0 10px 30px -5px rgba(19, 34, 56, 0.08);
+}
+
 :root {
   --background: #EEF2F6;
   --foreground: #132238;
@@ -8,6 +29,7 @@
 body {
   background-color: #EEF2F6;
   color: #132238;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
