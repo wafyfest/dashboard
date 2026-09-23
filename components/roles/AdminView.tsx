@@ -25,9 +25,24 @@ import {
 } from 'lucide-react';
 import { Item, College, ItemType, StudentCategory, EntryLock } from '@/lib/types/fest';
 
-export function AdminView() {
+export type AdminTab = 'overview' | 'locks_matrix' | 'settings' | 'items' | 'colleges' | 'appeals' | 'results';
+
+interface AdminViewProps {
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
+}
+
+export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewProps = {}) {
   const { festSettings, triggerRefresh } = useFest();
-  const [activeTab, setActiveTab] = useState<'overview' | 'locks_matrix' | 'settings' | 'items' | 'colleges' | 'appeals' | 'results'>('overview');
+  const [internalTab, setInternalTab] = useState<AdminTab>('overview');
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = (tab: AdminTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
 
   // Local state for modals & forms
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -254,7 +269,7 @@ export function AdminView() {
 
   return (
     <div className="space-y-6">
-      {/* Admin Title & Quick Tabs */}
+      {/* Admin Title Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -265,31 +280,6 @@ export function AdminView() {
             <span className="text-xs text-slate-500">Full System Control & RLS Authority</span>
           </div>
           <h2 className="text-xl font-bold text-[#132238] mt-1">Festival Operations & Access Control</h2>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200/80 shadow-sm overflow-x-auto">
-          {[
-            { id: 'overview', label: 'Overview' },
-            { id: 'locks_matrix', label: 'Entry Locks Matrix' },
-            { id: 'settings', label: 'Deadlines & Branding' },
-            { id: 'items', label: 'Events Catalog' },
-            { id: 'colleges', label: 'Colleges' },
-            { id: 'appeals', label: `Appeals (${appeals.filter(a => a.status === 'Pending').length})` },
-            { id: 'results', label: 'Results & Points' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-[#132238] text-white'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
         </div>
       </div>
 

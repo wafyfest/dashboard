@@ -4,17 +4,18 @@ import React, { useState } from 'react';
 import {
   ClipboardPen,
   Lock,
-  Trophy
+  BookOpen
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
-import { ResultEntryView } from '@/components/roles/ResultEntryView';
+import { ResultEntryView, ResultEntryTab } from '@/components/roles/ResultEntryView';
 
 export default function ResultEntryPage() {
-  const [activeTab, setActiveTab] = useState<string>('scoring');
+  const [activeTab, setActiveTab] = useState<ResultEntryTab>('scoring');
 
   const navItems: NavItem[] = [
-    { id: 'scoring', label: 'Tabular Scoring', icon: ClipboardPen },
-    { id: 'write_once', label: 'Write-Once Lock Status', icon: Lock }
+    { id: 'scoring', label: 'Score Entry Console', icon: ClipboardPen },
+    { id: 'published', label: 'Published Results Registry', icon: Lock },
+    { id: 'rubrics', label: 'Judging Rubrics & Rules', icon: BookOpen }
   ];
 
   return (
@@ -23,10 +24,10 @@ export default function ResultEntryPage() {
       roleBadge="Result Entry"
       navItems={navItems}
       activeItemId={activeTab}
-      onSelectNavItem={setActiveTab}
+      onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
     >
       <div className="max-w-7xl mx-auto">
-        <ResultEntryView />
+        <ResultEntryView activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </DashboardLayout>
   );

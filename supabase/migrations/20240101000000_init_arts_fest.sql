@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Enums
-CREATE TYPE user_role AS ENUM ('admin', 'college', 'stage_controller', 'result_entry');
+CREATE TYPE user_role AS ENUM ('admin', 'college', 'stage_controller', 'result_entry', 'student');
 CREATE TYPE college_type AS ENUM ('wafy', 'prof');
 CREATE TYPE item_mode AS ENUM ('onstage', 'offstage', 'submission');
 CREATE TYPE point_type AS ENUM ('individual', 'group');
@@ -278,8 +278,6 @@ CREATE POLICY "Items managed by admin" ON items FOR ALL USING (auth_user_role() 
 
 CREATE POLICY "Fest settings readable by all" ON fest_settings FOR SELECT USING (true);
 CREATE POLICY "Fest settings managed by admin" ON fest_settings FOR ALL USING (auth_user_role() = 'admin');
-
-CREATE POLICY "Max participation readable by all" ON max_participation FOR SELECT USING (true);
 CREATE POLICY "Max participation managed by admin" ON max_participation FOR ALL USING (auth_user_role() = 'admin');
 
 CREATE POLICY "Points matrix readable by all" ON points_matrix FOR SELECT USING (true);

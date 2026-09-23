@@ -19,9 +19,24 @@ import {
 } from 'lucide-react';
 import { Student } from '@/lib/types/fest';
 
-export function StudentView() {
+export type StudentTab = 'schedule' | 'admit_card' | 'results';
+
+interface StudentViewProps {
+  activeTab?: StudentTab;
+  onTabChange?: (tab: StudentTab) => void;
+}
+
+export function StudentView({ activeTab: controlledTab, onTabChange }: StudentViewProps = {}) {
   const [searchQuery, setSearchQuery] = useState('CH-101');
-  const [activeTab, setActiveTab] = useState<'schedule' | 'admit_card' | 'results'>('schedule');
+  const [internalTab, setInternalTab] = useState<StudentTab>('schedule');
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = (tab: StudentTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
 
   const students = festService.getStudents();
   const colleges = festService.getColleges();

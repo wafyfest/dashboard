@@ -7,15 +7,15 @@ import {
   Calendar
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
-import { StageControllerView } from '@/components/roles/StageControllerView';
+import { StageControllerView, StageControllerTab } from '@/components/roles/StageControllerView';
 
 export default function StageControllerPage() {
-  const [activeTab, setActiveTab] = useState<string>('relay');
+  const [activeTab, setActiveTab] = useState<StageControllerTab>('relay');
 
   const navItems: NavItem[] = [
-    { id: 'relay', label: 'Backstage Tablet', icon: Radio },
+    { id: 'relay', label: 'Backstage Tablet & Queue', icon: Radio },
     { id: 'blind_allotment', label: 'Blind Judging Allotment', icon: Shuffle },
-    { id: 'all_schedules', label: 'Stage Schedules', icon: Calendar }
+    { id: 'all_schedules', label: 'Stage Schedules & Timeline', icon: Calendar }
   ];
 
   return (
@@ -24,10 +24,10 @@ export default function StageControllerPage() {
       roleBadge="Stage Controller"
       navItems={navItems}
       activeItemId={activeTab}
-      onSelectNavItem={setActiveTab}
+      onSelectNavItem={(id) => setActiveTab(id as StageControllerTab)}
     >
       <div className="max-w-7xl mx-auto">
-        <StageControllerView />
+        <StageControllerView activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </DashboardLayout>
   );

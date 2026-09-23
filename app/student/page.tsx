@@ -7,10 +7,10 @@ import {
   Trophy
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
-import { StudentView } from '@/components/roles/StudentView';
+import { StudentView, StudentTab } from '@/components/roles/StudentView';
 
 export default function StudentPage() {
-  const [activeTab, setActiveTab] = useState<string>('schedule');
+  const [activeTab, setActiveTab] = useState<StudentTab>('schedule');
 
   const navItems: NavItem[] = [
     { id: 'schedule', label: 'My Schedule', icon: Calendar },
@@ -24,10 +24,10 @@ export default function StudentPage() {
       roleBadge="Student Viewer"
       navItems={navItems}
       activeItemId={activeTab}
-      onSelectNavItem={setActiveTab}
+      onSelectNavItem={(id) => setActiveTab(id as StudentTab)}
     >
       <div className="max-w-7xl mx-auto">
-        <StudentView />
+        <StudentView activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </DashboardLayout>
   );

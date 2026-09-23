@@ -7,17 +7,19 @@ import {
   Award,
   Building2,
   AlertTriangle,
-  Trophy
+  Trophy,
+  Lock
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
-import { AdminView } from '@/components/roles/AdminView';
+import { AdminView, AdminTab } from '@/components/roles/AdminView';
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   const navItems: NavItem[] = [
     { id: 'overview', label: 'Fest Overview', icon: ShieldAlert },
-    { id: 'settings', label: 'Deadlines & Locks', icon: Clock },
+    { id: 'locks_matrix', label: 'Entry Locks Matrix', icon: Lock },
+    { id: 'settings', label: 'Deadlines & Branding', icon: Clock },
     { id: 'items', label: 'Events Catalog', icon: Award },
     { id: 'colleges', label: 'Colleges & Overrides', icon: Building2 },
     { id: 'appeals', label: 'Appeals & Replacements', icon: AlertTriangle },
@@ -30,10 +32,10 @@ export default function AdminPage() {
       roleBadge="Executive Admin"
       navItems={navItems}
       activeItemId={activeTab}
-      onSelectNavItem={setActiveTab}
+      onSelectNavItem={(id) => setActiveTab(id as AdminTab)}
     >
       <div className="max-w-7xl mx-auto">
-        <AdminView />
+        <AdminView activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </DashboardLayout>
   );
