@@ -241,14 +241,15 @@ export interface Replacement {
   replacement_student?: Student;
 }
 
-export interface CollegeItemLock {
-  id: string;
-  college_affl_no: number;
-  college_id?: string;
+export interface EntryLock {
   item_id: number;
-  is_unlocked: boolean;
-  unlocked_until?: string | null;
+  college_affl_no: number;
+  is_open: boolean;
+  updated_at?: string;
 }
+
+// Backwards-compatibility alias
+export type CollegeItemLock = EntryLock;
 
 export interface FestSettings {
   id: number;

@@ -3,6 +3,7 @@ import {
   Student,
   Item,
   FestSettings,
+  EntryLock,
   CollegeItemLock,
   Registration,
   RegistrationLog,
@@ -30,6 +31,7 @@ import {
   initialSubmissionEntries,
   initialSchedules,
   initialResults,
+  initialEntryLocks,
   initialCollegeItemLocks,
   initialAppeals,
   initialMaxParticipation,
@@ -91,6 +93,9 @@ class FestService {
       const { data: resData } = await client.from('results').select('*');
       if (resData && resData.length > 0) this.setStorage('results', resData);
 
+      const { data: lockData } = await client.from('entry_locks').select('*');
+      if (lockData && lockData.length > 0) this.setStorage('entryLocks', lockData);
+
       return true;
     } catch (err) {
       console.warn('Notice: Supabase sync deferred (using local cache until tables populated):', err);
@@ -104,7 +109,7 @@ class FestService {
     const keys = [
       'festSettings', 'colleges', 'items', 'stages', 'students',
       'registrations', 'registration_logs', 'schedules', 'results',
-      'itemLocks', 'appeals', 'submissions', 'maxParticipation', 'replacements'
+      'entryLocks', 'itemLocks', 'appeals', 'submissions', 'maxParticipation', 'replacements'
     ];
     keys.forEach(k => localStorage.removeItem(STORAGE_KEY_PREFIX + k));
   }
@@ -143,13 +148,18 @@ class FestService {
     if (!item) return { canRegister: false, reason: 'Event not found', isFinePeriod: false };
     if (!college) return { canRegister: false, reason: 'College not found', isFinePeriod: false };
 
+    // Check 2D Matrix Cell: entry_locks(item_id, college_affl_no)
+    const entryLocks = this.getEntryLocks();
+    const cell = entryLocks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
+
+    // If explicitly marked closed in the matrix:
+    if (cell && !cell.is_open) {
+      return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
+    }
+
     if (item.is_locked) {
-      const locks = this.getCollegeItemLocks();
-      const specificLock = locks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
-      if (specificLock && specificLock.is_unlocked) {
-        if (!specificLock.unlocked_until || new Date(specificLock.unlocked_until) > now) {
-          return { canRegister: true, isFinePeriod: false };
-        }
+      if (cell && cell.is_open) {
+        return { canRegister: true, isFinePeriod: false };
       }
       return { canRegister: false, reason: 'Event is globally locked by fest admin', isFinePeriod: false };
     }
@@ -169,12 +179,9 @@ class FestService {
       return { canRegister: true, isFinePeriod: true, reason: 'Late Registration Fine Applicable' };
     }
 
-    const locks = this.getCollegeItemLocks();
-    const specificLock = locks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
-    if (specificLock && specificLock.is_unlocked) {
-      if (!specificLock.unlocked_until || new Date(specificLock.unlocked_until) > now) {
-        return { canRegister: true, isFinePeriod: true, reason: 'Admin Granular Unlock Active' };
-      }
+    // Past deadline: if admin explicitly marked open in matrix, permit registration
+    if (cell && cell.is_open) {
+      return { canRegister: true, isFinePeriod: true, reason: 'Admin Matrix Permission Active' };
     }
 
     return { canRegister: false, reason: 'Registration deadline has passed', isFinePeriod: false };
@@ -315,39 +322,134 @@ class FestService {
     return newItem;
   }
 
-  // --- Granular Item Locks ---
-  public getCollegeItemLocks(): CollegeItemLock[] {
-    return this.getStorage('itemLocks', initialCollegeItemLocks);
+  // --- Entry Locks Matrix ---
+  public getEntryLocks(): EntryLock[] {
+    const raw = this.getStorage<EntryLock[]>('entryLocks', initialEntryLocks);
+    const colleges = this.getColleges();
+    const items = this.getItems();
+    let updated = false;
+    const locks = [...raw];
+
+    items.forEach(item => {
+      colleges.forEach(col => {
+        const found = locks.find(l => l.item_id === item.item_id && l.college_affl_no === col.affl_no);
+        if (!found) {
+          locks.push({
+            item_id: item.item_id,
+            college_affl_no: col.affl_no,
+            is_open: !item.is_locked
+          });
+          updated = true;
+        }
+      });
+    });
+
+    if (updated) {
+      this.setStorage('entryLocks', locks);
+    }
+    return locks;
   }
 
-  public setCollegeItemLock(collegeAfflNoOrId: number | string, itemIdOrCode: number | string, isUnlocked: boolean, hoursValid: number = 24): CollegeItemLock {
+  // Alias for backward compatibility
+  public getCollegeItemLocks(): EntryLock[] {
+    return this.getEntryLocks();
+  }
+
+  public setEntryLockCell(itemId: number, collegeAfflNo: number, isOpen: boolean): EntryLock {
+    const locks = this.getEntryLocks();
+    const idx = locks.findIndex(l => l.item_id === itemId && l.college_affl_no === collegeAfflNo);
+    const now = new Date().toISOString();
+
+    let resultLock: EntryLock;
+    if (idx >= 0) {
+      locks[idx].is_open = isOpen;
+      locks[idx].updated_at = now;
+      resultLock = locks[idx];
+    } else {
+      resultLock = {
+        item_id: itemId,
+        college_affl_no: collegeAfflNo,
+        is_open: isOpen,
+        updated_at: now
+      };
+      locks.push(resultLock);
+    }
+    this.setStorage('entryLocks', locks);
+
+    const client = supabase;
+    if (client) {
+      Promise.resolve(
+        client.from('entry_locks').upsert({
+          item_id: itemId,
+          college_affl_no: collegeAfflNo,
+          is_open: isOpen,
+          updated_at: now
+        })
+      ).catch(err => console.warn('Supabase entry_locks upsert error:', err));
+    }
+
+    return resultLock;
+  }
+
+  public setEntryLockRow(itemId: number, isOpen: boolean): void {
+    const colleges = this.getColleges();
+    const locks = this.getEntryLocks();
+    const now = new Date().toISOString();
+
+    colleges.forEach(col => {
+      const idx = locks.findIndex(l => l.item_id === itemId && l.college_affl_no === col.affl_no);
+      if (idx >= 0) {
+        locks[idx].is_open = isOpen;
+        locks[idx].updated_at = now;
+      } else {
+        locks.push({
+          item_id: itemId,
+          college_affl_no: col.affl_no,
+          is_open: isOpen,
+          updated_at: now
+        });
+      }
+    });
+
+    // Also update item.is_locked flag to keep consistency
+    const items = this.getItems();
+    const itm = items.find(i => i.item_id === itemId);
+    if (itm) {
+      itm.is_locked = !isOpen;
+      this.setStorage('items', items);
+    }
+
+    this.setStorage('entryLocks', locks);
+
+    const client = supabase;
+    if (client) {
+      colleges.forEach(col => {
+        Promise.resolve(
+          client.from('entry_locks').upsert({
+            item_id: itemId,
+            college_affl_no: col.affl_no,
+            is_open: isOpen,
+            updated_at: now
+          })
+        ).catch(() => {});
+      });
+    }
+  }
+
+  public setAllEntryLocks(isOpen: boolean): void {
+    const items = this.getItems();
+    items.forEach(itm => {
+      this.setEntryLockRow(itm.item_id, isOpen);
+    });
+  }
+
+  // Backward compatibility helper
+  public setCollegeItemLock(collegeAfflNoOrId: number | string, itemIdOrCode: number | string, isUnlocked: boolean): EntryLock {
     const college = this.getCollege(collegeAfflNoOrId);
     const item = this.getItem(itemIdOrCode);
-    const affl = college ? college.affl_no : 11;
-    const itmId = item ? item.item_id : 1;
-
-    const locks = this.getCollegeItemLocks();
-    const idx = locks.findIndex(l => l.college_affl_no === affl && l.item_id === itmId);
-    const validUntil = new Date(Date.now() + hoursValid * 3600000).toISOString();
-
-    if (idx >= 0) {
-      locks[idx].is_unlocked = isUnlocked;
-      locks[idx].unlocked_until = isUnlocked ? validUntil : null;
-      this.setStorage('itemLocks', locks);
-      return locks[idx];
-    } else {
-      const newLock: CollegeItemLock = {
-        id: `cil-${Date.now()}`,
-        college_affl_no: affl,
-        college_id: `col-${affl}`,
-        item_id: itmId,
-        is_unlocked: isUnlocked,
-        unlocked_until: isUnlocked ? validUntil : null
-      };
-      locks.push(newLock);
-      this.setStorage('itemLocks', locks);
-      return newLock;
-    }
+    const affl = college ? college.affl_no : Number(collegeAfflNoOrId) || 11;
+    const itmId = item ? item.item_id : Number(itemIdOrCode) || 1;
+    return this.setEntryLockCell(itmId, affl, isUnlocked);
   }
 
   // --- Students ---

@@ -202,14 +202,13 @@ CREATE TABLE appeals (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 15. College Item Granular Locks
-CREATE TABLE college_item_locks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+-- 15. Entry Locks Matrix
+CREATE TABLE entry_locks (
   item_id INT REFERENCES items(item_id) ON DELETE CASCADE,
-  is_unlocked BOOLEAN NOT NULL DEFAULT true,
-  unlocked_until TIMESTAMPTZ,
-  UNIQUE(college_affl_no, item_id)
+  college_affl_no INT REFERENCES colleges(affl_no) ON DELETE CASCADE,
+  is_open BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (item_id, college_affl_no)
 );
 
 -- 16. System Settings
@@ -251,7 +250,7 @@ ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE points_matrix ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appeals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE college_item_locks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entry_locks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fest_settings ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
@@ -358,11 +357,11 @@ CREATE POLICY "Appeals updatable by admin"
   ON appeals FOR UPDATE
   USING (auth_user_role() = 'admin');
 
--- Granular Locks
-CREATE POLICY "Locks readable by admin or college"
-  ON college_item_locks FOR SELECT
+-- 15. Entry Locks Matrix
+CREATE POLICY "Entry locks readable by admin or college"
+  ON entry_locks FOR SELECT
   USING (auth_user_role() = 'admin' OR college_affl_no = auth_user_affl_no());
 
-CREATE POLICY "Locks managed by admin"
-  ON college_item_locks FOR ALL
+CREATE POLICY "Entry locks managed by admin"
+  ON entry_locks FOR ALL
   USING (auth_user_role() = 'admin');

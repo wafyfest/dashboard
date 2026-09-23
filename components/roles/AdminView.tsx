@@ -23,11 +23,11 @@ import {
   Award,
   Users
 } from 'lucide-react';
-import { Item, College, ItemType, StudentCategory } from '@/lib/types/fest';
+import { Item, College, ItemType, StudentCategory, EntryLock } from '@/lib/types/fest';
 
 export function AdminView() {
   const { festSettings, triggerRefresh } = useFest();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'items' | 'colleges' | 'appeals' | 'results'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'locks_matrix' | 'settings' | 'items' | 'colleges' | 'appeals' | 'results'>('overview');
 
   // Local state for modals & forms
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -40,11 +40,6 @@ export function AdminView() {
     max_participants: 1
   });
 
-  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
-  const [unlockTargetCollege, setUnlockTargetCollege] = useState<string>('');
-  const [unlockTargetItem, setUnlockTargetItem] = useState<string>('');
-  const [unlockHours, setUnlockHours] = useState<number>(24);
-
   const [appealRemarks, setAppealRemarks] = useState<{ [id: string]: string }>({});
 
   const colleges = festService.getColleges();
@@ -54,7 +49,7 @@ export function AdminView() {
   const appeals = festService.getAppeals();
   const replacements = festService.getReplacements();
   const results = festService.getResults();
-  const locks = festService.getCollegeItemLocks();
+  const locks = festService.getEntryLocks();
   const schedules = festService.getSchedules();
 
   // Settings edit state
@@ -92,17 +87,170 @@ export function AdminView() {
     triggerRefresh();
   };
 
-  const handleCreateSelectiveUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unlockTargetCollege || !unlockTargetItem) {
-      alert('Please select both a college and an item');
-      return;
-    }
-    festService.setCollegeItemLock(unlockTargetCollege, unlockTargetItem, true, unlockHours);
-    setIsUnlockModalOpen(false);
-    triggerRefresh();
-    alert('Granular unlock successfully granted to institution!');
-  };
+  const renderLocksMatrixCard = () => (
+    <Card className="w-full">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <CardTitle>Entry Locks Matrix</CardTitle>
+            <Badge variant="navy">2D Permissions Grid</Badge>
+          </div>
+          <CardDescription>
+            Header columns: College Affiliation IDs. First column: Event Details & Row Toggle. Click any cell to open or close registration.
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="xs"
+            variant="outline"
+            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+            onClick={() => {
+              festService.setAllEntryLocks(true);
+              triggerRefresh();
+            }}
+          >
+            <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Open All
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            className="text-rose-700 border-rose-300 hover:bg-rose-50"
+            onClick={() => {
+              festService.setAllEntryLocks(false);
+              triggerRefresh();
+            }}
+          >
+            <Lock className="w-3.5 h-3.5 mr-1 text-rose-600" /> Lock All
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50">
+              <TableHead className="w-80 min-w-[280px] font-bold text-[#132238]">
+                Item ID & Event Name
+              </TableHead>
+              {colleges.map(col => (
+                <TableHead key={col.id} className="text-center min-w-[130px] font-bold text-[#132238]">
+                  <div className="flex flex-col items-center">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-800">
+                      #{col.affl_no}
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[120px] mt-0.5" title={col.name}>
+                      {col.short_name || col.code || col.name}
+                    </span>
+                  </div>
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map(item => {
+              const itemCells = colleges.map(col => {
+                const cell = locks.find(l => l.item_id === item.item_id && l.college_affl_no === col.affl_no);
+                return cell ? cell.is_open : !item.is_locked;
+              });
+              const allOpen = itemCells.every(open => open);
+
+              return (
+                <TableRow key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                  {/* First Column: Item ID, Event Name & Row Lock Toggle */}
+                  <TableCell className="font-medium">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-800">
+                            {item.item_id ? String(item.item_id).padStart(2, '0') : item.code}
+                          </span>
+                          <span className="font-semibold text-sm text-[#132238]">
+                            {item.name_eng || item.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                          <span>{item.phase || item.category}</span>
+                          <span>•</span>
+                          <span className="font-mono">{item.mode}</span>
+                          {item.name_mal && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-400">{item.name_mal}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Row Lock Toggle Button */}
+                      <button
+                        type="button"
+                        title={allOpen ? 'Lock row for all colleges' : 'Open row for all colleges'}
+                        onClick={() => {
+                          festService.setEntryLockRow(item.item_id, !allOpen);
+                          triggerRefresh();
+                        }}
+                        className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors ${
+                          allOpen
+                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                        }`}
+                      >
+                        {allOpen ? (
+                          <>
+                            <Unlock className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-[10px]">Open</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="text-[10px]">Locked</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </TableCell>
+
+                  {/* College Cells */}
+                  {colleges.map(col => {
+                    const cell = locks.find(l => l.item_id === item.item_id && l.college_affl_no === col.affl_no);
+                    const isOpen = cell ? cell.is_open : !item.is_locked;
+
+                    return (
+                      <TableCell key={col.id} className="text-center p-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
+                            triggerRefresh();
+                          }}
+                          className={`w-full py-1.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-xs border ${
+                            isOpen
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                          }`}
+                        >
+                          {isOpen ? (
+                            <>
+                              <Unlock className="w-3 h-3 text-emerald-600" />
+                              <span>Open</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-3 h-3 text-rose-600" />
+                              <span>Closed</span>
+                            </>
+                          )}
+                        </button>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
@@ -123,9 +271,10 @@ export function AdminView() {
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200/80 shadow-sm overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview' },
-            { id: 'settings', label: 'Deadlines & Locks' },
+            { id: 'locks_matrix', label: 'Entry Locks Matrix' },
+            { id: 'settings', label: 'Deadlines & Branding' },
             { id: 'items', label: 'Events Catalog' },
-            { id: 'colleges', label: 'Colleges & Overrides' },
+            { id: 'colleges', label: 'Colleges' },
             { id: 'appeals', label: `Appeals (${appeals.filter(a => a.status === 'Pending').length})` },
             { id: 'results', label: 'Results & Points' }
           ].map(tab => (
@@ -192,8 +341,8 @@ export function AdminView() {
             </Card>
           </div>
 
-          {/* Activity Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Activity Section */}
+          <div className="space-y-6">
             {/* Live Schedules Snapshot */}
             <Card>
               <CardHeader>
@@ -243,70 +392,14 @@ export function AdminView() {
               </CardContent>
             </Card>
 
-            {/* Granular Unlocks & Overrides */}
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>Active Granular Overrides</CardTitle>
-                  <CardDescription>Selective permissions overriding global registration locks</CardDescription>
-                </div>
-                <Button size="xs" variant="outline" onClick={() => setIsUnlockModalOpen(true)}>
-                  <Plus className="w-3 h-3" /> Grant Unlock
-                </Button>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>College</TableHead>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Expires</TableHead>
-                      <TableHead>Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {locks.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-6 text-slate-400">
-                          No active granular unlocks
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      locks.map(l => {
-                        const col = colleges.find(c => c.affl_no === l.college_affl_no || c.id === l.college_id);
-                        const itm = items.find(i => i.item_id === l.item_id || i.id === String(l.item_id));
-                        return (
-                          <TableRow key={l.id}>
-                            <TableCell className="font-medium text-[#132238]">{col?.name}</TableCell>
-                            <TableCell>{itm?.name_eng || itm?.name}</TableCell>
-                            <TableCell className="font-mono text-slate-500">
-                              {l.unlocked_until
-                                ? new Date(l.unlocked_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                : 'Permanent'}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="xs"
-                                variant="destructive"
-                                onClick={() => {
-                                  festService.setCollegeItemLock(l.college_affl_no, l.item_id, false);
-                                  triggerRefresh();
-                                }}
-                              >
-                                Revoke
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            {/* Entry Locks Matrix */}
+            {renderLocksMatrixCard()}
           </div>
         </div>
       )}
+
+      {/* 2. ENTRY LOCKS MATRIX TAB */}
+      {activeTab === 'locks_matrix' && renderLocksMatrixCard()}
 
       {/* 2. SETTINGS & DEADLINES TAB */}
       {activeTab === 'settings' && (
@@ -488,8 +581,8 @@ export function AdminView() {
                 Toggle manual lock overrides and fine exemptions per institution
               </CardDescription>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setIsUnlockModalOpen(true)}>
-              <Unlock className="w-3.5 h-3.5" /> Granular Event Unlock
+            <Button size="sm" variant="outline" onClick={() => setActiveTab('locks_matrix')}>
+              <Unlock className="w-3.5 h-3.5" /> View Locks Matrix
             </Button>
           </CardHeader>
           <CardContent className="p-0">
@@ -955,73 +1048,6 @@ export function AdminView() {
               Cancel
             </Button>
             <Button type="submit">Save Event</Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Grant Granular Unlock */}
-      <Modal
-        isOpen={isUnlockModalOpen}
-        onClose={() => setIsUnlockModalOpen(false)}
-        title="Grant Granular Institution Unlock"
-        description="Provide a time-bound registration override for a specific college and event"
-      >
-        <form onSubmit={handleCreateSelectiveUnlock} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Select Institution</label>
-            <select
-              value={unlockTargetCollege}
-              onChange={e => setUnlockTargetCollege(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
-              required
-            >
-              <option value="">-- Choose College --</option>
-              {colleges.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.code} - {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Select Event to Unlock</label>
-            <select
-              value={unlockTargetItem}
-              onChange={e => setUnlockTargetItem(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
-              required
-            >
-              <option value="">-- Choose Event --</option>
-              {items.map(i => (
-                <option key={i.id} value={i.id}>
-                  {i.code}: {i.name} ({i.category})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Unlock Duration (Hours)</label>
-            <input
-              type="number"
-              min={1}
-              max={168}
-              value={unlockHours}
-              onChange={e => setUnlockHours(parseInt(e.target.value) || 24)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
-              required
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              After this window, the lock will automatically reinstate.
-            </p>
-          </div>
-
-          <div className="pt-4 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsUnlockModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Grant Override</Button>
           </div>
         </form>
       </Modal>

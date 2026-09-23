@@ -135,3 +135,16 @@ INSERT INTO registrations (item_id, college_affl_no, chest_no, code_letter) VALU
   -- Qiraath from College 102
   (1, 102, 'CH-201', 'B')
 ON CONFLICT (item_id, chest_no) DO NOTHING;
+
+-- 9. Entry Locks Matrix (Item IDs as rows, College Affiliation Numbers as columns)
+INSERT INTO entry_locks (item_id, college_affl_no, is_open) VALUES
+  (1, 11, true),  (1, 101, true),  (1, 102, true),
+  (2, 11, true),  (2, 101, false), (2, 102, true),
+  (3, 11, true),  (3, 101, true),  (3, 102, true),
+  (4, 11, true),  (4, 101, true),  (4, 102, true),
+  (5, 11, true),  (5, 101, true),  (5, 102, false),
+  (6, 11, true),  (6, 101, true),  (6, 102, true),
+  (7, 11, true),  (7, 101, true),  (7, 102, true),
+  (8, 11, true),  (8, 101, true),  (8, 102, true),
+  (9, 11, false), (9, 101, false), (9, 102, false)
+ON CONFLICT (item_id, college_affl_no) DO NOTHING;

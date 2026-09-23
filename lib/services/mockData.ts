@@ -3,6 +3,7 @@ import {
   Student,
   Item,
   FestSettings,
+  EntryLock,
   CollegeItemLock,
   Registration,
   RegistrationLog,
@@ -546,15 +547,34 @@ export const initialAppeals: Appeal[] = [
   }
 ];
 
-export const initialCollegeItemLocks: CollegeItemLock[] = [
-  {
-    id: 'cil-1',
-    college_affl_no: 11,
-    item_id: 3,
-    is_unlocked: true,
-    unlocked_until: new Date(Date.now() + 2 * 86400000).toISOString()
-  }
+export const initialEntryLocks: EntryLock[] = [
+  // Item 1: Quran
+  { item_id: 1, college_affl_no: 11, is_open: true },
+  { item_id: 1, college_affl_no: 101, is_open: true },
+  { item_id: 1, college_affl_no: 102, is_open: true },
+  // Item 2: Duff Muttu
+  { item_id: 2, college_affl_no: 11, is_open: true },
+  { item_id: 2, college_affl_no: 101, is_open: false },
+  { item_id: 2, college_affl_no: 102, is_open: true },
+  // Item 3: Essay Writing
+  { item_id: 3, college_affl_no: 11, is_open: true },
+  { item_id: 3, college_affl_no: 101, is_open: true },
+  { item_id: 3, college_affl_no: 102, is_open: true },
+  // Item 4: Malayalam Elocution
+  { item_id: 4, college_affl_no: 11, is_open: true },
+  { item_id: 4, college_affl_no: 101, is_open: true },
+  { item_id: 4, college_affl_no: 102, is_open: true },
+  // Item 5: Digital Poster Design
+  { item_id: 5, college_affl_no: 11, is_open: true },
+  { item_id: 5, college_affl_no: 101, is_open: true },
+  { item_id: 5, college_affl_no: 102, is_open: false },
+  // Item 6: Arabic Calligraphy
+  { item_id: 6, college_affl_no: 11, is_open: false },
+  { item_id: 6, college_affl_no: 101, is_open: false },
+  { item_id: 6, college_affl_no: 102, is_open: false }
 ];
+
+export const initialCollegeItemLocks = initialEntryLocks;
 
 export const mockProfiles: Record<string, Profile> = {
   admin: {
