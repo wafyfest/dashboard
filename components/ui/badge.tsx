@@ -80,16 +80,28 @@ export function StageStatusBadge({ status }: { status: string }) {
 }
 
 export function CategoryBadge({ category }: { category: string }) {
-  switch (category) {
-    case 'Sub_Junior':
-      return <Badge variant="secondary">Sub-Junior</Badge>;
-    case 'Junior':
-      return <Badge variant="purple">Junior</Badge>;
-    case 'Senior':
-      return <Badge variant="navy">Senior</Badge>;
-    case 'General':
-    default:
+  const norm = (category || '').toLowerCase().trim();
+  switch (norm) {
+    case 'foundation':
+      return <Badge variant="secondary">Foundation</Badge>;
+    case 'thamheediyya':
+    case 'thamheediya':
+      return <Badge variant="purple">Thamheediyya</Badge>;
+    case 'aliya':
+      return <Badge variant="navy">Aliya</Badge>;
+    case 'pg':
+      return <Badge variant="amber">PG</Badge>;
+    case 'general':
       return <Badge variant="default">General</Badge>;
+    case 'sub_junior':
+    case 'sub junior':
+      return <Badge variant="secondary">Foundation</Badge>;
+    case 'junior':
+      return <Badge variant="purple">Thamheediyya</Badge>;
+    case 'senior':
+      return <Badge variant="navy">Aliya</Badge>;
+    default:
+      return <Badge variant="default">{category || 'General'}</Badge>;
   }
 }
 

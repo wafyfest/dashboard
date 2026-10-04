@@ -969,13 +969,14 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
               <select
-                value={editingItem.category || 'Senior'}
+                value={editingItem.category || 'Aliya'}
                 onChange={e => setEditingItem({ ...editingItem, category: e.target.value as StudentCategory })}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
               >
-                <option value="Sub_Junior">Sub-Junior</option>
-                <option value="Junior">Junior</option>
-                <option value="Senior">Senior</option>
+                <option value="Foundation">Foundation</option>
+                <option value="Thamheediyya">Thamheediyya</option>
+                <option value="Aliya">Aliya</option>
+                <option value="PG">PG</option>
                 <option value="General">General</option>
               </select>
             </div>

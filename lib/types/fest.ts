@@ -12,7 +12,20 @@ export type StageStatus = 'Upcoming' | 'Next_Item' | 'Starting_Soon' | 'On_Going
 
 export type AppealStatus = 'Pending' | 'Approved' | 'Rejected';
 
-export type StudentCategory = 'Sub_Junior' | 'Junior' | 'Senior' | 'General';
+export type StudentCategory =
+  | 'Foundation'
+  | 'Thamheediyya'
+  | 'Aliya'
+  | 'PG'
+  | 'General'
+  | 'foundation'
+  | 'thamheediyya'
+  | 'aliya'
+  | 'pg'
+  | 'general'
+  | 'Sub_Junior'
+  | 'Junior'
+  | 'Senior';
 export type ItemType = 'Single' | 'Group';
 
 export interface Profile {

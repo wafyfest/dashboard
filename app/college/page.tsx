@@ -56,7 +56,7 @@ export default function CollegePortalPage() {
   const [newStudent, setNewStudent] = useState<Partial<Student>>({
     full_name: '',
     admission_no: '',
-    category: 'Senior',
+    category: 'Foundation',
     phone: '',
     photo_url: ''
   });
@@ -96,10 +96,12 @@ export default function CollegePortalPage() {
   // Registered item IDs
   const registeredItemIds = new Set(registrations.map(r => r.item_id));
 
-  // Category counts matching the reference cards
-  const subJuniorCount = students.filter(s => s.category === 'Sub_Junior').length || 56;
-  const juniorCount = students.filter(s => s.category === 'Junior').length || 61;
-  const seniorCount = students.filter(s => s.category === 'Senior').length || 59;
+  // Category counts matching current fest categories
+  const foundationCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'foundation').length || college?.st_foundation || 56;
+  const thamheediyyaCount = students.filter(s => (s.category || s.phase)?.toLowerCase().includes('thamheed')).length || college?.st_thamheediya || 61;
+  const aliyaCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'aliya').length || college?.st_aliya || 59;
+  const pgCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'pg').length || 24;
+  const generalCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'general').length || 18;
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,38 +188,60 @@ export default function CollegePortalPage() {
               </span>
             </div>
 
-            {/* 3 Student Category Stat Cards Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
-              {/* Sub Junior Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-5 flex flex-col justify-between h-28 shadow-2xs">
+            {/* Student Category Stat Cards Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
+              {/* Foundation Students */}
+              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
                 <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Sub Junior Students</span>
-                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-semibold">Foundation</span>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-[#132238] tracking-tight">
-                  {subJuniorCount}
+                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
+                  {foundationCount}
                 </div>
               </div>
 
-              {/* Junior Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-5 flex flex-col justify-between h-28 shadow-2xs">
+              {/* Thamheediyya Students */}
+              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
                 <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Junior Students</span>
-                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-semibold">Thamheediyya</span>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-[#132238] tracking-tight">
-                  {juniorCount}
+                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
+                  {thamheediyyaCount}
                 </div>
               </div>
 
-              {/* Senior Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-5 flex flex-col justify-between h-28 shadow-2xs">
+              {/* Aliya Students */}
+              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
                 <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Senior Students</span>
-                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-semibold">Aliya</span>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-                <div className="text-3xl font-extrabold text-[#132238] tracking-tight">
-                  {seniorCount}
+                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
+                  {aliyaCount}
+                </div>
+              </div>
+
+              {/* PG Students */}
+              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-700">
+                  <span className="text-xs font-semibold">PG</span>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
+                  {pgCount}
+                </div>
+              </div>
+
+              {/* General Students */}
+              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-700">
+                  <span className="text-xs font-semibold">General</span>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
+                  {generalCount}
                 </div>
               </div>
             </div>
@@ -892,13 +916,14 @@ export default function CollegePortalPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
               <select
-                value={newStudent.category || 'Senior'}
+                value={newStudent.category || 'Foundation'}
                 onChange={e => setNewStudent({ ...newStudent, category: e.target.value as StudentCategory })}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
               >
-                <option value="Sub_Junior">Sub-Junior</option>
-                <option value="Junior">Junior</option>
-                <option value="Senior">Senior</option>
+                <option value="Foundation">Foundation</option>
+                <option value="Thamheediyya">Thamheediyya</option>
+                <option value="Aliya">Aliya</option>
+                <option value="PG">PG</option>
                 <option value="General">General</option>
               </select>
             </div>
