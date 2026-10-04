@@ -22,7 +22,9 @@ import {
   CheckCircle2,
   FileText,
   AlertTriangle,
-  QrCode
+  QrCode,
+  ChevronDown,
+  SquarePen
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -76,6 +78,15 @@ export default function CollegePortalPage() {
 
   const college = festService.getCollege(currentCollegeId);
   const allItems = festService.getItems();
+  const [selectedCategory, setSelectedCategory] = useState<string>('All Categories');
+  const categoryOptions = Array.from(
+    new Set(allItems.map(item => item.phase || item.category).filter(Boolean))
+  );
+  const filteredItems = allItems.filter(item => {
+    if (selectedCategory === 'All Categories') return true;
+    return (item.phase || item.category) === selectedCategory;
+  });
+
   const students = festService.getStudents(currentCollegeId);
   const registrations = festService.getRegistrations(currentCollegeId);
   const schedules = festService.getSchedules();
@@ -318,40 +329,70 @@ export default function CollegePortalPage() {
         {/* ==================================================================== */}
         {activeTab === 'registration' && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
               <div>
-                <CardTitle>Event Registration Matrix</CardTitle>
+                <CardTitle>Event Registration</CardTitle>
                 <CardDescription>
                   Enroll student participants in Single and Group events according to quotas
                 </CardDescription>
               </div>
-              <div className="text-xs text-slate-500">
-                Enrolled: <strong className="text-emerald-700">{registrations.length}</strong> / {allItems.length} Events
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-slate-500 hidden sm:block">
+                  Enrolled: <strong className="text-emerald-700">{registrations.length}</strong> / {allItems.length} Events
+                </div>
+                <div className="relative">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="appearance-none bg-white border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 cursor-pointer"
+                  >
+                    <option value="All Categories">All Categories</option>
+                    {categoryOptions.map(cat => (
+                      <option key={cat} value={cat}>
+                        {cat.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Event Title</TableHead>
+                    <TableHead className="w-12 text-center">#</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Required Participants</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead className="text-center">Registered</TableHead>
+                    <TableHead className="text-center w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allItems.map(item => {
+                  {filteredItems.map((item, index) => {
                     const reg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
                     const lockCheck = festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
+                    const itemCategory = item.phase || item.category;
+                    const itemType = item.point_type
+                      ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
+                      : (item.item_type === 'Group' ? 'Group' : 'Individual');
+                    const maxCount = item.no_of_participants || item.max_participants || 1;
+                    const registeredCount = reg ? (reg.participants?.length || 1) : 0;
+                    const isRegistered = !!reg;
 
                     return (
                       <TableRow key={item.id}>
-                        <TableCell className="font-mono font-bold text-slate-800">{item.code}</TableCell>
+                        <TableCell className="text-center font-medium text-slate-500">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="font-semibold text-slate-800">
+                          {item.name_mal || item.name}
+                        </TableCell>
                         <TableCell>
-                          <div className="font-semibold text-[#132238]">{item.name}</div>
+                          <div className="font-semibold text-[#132238]">{item.name_eng || item.name}</div>
                           {reg && reg.participants && reg.participants.length > 0 && (
                             <div className="text-[11px] text-slate-500 mt-0.5">
                               Roster: {reg.participants.map(p => `${p.full_name} (${p.chest_no})`).join(', ')}
@@ -359,49 +400,66 @@ export default function CollegePortalPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <CategoryBadge category={item.category} />
+                          <CategoryBadge category={itemCategory} />
                         </TableCell>
                         <TableCell>
-                          <Badge variant={item.item_type === 'Single' ? 'default' : 'purple'}>
-                            {item.item_type}
+                          <Badge variant={itemType === 'Group' ? 'purple' : 'secondary'}>
+                            {itemType}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-mono text-slate-600">
-                          {item.min_participants === item.max_participants
-                            ? `${item.min_participants} student`
-                            : `${item.min_participants} - ${item.max_participants} students`}
+                        <TableCell className="font-mono font-bold text-slate-700">
+                          {item.item_code || item.code}
                         </TableCell>
-                        <TableCell>
-                          {reg ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Enrolled
-                              {reg.code_letter && (
-                                <span className="ml-1 px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded font-mono text-[10px]">
-                                  Code {reg.code_letter}
-                                </span>
-                              )}
-                            </span>
-                          ) : !lockCheck.canRegister ? (
-                            <span className="inline-flex items-center gap-1 text-rose-600 font-medium text-xs">
-                              <Lock className="w-3.5 h-3.5" /> {lockCheck.reason}
+                        <TableCell className="text-center">
+                          {isRegistered ? (
+                            <span className="font-mono font-bold text-sm text-emerald-600">
+                              {registeredCount}/{maxCount}
                             </span>
                           ) : (
-                            <span className="text-slate-400 text-xs">Available</span>
+                            <span
+                              className={`font-mono font-bold text-sm ${!lockCheck.canRegister ? 'text-rose-500' : 'text-blue-600'}`}
+                              title={!lockCheck.canRegister ? lockCheck.reason : undefined}
+                            >
+                              0/{maxCount}
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="xs"
-                            variant={reg ? 'outline' : lockCheck.canRegister ? 'primary' : 'secondary'}
-                            disabled={!lockCheck.canRegister && !reg}
-                            onClick={() => handleOpenRegistrationModal(item)}
-                          >
-                            {reg ? 'Modify Roster' : 'Register Entry'}
-                          </Button>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center">
+                            {isRegistered ? (
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-300 text-slate-700 hover:bg-slate-100"
+                                title="Edit Roster"
+                                onClick={() => handleOpenRegistrationModal(item)}
+                              >
+                                <SquarePen className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                size="xs"
+                                variant="primary"
+                                disabled={!lockCheck.canRegister}
+                                className="h-8 w-8 p-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                                title={lockCheck.canRegister ? 'Register Entry' : lockCheck.reason}
+                                onClick={() => handleOpenRegistrationModal(item)}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
                   })}
+                  {filteredItems.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-slate-500 text-sm">
+                        No events found matching the selected category.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
