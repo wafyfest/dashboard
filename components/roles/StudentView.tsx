@@ -50,7 +50,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const currentStudent: Student | undefined = students.find(
     s =>
       s.chest_no?.toLowerCase() === searchQuery.trim().toLowerCase() ||
-      s.admission_no.toLowerCase() === searchQuery.trim().toLowerCase() ||
+      String(s.admission_no).toLowerCase() === searchQuery.trim().toLowerCase() ||
       (s.full_name || s.name || '').toLowerCase().includes(searchQuery.trim().toLowerCase())
   ) || students[0];
 

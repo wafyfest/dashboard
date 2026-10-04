@@ -17,7 +17,8 @@ import {
   UserRole,
   Profile,
   StageStatus,
-  AppealStatus
+  AppealStatus,
+  formatStudentCategory
 } from '../types/fest';
 
 import {
@@ -78,8 +79,17 @@ class FestService {
       const { data: itemData } = await client.from('items').select('*');
       if (itemData && itemData.length > 0) this.setStorage('items', itemData);
 
-      const { data: stuData } = await client.from('students').select('*');
-      if (stuData && stuData.length > 0) this.setStorage('students', stuData);
+      let allStudents: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: pageData, error } = await client.from('students').select('*').range(from, from + pageSize - 1);
+        if (error || !pageData || pageData.length === 0) break;
+        allStudents = allStudents.concat(pageData);
+        if (pageData.length < pageSize) break;
+        from += pageSize;
+      }
+      if (allStudents.length > 0) this.setStorage('students', allStudents);
 
       const { data: stgData } = await client.from('stages').select('*');
       if (stgData && stgData.length > 0) this.setStorage('stages', stgData);
@@ -456,17 +466,46 @@ class FestService {
   public getStudents(collegeAfflNoOrId?: number | string): Student[] {
     const students = this.getStorage<Student[]>('students', initialStudents);
     const colleges = this.getColleges();
-    const enriched = students.map(s => ({
-      ...s,
-      full_name: s.name,
-      category: s.phase,
-      college_id: `col-${s.college_affl_no}`,
-      college: colleges.find(c => c.affl_no === s.college_affl_no)
-    }));
+    const enriched = students.map(s => {
+      const cic = s.admission_no ?? (s as any).cic_no ?? (s as any).cic_number;
+      return {
+        ...s,
+        name: s.name || s.full_name || '',
+        full_name: s.name || s.full_name || '',
+        admission_no: cic,
+        cic_no: cic,
+        cic_number: cic,
+        phase: s.phase || (s as any).category || '',
+        category: s.phase || (s as any).category || '',
+        college_id: `col-${s.college_affl_no}`,
+        college: colleges.find(c => c.affl_no === s.college_affl_no)
+      };
+    });
 
     if (!collegeAfflNoOrId) return enriched;
     const col = this.getCollege(collegeAfflNoOrId);
     return col ? enriched.filter(s => s.college_affl_no === col.affl_no) : enriched;
+  }
+
+  public async fetchStudentsForCollege(afflNo: number): Promise<Student[]> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*')
+          .eq('college_affl_no', afflNo)
+          .order('name', { ascending: true });
+        if (!error && data && data.length > 0) {
+          const allStored = this.getStorage<Student[]>('students', []);
+          const otherStudents = allStored.filter(s => s.college_affl_no !== afflNo);
+          this.setStorage('students', [...otherStudents, ...data]);
+          return this.getStudents(afflNo);
+        }
+      } catch (err) {
+        console.warn('Error fetching college students from Supabase:', err);
+      }
+    }
+    return this.getStudents(afflNo);
   }
 
   public getStudent(idOrChest: string): Student | undefined {
@@ -566,9 +605,9 @@ class FestService {
 
     // Convert any student IDs to chest numbers
     const allStudents = this.getStudents();
-    const chestNos = chestNosOrIds.map(val => {
+    const chestNos: string[] = chestNosOrIds.map(val => {
       const s = allStudents.find(stu => stu.id === val || stu.chest_no === val);
-      return s ? s.chest_no : val;
+      return (s && s.chest_no) ? s.chest_no : String(val);
     });
 
     if (chestNos.length < item.no_of_participants) {

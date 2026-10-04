@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   ClipboardPen,
@@ -35,6 +35,8 @@ import { Badge, CategoryBadge, AppealStatusBadge, StageStatusBadge } from '@/com
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Item, Student, StudentCategory } from '@/lib/types/fest';
+import { StudentsListTable } from '@/components/college/StudentsListTable';
+import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, triggerRefresh } = useFest();
@@ -87,7 +89,24 @@ export default function CollegePortalPage() {
     return (item.phase || item.category) === selectedCategory;
   });
 
-  const students = festService.getStudents(currentCollegeId);
+  const [students, setStudents] = useState<Student[]>(() =>
+    festService.getStudents(currentCollegeId)
+  );
+
+  useEffect(() => {
+    const list = festService.getStudents(currentCollegeId);
+    setStudents(list);
+
+    const affl = currentCollegeAfflNo || (college ? college.affl_no : 11);
+    if (affl) {
+      festService.fetchStudentsForCollege(affl).then(fresh => {
+        if (fresh && fresh.length > 0) {
+          setStudents(fresh);
+        }
+      });
+    }
+  }, [currentCollegeId, currentCollegeAfflNo, college]);
+
   const registrations = festService.getRegistrations(currentCollegeId);
   const schedules = festService.getSchedules();
   const appeals = festService.getAppeals(currentCollegeId);
@@ -577,88 +596,10 @@ export default function CollegePortalPage() {
         {/* 4. STUDENTS DIRECTORY TAB */}
         {/* ==================================================================== */}
         {activeTab === 'students' && (
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Enrolled Students Directory</CardTitle>
-                <CardDescription>Directory of all registered institution students and chest numbers</CardDescription>
-              </div>
-              <Button size="sm" onClick={() => setIsStudentModalOpen(true)}>
-                <Plus className="w-3.5 h-3.5" /> Add Student
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Chest No</TableHead>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Admission No</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Contact Phone</TableHead>
-                    <TableHead>Active Events</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-400">
-                        No students enrolled yet.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    students.map(s => {
-                      const studentRegs = registrations.filter(r =>
-                        r.participants?.some(p => p.id === s.id)
-                      );
-                      return (
-                        <TableRow key={s.id}>
-                          <TableCell>
-                            <span className="font-mono font-bold px-2 py-0.5 rounded-full bg-slate-900 text-white text-xs">
-                              {s.chest_no}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-semibold text-[#132238] flex items-center gap-2">
-                              {s.photo_url && (
-                                <img
-                                  src={s.photo_url}
-                                  alt={s.full_name}
-                                  className="w-6 h-6 rounded-full object-cover border border-slate-200"
-                                />
-                              )}
-                              {s.full_name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-slate-600">{s.admission_no}</TableCell>
-                          <TableCell>
-                            <CategoryBadge category={s.category || s.phase || 'Senior'} />
-                          </TableCell>
-                          <TableCell className="font-mono text-slate-600 text-xs">{s.phone || 'N/A'}</TableCell>
-                          <TableCell>
-                            {studentRegs.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {studentRegs.map(r => (
-                                  <span
-                                    key={r.id}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium"
-                                  >
-                                    {r.item?.name}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 text-xs">None</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <StudentsListTable
+            college={college}
+            collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+          />
         )}
 
         {/* ==================================================================== */}
@@ -718,98 +659,13 @@ export default function CollegePortalPage() {
         {/* ==================================================================== */}
         {/* 6. ADMIT CARD TAB */}
         {activeTab === 'admit_card' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200/80">
-              <div>
-                <h3 className="text-sm font-semibold text-[#132238]">Official Student Admit Cards</h3>
-                <p className="text-xs text-slate-500">Printable identity passes with chest numbers and stage schedules</p>
-              </div>
-              <Button size="sm" onClick={() => window.print()}>
-                <Printer className="w-3.5 h-3.5" /> Print All Admit Cards
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2">
-              {students.map(student => {
-                const studentRegs = registrations.filter(r =>
-                  r.participants?.some(p => p.id === student.id)
-                );
-
-                return (
-                  <div
-                    key={student.id}
-                    className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-card print:border-slate-800 space-y-3"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                          {festSettings.fest_name}
-                        </span>
-                        <h4 className="text-sm font-bold text-[#132238]">OFFICIAL ADMIT CARD</h4>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-500 font-mono">CHEST NUMBER</span>
-                        <div className="font-mono text-base font-black px-2.5 py-0.5 rounded-lg bg-[#132238] text-white">
-                          {student.chest_no}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      {student.photo_url ? (
-                        <img
-                          src={student.photo_url}
-                          alt={student.full_name}
-                          className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold shrink-0">
-                          PHOTO
-                        </div>
-                      )}
-                      <div className="space-y-1 text-xs">
-                        <div className="font-bold text-sm text-[#132238]">{student.full_name || student.name}</div>
-                        <div className="text-slate-600">Institution: <span className="font-semibold">{college?.name}</span></div>
-                        <div className="text-slate-600">Admission No: <span className="font-mono">{student.admission_no}</span></div>
-                        <div className="pt-0.5">
-                          <CategoryBadge category={student.category || student.phase || 'Senior'} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 pt-2">
-                      <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                        Registered Competitions:
-                      </span>
-                      {studentRegs.length === 0 ? (
-                        <p className="text-[11px] text-slate-400 italic">No registered competitions</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {studentRegs.map(r => (
-                            <div
-                              key={r.id}
-                              className="text-[11px] flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100"
-                            >
-                              <span className="font-medium text-slate-800">{r.item?.name}</span>
-                              <span className="text-slate-500 font-mono">{r.item?.code}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1">
-                        <QrCode className="w-3.5 h-3.5 text-slate-700" />
-                        <span className="font-mono">VERIFIED: {student.id.slice(0, 8)}</span>
-                      </div>
-                      <span>Authorized Signatory</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <AdmitCardTable
+            students={students}
+            college={college}
+            collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+            registrations={registrations}
+            festSettings={festSettings}
+          />
         )}
 
         {/* ==================================================================== */}

@@ -78,17 +78,37 @@ export interface Student {
   id: string;
   name: string;
   full_name?: string; // alias for name
-  admission_no: string;
+  admission_no: string | number;
+  cic_no?: string | number; // alias for admission_no
+  cic_number?: string | number; // alias for admission_no
   college_affl_no: number;
   college_id?: string;
   class?: string | null;
   phase: string;
-  category?: string; // alias for phase
-  chest_no: string;
+  category?: string; // formatted category e.g. Sub Junior, Junior, Senior, General
+  chest_no?: string;
   phone?: string | null;
   photo_url?: string | null;
   created_at?: string;
   college?: College;
+}
+
+export function formatStudentCategory(phaseOrCat?: string | null): string {
+  if (!phaseOrCat) return 'Sub Junior';
+  const val = phaseOrCat.trim().toUpperCase();
+  if (val === 'FD' || val === 'FOUNDATION' || val === 'SUB_JUNIOR' || val === 'SUB JUNIOR' || val === 'SUB-JUNIOR') {
+    return 'Sub Junior';
+  }
+  if (val === 'TH' || val === 'THAMHEEDIYYA' || val === 'THAMHEEDIYA' || val === 'JUNIOR') {
+    return 'Junior';
+  }
+  if (val === 'AL' || val === 'ALIYA' || val === 'SENIOR') {
+    return 'Senior';
+  }
+  if (val === 'PG' || val === 'GENERAL') {
+    return 'General';
+  }
+  return phaseOrCat;
 }
 
 export interface Item {
