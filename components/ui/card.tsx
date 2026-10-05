@@ -11,7 +11,7 @@ export function Card({
     <div
       className={twMerge(
         clsx(
-          'bg-[#161C24] rounded-2xl border border-[#26303F] shadow-card transition-all duration-200',
+          'bg-[var(--bg-surface)] rounded-xl border border-[var(--border-subtle)] shadow-card transition-colors duration-150',
           className
         )
       )}
@@ -30,8 +30,8 @@ export function CardHeader({
   return (
     <div
       className={twMerge(
-        clsx('px-6 py-5 border-b border-[#26303F] flex items-center justify-between', className))
-      }
+        clsx('px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between', className)
+      )}
       {...props}
     >
       {children}
@@ -47,7 +47,7 @@ export function CardTitle({
   return (
     <h3
       className={twMerge(
-        clsx('text-base font-semibold text-slate-100 tracking-tight', className)
+        clsx('text-sm sm:text-base font-semibold text-[var(--text-primary)] tracking-tight', className)
       )}
       {...props}
     >
@@ -63,7 +63,7 @@ export function CardDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={twMerge(clsx('text-xs text-slate-400 mt-0.5', className))}
+      className={twMerge(clsx('text-xs text-[var(--text-muted)] mt-0.5', className))}
       {...props}
     >
       {children}
@@ -77,7 +77,7 @@ export function CardContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={twMerge(clsx('p-6', className))} {...props}>
+    <div className={twMerge(clsx('p-5 sm:p-6', className))} {...props}>
       {children}
     </div>
   );
@@ -91,7 +91,7 @@ export function CardFooter({
   return (
     <div
       className={twMerge(
-        clsx('px-6 py-4 bg-[#141B26]/60 rounded-b-2xl border-t border-[#26303F] flex items-center justify-between', className)
+        clsx('px-5 py-3.5 bg-[var(--bg-subtle)]/50 rounded-b-xl border-t border-[var(--border-subtle)] flex items-center justify-between', className)
       )}
       {...props}
     >

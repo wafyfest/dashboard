@@ -1,57 +1,107 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* ─── Fonts ─────────────────────────────────────────────────────── */
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* ─── Brand Colors ───────────────────────────────────────────────── */
-  --color-canvas: #0D1117;
-  --color-navy: #1A2E4A;
-  --color-navy-light: #243D60;
-  --color-navy-dark: #0D1A2A;
-  --color-navy-hover: #1E3558;
+  /* ─── Semantic Tokens Mapping ───────────────────────────────────── */
+  --color-page: var(--bg-page);
+  --color-surface: var(--bg-surface);
+  --color-subtle: var(--bg-subtle);
+  --color-elevated: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
 
-  /* ─── Radius ─────────────────────────────────────────────────────── */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-medium: var(--border-medium);
+  --color-border-strong: var(--border-strong);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+
+  --color-navy: var(--brand-navy);
+  --color-navy-hover: var(--brand-navy-hover);
+
+  /* ─── Restrained, Intentional Radii ──────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
-
-  /* ─── Shadows for dark surfaces ──────────────────────────────────── */
-  --shadow-2xs:    0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-card:   0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px 0 rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 10px 30px -5px rgba(0, 0, 0, 0.7), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
-/* ─── CSS Custom Properties (dark theme tokens) ─────────────────────── */
+/* ─── Light Mode (Default Root) ─────────────────────────────────────── */
 :root {
-  /* Page / layout backgrounds */
-  --bg-page:       #0D1117;
-  --bg-surface:    #161C24;
-  --bg-elevated:   #1C2330;
-  --bg-subtle:     #121720;
-  --bg-hover:      #1E2635;
-  --bg-active:     #1E2A3C;
+  color-scheme: light;
+
+  /* Page & Layout Backgrounds - subtle light gray hierarchy, never harsh white */
+  --bg-page:        #F4F6F8;
+  --bg-surface:     #FFFFFF;
+  --bg-subtle:      #EDF1F5;
+  --bg-elevated:    #FFFFFF;
+  --bg-hover:       #E4EAF1;
+  --bg-active:      #D8E2EC;
 
   /* Borders */
-  --border-subtle:   #26303F;
-  --border-medium:   #2E3B4A;
-  --border-strong:   #374350;
+  --border-subtle:  #E2E8F0;
+  --border-medium:  #CBD5E1;
+  --border-strong:  #94A3B8;
 
-  /* Text */
-  --text-primary:    #F0F6FC;
-  --text-secondary:  #94A3B8;
-  --text-muted:      #64748B;
+  /* Text & Readability */
+  --text-primary:   #0F172A;
+  --text-secondary: #475569;
+  --text-muted:     #64748B;
+  --text-disabled:  #94A3B8;
 
-  /* Accent */
-  --accent-navy:     #1A2E4A;
-  --accent-emerald:  #10B981;
+  /* Brand Accents */
+  --brand-navy:       #132238;
+  --brand-navy-hover: #1A2E4A;
+  --accent-emerald:   #059669;
 
-  /* Legacy compatibility */
-  --background: #0D1117;
-  --foreground: #F0F6FC;
+  /* Shadows - soft and structured */
+  --shadow-card:     0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+  --shadow-elevated: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 10px -4px rgba(15, 23, 42, 0.04);
 }
 
-/* ─── Base ──────────────────────────────────────────────────────────── */
+/* ─── Dark Mode (Activated via .dark class) ─────────────────────────── */
+.dark {
+  color-scheme: dark;
+
+  /* Page & Layout Backgrounds - refined dark charcoal/slate, not pure black */
+  --bg-page:        #0E1217;
+  --bg-surface:     #151B22;
+  --bg-subtle:      #11161D;
+  --bg-elevated:    #1C232D;
+  --bg-hover:       #1E2733;
+  --bg-active:      #253140;
+
+  /* Borders */
+  --border-subtle:  #242D3B;
+  --border-medium:  #2F3A4C;
+  --border-strong:  #3D4C63;
+
+  /* Text & Readability */
+  --text-primary:   #F0F4F8;
+  --text-secondary: #9BA5B5;
+  --text-muted:     #6B7787;
+  --text-disabled:  #4B5563;
+
+  /* Brand Accents - lifted for dark visibility */
+  --brand-navy:       #1A2E4A;
+  --brand-navy-hover: #233B5D;
+  --accent-emerald:   #10B981;
+
+  /* Shadows - subtle contrast depth */
+  --shadow-card:     0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 4px 12px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Base Styles ───────────────────────────────────────────────────── */
 body {
   background-color: var(--bg-page);
   color: var(--text-primary);
@@ -62,218 +112,192 @@ body {
 
 /* Selection */
 ::selection {
-  background-color: #1A3458;
-  color: #F0F6FC;
+  background-color: var(--brand-navy);
+  color: #FFFFFF;
 }
 
-/* ─── Override bg-white to dark surface ─────────────────────────────── */
-.bg-white {
+/* ─── Responsive Seamless Theming for Shared Utilities ──────────────── */
+
+/* Dark Mode Overrides for standard utilities */
+.dark .bg-white {
   background-color: var(--bg-surface) !important;
 }
-.hover\:bg-white:hover {
+.dark .hover\:bg-white:hover {
   background-color: var(--bg-hover) !important;
 }
-.bg-white\/80 {
-  background-color: rgba(22, 28, 36, 0.8) !important;
+.dark .bg-white\/80 {
+  background-color: rgba(21, 27, 34, 0.8) !important;
 }
-.bg-white\/95 {
-  background-color: rgba(22, 28, 36, 0.95) !important;
-}
-
-/* ─── Global Dark Theme Overrides for Hardcoded Light Utilities ──────── */
-.bg-\[\#EEF2F6\] {
-  background-color: #0D1117 !important;
-}
-.text-\[\#132238\] {
-  color: #F0F6FC !important;
-}
-.hover\:text-\[\#132238\]:hover {
-  color: #FFFFFF !important;
+.dark .bg-white\/95 {
+  background-color: rgba(21, 27, 34, 0.95) !important;
 }
 
-.bg-\[\#d9e2ec\] {
-  background-color: #1E2C40 !important;
-  color: #F0F6FC !important;
+.dark .bg-slate-50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/75 {
+  background-color: var(--bg-subtle) !important;
 }
-.bg-\[\#d9e2ec\]\/60 {
-  background-color: rgba(30, 44, 64, 0.6) !important;
+.dark .bg-slate-100 {
+  background-color: var(--bg-hover) !important;
 }
-.bg-\[\#d9e2ec\]\/50 {
-  background-color: rgba(30, 44, 64, 0.5) !important;
+.dark .bg-slate-200 {
+  background-color: var(--bg-active) !important;
 }
-.bg-\[\#d9e2ec\]\/40 {
-  background-color: rgba(30, 44, 64, 0.4) !important;
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/60:hover,
+.dark .hover\:bg-slate-50\/70:hover,
+.dark .hover\:bg-slate-50\/80:hover {
+  background-color: var(--bg-hover) !important;
 }
-.bg-\[\#d9e2ec\]\/30 {
-  background-color: rgba(30, 44, 64, 0.3) !important;
+.dark .hover\:bg-slate-100:hover {
+  background-color: var(--bg-hover) !important;
 }
-.bg-\[\#d9e2ec\]\/20 {
-  background-color: rgba(30, 44, 64, 0.2) !important;
-}
-.hover\:bg-\[\#d9e2ec\]:hover {
-  background-color: #24354D !important;
-}
-
-.border-\[\#132238\] {
-  border-color: #2E476B !important;
-}
-.ring-\[\#132238\] {
-  --tw-ring-color: #2E476B !important;
-}
-.focus\:ring-\[\#132238\]\/20:focus {
-  --tw-ring-color: rgba(46, 71, 107, 0.4) !important;
+.dark .hover\:bg-slate-200:hover,
+.dark .hover\:bg-slate-200\/40:hover,
+.dark .hover\:bg-slate-200\/60:hover {
+  background-color: var(--bg-hover) !important;
 }
 
-/* ─── Light Borders & Backgrounds Mapped to Dark Palette ─────────────── */
-.border-slate-200,
-.border-slate-200\/80,
-.border-slate-200\/90 {
-  border-color: #26303F !important;
-}
-.border-slate-300,
-.border-slate-300\/60,
-.border-slate-300\/80 {
-  border-color: #2E3B4A !important;
-}
-.border-slate-100 {
-  border-color: #1E2633 !important;
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/90,
+.dark .border-slate-300,
+.dark .border-slate-300\/40,
+.dark .border-slate-300\/60,
+.dark .border-slate-300\/80 {
+  border-color: var(--border-subtle) !important;
 }
 
-.bg-slate-50 {
-  background-color: #121720 !important;
+.dark .text-slate-900,
+.dark .text-\[\#132238\] {
+  color: var(--text-primary) !important;
 }
-.bg-slate-100 {
-  background-color: #1A2333 !important;
-}
-.bg-slate-200 {
-  background-color: #243042 !important;
-}
-.hover\:bg-slate-50:hover,
-.hover\:bg-slate-50\/60:hover,
-.hover\:bg-slate-50\/70:hover {
-  background-color: #18202E !important;
-}
-.hover\:bg-slate-100:hover {
-  background-color: #202B3D !important;
-}
-.hover\:bg-slate-200:hover,
-.hover\:bg-slate-200\/60:hover,
-.hover\:bg-slate-200\/80:hover {
-  background-color: #2A384E !important;
-}
-
-/* ─── Light Text Classes High-Contrast Dark Mapping ─────────────────── */
-.text-slate-600 {
-  color: #94A3B8 !important;
-}
-.text-slate-700 {
-  color: #CBD5E1 !important;
-}
-.text-slate-800 {
+.dark .text-slate-800 {
   color: #E2E8F0 !important;
 }
-.text-slate-900 {
-  color: #F0F6FC !important;
+.dark .text-slate-700 {
+  color: #CBD5E1 !important;
 }
-.hover\:text-slate-900:hover {
+.dark .text-slate-600 {
+  color: var(--text-secondary) !important;
+}
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+.dark .hover\:text-slate-900:hover,
+.dark .hover\:text-\[\#132238\]:hover {
   color: #FFFFFF !important;
 }
 
-/* ─── Semantic Pills & Status Toggles (Emerald, Rose, Amber, Blue) ───── */
-.bg-emerald-50 {
-  background-color: rgba(6, 78, 59, 0.4) !important;
-}
-.text-emerald-700 {
-  color: #34D399 !important;
-}
-.text-emerald-600 {
-  color: #10B981 !important;
-}
-.border-emerald-200,
-.border-emerald-300 {
-  border-color: rgba(52, 211, 153, 0.3) !important;
-}
-.hover\:bg-emerald-50:hover,
-.hover\:bg-emerald-100:hover {
-  background-color: rgba(6, 78, 59, 0.65) !important;
+.dark .bg-\[\#d9e2ec\],
+.dark .bg-\[\#d9e2ec\]\/40,
+.dark .bg-\[\#d9e2ec\]\/60 {
+  background-color: rgba(30, 44, 64, 0.45) !important;
+  color: var(--text-primary) !important;
 }
 
-.bg-rose-50 {
-  background-color: rgba(136, 19, 55, 0.4) !important;
+/* Light Mode Overrides for residual hardcoded dark utilities */
+:root:not(.dark) .bg-\[\#0D1117\] {
+  background-color: var(--bg-page) !important;
 }
-.text-rose-700 {
-  color: #FB7185 !important;
+:root:not(.dark) .bg-\[\#121720\] {
+  background-color: var(--bg-subtle) !important;
 }
-.text-rose-600 {
-  color: #F43F5E !important;
+:root:not(.dark) .bg-\[\#161C24\] {
+  background-color: var(--bg-surface) !important;
 }
-.border-rose-200,
-.border-rose-300 {
-  border-color: rgba(251, 113, 133, 0.3) !important;
+:root:not(.dark) .bg-\[\#1C2330\] {
+  background-color: var(--bg-elevated) !important;
 }
-.hover\:bg-rose-50:hover,
-.hover\:bg-rose-100:hover {
-  background-color: rgba(136, 19, 55, 0.65) !important;
+:root:not(.dark) .bg-\[\#141B26\] {
+  background-color: var(--bg-subtle) !important;
 }
-
-.bg-amber-50 {
-  background-color: rgba(120, 53, 15, 0.4) !important;
+:root:not(.dark) .bg-\[\#0B0F15\] {
+  background-color: #E5EBF2 !important;
 }
-.text-amber-700 {
-  color: #FBBF24 !important;
-}
-.text-amber-600 {
-  color: #F59E0B !important;
-}
-.border-amber-200,
-.border-amber-300 {
-  border-color: rgba(251, 191, 36, 0.3) !important;
-}
-.hover\:bg-amber-50:hover,
-.hover\:bg-amber-100:hover {
-  background-color: rgba(120, 53, 15, 0.65) !important;
+:root:not(.dark) .bg-\[\#1E2C40\],
+:root:not(.dark) .bg-\[\#1A2638\] {
+  background-color: #E2EAF4 !important;
 }
 
-.bg-blue-50 {
-  background-color: rgba(30, 58, 138, 0.4) !important;
-}
-.text-blue-700 {
-  color: #60A5FA !important;
-}
-.text-blue-600 {
-  color: #3B82F6 !important;
-}
-.border-blue-200,
-.border-blue-300 {
-  border-color: rgba(96, 165, 250, 0.3) !important;
-}
-.hover\:bg-blue-50:hover,
-.hover\:bg-blue-100:hover {
-  background-color: rgba(30, 58, 138, 0.65) !important;
+:root:not(.dark) .border-\[\#26303F\],
+:root:not(.dark) .border-\[\#1E2838\],
+:root:not(.dark) .border-\[\#2E3B4A\],
+:root:not(.dark) .border-\[\#374350\] {
+  border-color: var(--border-subtle) !important;
 }
 
-/* ─── Form Controls & Inputs ─────────────────────────────────────────── */
-input, select, textarea {
-  color-scheme: dark;
+:root:not(.dark) .text-\[\#E6EDF5\],
+:root:not(.dark) .text-slate-100,
+:root:not(.dark) .text-slate-200 {
+  color: var(--text-primary) !important;
 }
+:root:not(.dark) .text-slate-300 {
+  color: var(--text-secondary) !important;
+}
+:root:not(.dark) .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Light mode hover overrides for residual dark utilities */
+:root:not(.dark) .hover\:bg-\[\#162032\]:hover,
+:root:not(.dark) .hover\:bg-\[\#18202E\]:hover,
+:root:not(.dark) .hover\:bg-\[\#161C24\]:hover,
+:root:not(.dark) .hover\:bg-\[\#1E2635\]:hover,
+:root:not(.dark) .hover\:bg-\[\#1E2635\]\/60:hover,
+:root:not(.dark) .hover\:bg-\[\#1A2333\]:hover,
+:root:not(.dark) .hover\:bg-\[\#1C2535\]:hover,
+:root:not(.dark) .hover\:bg-\[\#1E2C40\]:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.dark .hover\:bg-\[\#162032\]:hover,
+.dark .hover\:bg-\[\#18202E\]:hover,
+.dark .hover\:bg-\[\#1E2635\]:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* ─── Form Controls & Inputs (Both Themes) ─────────────────────────── */
 input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
 select,
 textarea {
-  background-color: #121720;
-  color: #F0F6FC;
-  border-color: #26303F;
-}
-input::placeholder,
-textarea::placeholder {
-  color: #64748B;
-}
-.disabled\:bg-slate-100:disabled {
-  background-color: #18202C !important;
-  color: #64748B !important;
-  border-color: #26303F !important;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* ─── Custom Scrollbar (dark) ───────────────────────────────────────── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+.dark select,
+.dark textarea {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-disabled);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand-navy);
+  box-shadow: 0 0 0 2px rgba(19, 34, 56, 0.15);
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #3B5F8D;
+  box-shadow: 0 0 0 2px rgba(59, 95, 141, 0.25);
+}
+
+/* ─── Custom Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -282,18 +306,18 @@ textarea::placeholder {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2E3B4A;
+  background: var(--border-medium);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #374350;
+  background: var(--border-strong);
 }
 
-/* ─── Print overrides ───────────────────────────────────────────────── */
+/* ─── Print Overrides ───────────────────────────────────────────────── */
 @media print {
   body {
-    background-color: white !important;
-    color: black !important;
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
   }
   header, nav, button, .no-print {
     display: none !important;

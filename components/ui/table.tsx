@@ -28,7 +28,7 @@ export function TableHeader({
     <thead
       className={twMerge(
         clsx(
-          'bg-[#141B26] border-b border-[#26303F] text-[11px] font-semibold text-slate-400 uppercase tracking-wider',
+          'bg-[var(--bg-subtle)]/75 border-b border-[var(--border-subtle)] text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider',
           className
         )
       )}
@@ -46,7 +46,7 @@ export function TableBody({
 }: React.HTMLAttributes<HTMLTableSectionElement>) {
   return (
     <tbody
-      className={twMerge(clsx('divide-y divide-[#26303F] text-slate-300 font-normal', className))}
+      className={twMerge(clsx('divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)] font-normal', className))}
       {...props}
     >
       {children}
@@ -62,7 +62,7 @@ export function TableRow({
   return (
     <tr
       className={twMerge(
-        clsx('hover:bg-[#1E2635]/60 transition-colors group', className)
+        clsx('hover:bg-[var(--bg-hover)] transition-colors group', className)
       )}
       {...props}
     >
@@ -78,7 +78,7 @@ export function TableHead({
 }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
-      className={twMerge(clsx('px-4 py-3 font-semibold select-none', className))}
+      className={twMerge(clsx('px-4 py-3 font-semibold select-none text-[var(--text-muted)]', className))}
       {...props}
     >
       {children}
@@ -93,7 +93,7 @@ export function TableCell({
 }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
-      className={twMerge(clsx('px-4 py-3 align-middle leading-relaxed', className))}
+      className={twMerge(clsx('px-4 py-3 align-middle leading-relaxed text-[var(--text-secondary)]', className))}
       {...props}
     >
       {children}

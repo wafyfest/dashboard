@@ -45,6 +45,22 @@ const STORAGE_KEY_PREFIX = 'wafy_fest_db_';
 class FestService {
   private isClient = typeof window !== 'undefined';
 
+  constructor() {
+    if (this.isClient) {
+      // Auto-purge any stale demo registrations stored in localStorage from earlier dev sessions
+      const purgeKey = 'wafy_fest_db_reg_cleared_all_v1';
+      if (!localStorage.getItem(purgeKey)) {
+        try {
+          this.setStorage('registrations', []);
+          this.setStorage('registration_logs', []);
+          localStorage.setItem(purgeKey, 'true');
+        } catch {
+          // ignore storage error in restricted contexts
+        }
+      }
+    }
+  }
+
   private getStorage<T>(key: string, fallback: T): T {
     if (!this.isClient) return fallback;
     try {
@@ -592,15 +608,18 @@ class FestService {
   public registerCollegeForItem(
     collegeAfflNoOrId: number | string,
     itemIdOrCode: number | string,
-    chestNosOrIds: string[]
+    chestNosOrIds: string[],
+    bypassDeadline: boolean = false
   ): { success: boolean; error?: string } {
     const college = this.getCollege(collegeAfflNoOrId);
     const item = this.getItem(itemIdOrCode);
     if (!college || !item) return { success: false, error: 'College or event not found' };
 
-    const check = this.isRegistrationOpen(college.affl_no, item.item_id);
-    if (!check.canRegister) {
-      return { success: false, error: check.reason || 'Registration is closed' };
+    if (!bypassDeadline) {
+      const check = this.isRegistrationOpen(college.affl_no, item.item_id);
+      if (!check.canRegister) {
+        return { success: false, error: check.reason || 'Registration is closed' };
+      }
     }
 
     // Convert any student IDs to chest numbers
@@ -695,6 +714,92 @@ class FestService {
     }
 
     return { success: true };
+  }
+
+  public unregisterCollegeForItem(
+    collegeAfflNoOrId: number | string,
+    itemIdOrCode: number | string
+  ): { success: boolean; error?: string } {
+    const college = this.getCollege(collegeAfflNoOrId);
+    const item = this.getItem(itemIdOrCode);
+    if (!college || !item) return { success: false, error: 'College or event not found' };
+
+    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+
+    const existing = regs.filter(r => r.item_id === item.item_id && r.college_affl_no === college.affl_no);
+    existing.forEach(oldReg => {
+      logs.push({
+        id: `log-${Date.now()}-${Math.random()}`,
+        item_id: item.item_id,
+        college_affl_no: college.affl_no,
+        chest_no: oldReg.chest_no,
+        process: 'DELETE',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    const remaining = regs.filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+    this.setStorage('registrations', remaining);
+    this.setStorage('registration_logs', logs);
+
+    if (supabase) {
+      supabase
+        .from('registrations')
+        .delete()
+        .match({ item_id: item.item_id, college_affl_no: college.affl_no })
+        .then();
+    }
+
+    return { success: true };
+  }
+
+  public clearAllRegistrations(collegeAfflNoOrId?: number | string): { success: boolean; count: number } {
+    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+    let remaining: Registration[] = [];
+    let clearedCount = 0;
+
+    if (collegeAfflNoOrId !== undefined && collegeAfflNoOrId !== 'all') {
+      const col = this.getCollege(collegeAfflNoOrId);
+      const affl = col ? col.affl_no : Number(collegeAfflNoOrId);
+      const toRemove = regs.filter(r => r.college_affl_no === affl);
+      clearedCount = toRemove.length;
+      toRemove.forEach(r => {
+        logs.push({
+          id: `log-${Date.now()}-${r.chest_no}`,
+          item_id: r.item_id,
+          college_affl_no: affl,
+          chest_no: r.chest_no,
+          process: 'DELETE',
+          timestamp: new Date().toISOString()
+        });
+      });
+      remaining = regs.filter(r => r.college_affl_no !== affl);
+      if (supabase) {
+        supabase.from('registrations').delete().eq('college_affl_no', affl).then();
+      }
+    } else {
+      clearedCount = regs.length;
+      regs.forEach(r => {
+        logs.push({
+          id: `log-${Date.now()}-${r.chest_no}`,
+          item_id: r.item_id,
+          college_affl_no: r.college_affl_no,
+          chest_no: r.chest_no,
+          process: 'DELETE',
+          timestamp: new Date().toISOString()
+        });
+      });
+      remaining = [];
+      if (supabase) {
+        supabase.from('registrations').delete().gte('college_affl_no', 0).then();
+      }
+    }
+
+    this.setStorage('registrations', remaining);
+    this.setStorage('registration_logs', logs);
+    return { success: true, count: clearedCount };
   }
 
   // --- Registration Logs ---

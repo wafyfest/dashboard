@@ -2,16 +2,15 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   Menu,
   X,
   LogOut,
   Sun,
+  Moon,
   User,
-  Sparkles,
-  ChevronRight,
-  ShieldCheck
+  Sparkles
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 
@@ -41,7 +40,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
-  const { festSettings } = useFest();
+  const { festSettings, theme, toggleTheme } = useFest();
 
   const handleNavClick = (item: NavItem) => {
     if (onSelectNavItem) {
@@ -58,29 +57,29 @@ export function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen flex bg-[#0D1117] text-[#E6EDF5] font-sans antialiased">
+    <div className="min-h-screen flex bg-[var(--bg-page)] text-[var(--text-primary)] font-sans antialiased">
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#121720] border-r border-[#26303F] p-5 shrink-0 select-none">
+      <aside className="hidden md:flex flex-col w-64 bg-[var(--bg-subtle)] border-r border-[var(--border-subtle)] p-5 shrink-0 select-none">
         {/* Logo and Brand */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-[#1A2E4A] text-white flex items-center justify-center font-black text-sm border border-[#2E476B]/50 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-slate-700/30">
             <Sparkles className="w-4 h-4 text-emerald-400" />
           </div>
-          <span className="font-extrabold text-base text-white tracking-tight">
+          <span className="font-bold text-sm text-[var(--text-primary)] tracking-tight">
             {portalTitle}
           </span>
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 space-y-1.5">
+        <nav className="flex-1 space-y-1">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeItemId === item.id;
@@ -88,26 +87,26 @@ export function DashboardLayout({
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item)}
-                className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#1E2C40] text-white shadow-sm font-bold border border-[#2E476B]/50'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-[#1A2333]'
+                    ? 'bg-[var(--brand-navy)] text-white shadow-xs font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
-                <span>{item.label}</span>
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`} />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
         {/* Bottom: Sign Out */}
-        <div className="pt-4 border-t border-[#26303F] mt-auto">
+        <div className="pt-4 border-t border-[var(--border-subtle)] mt-auto">
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-slate-400" />
+            <LogOut className="w-4 h-4 shrink-0" />
             <span>Sign Out</span>
           </button>
         </div>
@@ -115,26 +114,27 @@ export function DashboardLayout({
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#121720] border-r border-[#26303F] p-5 flex flex-col transform transition-transform duration-300 ease-in-out md:hidden shadow-2xl ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[var(--bg-subtle)] border-r border-[var(--border-subtle)] p-5 flex flex-col transform transition-transform duration-200 ease-in-out md:hidden shadow-xl ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex items-center justify-between px-2 py-3 mb-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#1A2E4A] text-white flex items-center justify-center font-black text-sm border border-[#2E476B]/50">
+            <div className="w-8 h-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-slate-700/30">
               <Sparkles className="w-4 h-4 text-emerald-400" />
             </div>
-            <span className="font-extrabold text-base text-white">{portalTitle}</span>
+            <span className="font-bold text-sm text-[var(--text-primary)]">{portalTitle}</span>
           </div>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-[#1A2333]"
+            aria-label="Close navigation"
+            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)] cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1.5">
+        <nav className="flex-1 space-y-1">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeItemId === item.id;
@@ -142,25 +142,25 @@ export function DashboardLayout({
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item)}
-                className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-semibold transition-all ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#1E2C40] text-white font-bold shadow-sm border border-[#2E476B]/50'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-[#1A2333]'
+                    ? 'bg-[var(--brand-navy)] text-white shadow-xs font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="pt-4 border-t border-[#26303F] mt-auto">
+        <div className="pt-4 border-t border-[var(--border-subtle)] mt-auto">
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30"
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-rose-400" />
+            <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
           </button>
         </div>
@@ -169,42 +169,49 @@ export function DashboardLayout({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Bar */}
-        <header className="h-16 px-4 sm:px-8 border-b border-[#26303F] bg-[#121720]/95 backdrop-blur-sm flex items-center justify-between gap-4 sticky top-0 z-30">
+        <header className="h-16 px-4 sm:px-8 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xs flex items-center justify-between gap-4 sticky top-0 z-30 transition-colors">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Toggle */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="p-2 -ml-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-[#1A2333] md:hidden transition-colors"
+              className="p-2 -ml-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] md:hidden transition-colors cursor-pointer"
               aria-label="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+            <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight truncate">
               {festSettings.fest_name}
             </h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             {roleBadge && (
-              <span className="hidden sm:inline-block px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#1A2638] text-slate-200 border border-[#26303F]">
+              <span className="hidden sm:inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                 {roleBadge}
               </span>
             )}
 
-            {/* Dark Mode Icon Indicator */}
+            {/* Accessible Dual Theme Toggle */}
             <button
-              className="w-8 h-8 rounded-lg border border-[#26303F] bg-[#161C24] text-slate-400 hover:text-slate-200 hover:bg-[#1C2535] flex items-center justify-center transition-colors shadow-2xs"
-              title="Theme Toggle"
+              onClick={toggleTheme}
+              className="w-8 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
-              <Sun className="w-4 h-4" />
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-700" />
+              )}
             </button>
 
-            {/* Profile Avatar Icon */}
+            {/* Profile Avatar Link */}
             <Link
               href="/login"
-              className="w-8 h-8 rounded-lg border border-[#26303F] bg-[#1A2638] text-slate-300 hover:bg-[#23334A] flex items-center justify-center transition-colors shadow-2xs"
+              className="w-8 h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center justify-center transition-colors shadow-2xs"
               title="Switch Role or Account"
+              aria-label="Switch Role or Account"
             >
               <User className="w-4 h-4" />
             </Link>

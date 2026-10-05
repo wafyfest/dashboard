@@ -396,78 +396,9 @@ export const initialStudents: Student[] = [
 ];
 
 // Flat Multiple-Row Group Registrations!
-export const initialRegistrations: Registration[] = [
-  // Quran Recitation (Single)
-  {
-    id: 'reg-1',
-    item_id: 1,
-    college_affl_no: 11,
-    chest_no: 'CH-101',
-    code_letter: 'A',
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'reg-2',
-    item_id: 1,
-    college_affl_no: 102,
-    chest_no: 'CH-201',
-    code_letter: 'B',
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  // Mappila Pattu (Single)
-  {
-    id: 'reg-3',
-    item_id: 4,
-    college_affl_no: 11,
-    chest_no: 'CH-102',
-    code_letter: 'A',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString()
-  },
-  // Duff Muttu Group Event (3 members from College 11)
-  {
-    id: 'reg-4',
-    item_id: 5,
-    college_affl_no: 11,
-    chest_no: 'CH-101',
-    code_letter: 'B',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString()
-  },
-  {
-    id: 'reg-5',
-    item_id: 5,
-    college_affl_no: 11,
-    chest_no: 'CH-104',
-    code_letter: 'B',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString()
-  },
-  {
-    id: 'reg-6',
-    item_id: 5,
-    college_affl_no: 11,
-    chest_no: 'CH-105',
-    code_letter: 'B',
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString()
-  }
-];
+export const initialRegistrations: Registration[] = [];
 
-export const initialRegistrationLogs: RegistrationLog[] = [
-  {
-    id: 'log-1',
-    item_id: 1,
-    college_affl_no: 11,
-    chest_no: 'CH-101',
-    process: 'ADD',
-    timestamp: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'log-2',
-    item_id: 5,
-    college_affl_no: 11,
-    chest_no: 'CH-101',
-    process: 'ADD',
-    timestamp: new Date(Date.now() - 1 * 86400000).toISOString()
-  }
-];
+export const initialRegistrationLogs: RegistrationLog[] = [];
 
 export const initialSubmissionEntries: SubmissionEntry[] = [
   {

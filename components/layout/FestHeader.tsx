@@ -12,10 +12,9 @@ import {
   Calendar,
   AlertTriangle,
   RotateCcw,
-  Sparkles
+  Sun,
+  Moon
 } from 'lucide-react';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
 import { festService } from '@/lib/services/festService';
 
 export function FestHeader() {
@@ -26,7 +25,8 @@ export function FestHeader() {
     setCurrentCollegeId,
     festSettings,
     resetDatabase,
-    triggerRefresh
+    theme,
+    toggleTheme
   } = useFest();
 
   const colleges = festService.getColleges();
@@ -49,38 +49,58 @@ export function FestHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-[#121720]/95 backdrop-blur border-b border-[#26303F]">
+    <header className="sticky top-0 z-40 bg-[var(--bg-surface)]/95 backdrop-blur-xs border-b border-[var(--border-subtle)] transition-colors">
       {/* Top Banner: Role Switcher & System Status */}
-      <div className="bg-[#0B0F15] text-slate-300 px-4 lg:px-8 py-2 text-xs flex flex-wrap items-center justify-between gap-3 border-b border-[#1E2838]">
+      <div className="bg-[var(--bg-subtle)] text-[var(--text-secondary)] px-4 lg:px-8 py-2 text-xs flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 font-bold tracking-tight text-white">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <div className="flex items-center gap-1.5 font-bold tracking-tight text-[var(--text-primary)]">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>{festSettings.fest_name}</span>
           </div>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <div className="hidden md:flex items-center gap-2 text-slate-400">
-            <Calendar className="w-3.5 h-3.5 text-sky-400" />
+          <span className="text-[var(--border-medium)] hidden sm:inline">|</span>
+          <div className="hidden md:flex items-center gap-2 text-[var(--text-muted)]">
+            <Calendar className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             <span>Reg Deadline: {new Date(festSettings.reg_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         </div>
 
-        {/* Status Pill */}
+        {/* Status Pill & Actions */}
         <div className="flex items-center gap-2">
           {isBeforeRegDeadline ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800 text-[11px] font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 text-[11px] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               Registration Open
             </span>
           ) : isFinePeriod ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-800 text-[11px] font-medium">
-              <AlertTriangle className="w-3 h-3 text-amber-400" />
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 text-[11px] font-medium">
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
               Late Reg (Fine Applicable)
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-300 border border-rose-800 text-[11px] font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 text-[11px] font-medium">
               Registrations Closed
             </span>
           )}
+
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-0.5 rounded-md text-[11px] flex items-center gap-1.5 transition-colors ml-1 hover:bg-[var(--bg-hover)] cursor-pointer"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-slate-700" />
+                <span className="hidden sm:inline">Dark</span>
+              </>
+            )}
+          </button>
 
           <button
             onClick={() => {
@@ -89,7 +109,7 @@ export function FestHeader() {
               }
             }}
             title="Reset to initial seed data"
-            className="text-slate-400 hover:text-white px-2 py-0.5 rounded text-[11px] flex items-center gap-1 transition-colors ml-2 hover:bg-[#1A2333]"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-0.5 rounded-md text-[11px] flex items-center gap-1 transition-colors hover:bg-[var(--bg-hover)] cursor-pointer"
           >
             <RotateCcw className="w-3 h-3" />
             <span className="hidden sm:inline">Reset Demo</span>
@@ -100,20 +120,20 @@ export function FestHeader() {
       {/* Main Header Nav */}
       <div className="px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-[#1A2E4A] text-white flex items-center justify-center font-bold text-sm shadow-sm border border-[#2E476B]/50">
+          <div className="h-8 w-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-slate-700/30">
             KU
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-slate-100 leading-none flex items-center gap-1.5">
+            <h1 className="text-sm font-semibold text-[var(--text-primary)] leading-none flex items-center gap-1.5">
               Arts Fest Management Portal
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#1A2333] text-slate-400 border border-[#26303F]">
+              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                 v2.0
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Active Role: <strong className="text-slate-200 capitalize">{currentRole.replace('_', ' ')}</strong>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              Active Role: <strong className="text-[var(--text-primary)] capitalize">{currentRole.replace('_', ' ')}</strong>
               {currentRole === 'college' && (
-                <span className="text-sky-400 font-medium ml-1">
+                <span className="text-sky-600 dark:text-sky-400 font-medium ml-1">
                   ({activeCollege?.name} - {activeCollege?.code})
                 </span>
               )}
@@ -122,7 +142,7 @@ export function FestHeader() {
         </div>
 
         {/* Interactive RBAC Switcher Toolbar */}
-        <div className="flex items-center gap-1 bg-[#0D1117] p-1 rounded-xl border border-[#26303F] overflow-x-auto max-w-full">
+        <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] overflow-x-auto max-w-full">
           {roles.map(r => {
             const isActive = currentRole === r.role;
             return (
@@ -130,10 +150,10 @@ export function FestHeader() {
                 key={r.role}
                 onClick={() => setCurrentRole(r.role)}
                 title={r.desc}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#1A2E4A] text-white shadow-sm border border-[#2E476B]/60'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-[#161C24]'
+                    ? 'bg-[var(--brand-navy)] text-white shadow-xs'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 {r.icon}
@@ -146,11 +166,11 @@ export function FestHeader() {
         {/* Institution selector when viewing as College */}
         {currentRole === 'college' && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-medium">Switch College:</span>
+            <span className="text-[var(--text-muted)] font-medium">Switch College:</span>
             <select
               value={currentCollegeId}
               onChange={e => setCurrentCollegeId(e.target.value)}
-              className="bg-[#141B26] border border-[#26303F] text-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium focus:ring-1 focus:ring-slate-500"
+              className="bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium focus:ring-1 focus:ring-slate-400 cursor-pointer"
             >
               {colleges.map(c => (
                 <option key={c.id} value={c.id}>

@@ -11,14 +11,16 @@ import {
   ArrowRight,
   Sparkles,
   Lock,
-  Mail
+  Mail,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 import { UserRole } from '@/lib/types/fest';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setCurrentRole, festSettings } = useFest();
+  const { setCurrentRole, festSettings, theme, toggleTheme } = useFest();
   const [selectedRole, setSelectedRole] = useState<UserRole>('college');
   const [email, setEmail] = useState('masapmsawafy@gmail.com');
   const [password, setPassword] = useState('••••••••••••');
@@ -86,27 +88,43 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D1117] flex flex-col justify-center items-center p-4 sm:p-6">
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col justify-center items-center p-4 sm:p-6 transition-colors relative">
+      {/* Top Right Theme Toggle */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shadow-2xs cursor-pointer"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-slate-700" />
+          )}
+        </button>
+      </div>
+
       {/* Brand Header */}
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#1A2E4A] text-white shadow-elevated mb-3 border border-[#2E476B]/50">
-          <Sparkles className="w-6 h-6 text-emerald-400" />
+        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--brand-navy)] text-white shadow-xs mb-3 border border-slate-700/30">
+          <Sparkles className="w-5 h-5 text-emerald-400" />
         </div>
-        <h1 className="text-2xl font-black text-slate-100 tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
           {festSettings.fest_name}
         </h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-[var(--text-muted)] mt-1">
           Inter-College Arts Fest Management System • Multi-Tenant Access
         </p>
       </div>
 
       {/* Main Login Card */}
-      <div className="w-full max-w-xl bg-[#161C24] rounded-3xl border border-[#26303F] shadow-elevated p-6 sm:p-8 space-y-6">
+      <div className="w-full max-w-xl bg-[var(--bg-surface)] rounded-xl border border-[var(--border-subtle)] shadow-card p-6 sm:p-8 space-y-6">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Select Your Workspace
           </span>
-          <h2 className="text-base font-bold text-slate-100 mt-0.5">
+          <h2 className="text-base font-bold text-[var(--text-primary)] mt-0.5">
             Sign In to Access Your Designated Portal
           </h2>
         </div>
@@ -122,22 +140,24 @@ export default function LoginPage() {
                 key={opt.role}
                 type="button"
                 onClick={() => handleSelectRole(opt)}
-                className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
+                className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-[#3B5B88] bg-[#1E2C40] shadow-xs ring-1 ring-[#3B5B88]'
-                    : 'border-[#26303F] bg-[#121720]/60 hover:border-[#374350] hover:bg-[#1A2333]'
+                    ? 'border-[var(--brand-navy)] bg-[var(--bg-hover)] shadow-xs ring-1 ring-[var(--brand-navy)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    isSelected ? 'bg-[#1A2E4A] text-white' : 'bg-[#1E2633] text-slate-400'
+                  className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${
+                    isSelected
+                      ? 'bg-[var(--brand-navy)] text-white'
+                      : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-slate-200 truncate">{opt.label}</h3>
-                  <p className="text-[10px] text-slate-400 truncate">{opt.subtitle}</p>
+                  <h3 className="text-xs font-bold text-[var(--text-primary)] truncate">{opt.label}</h3>
+                  <p className="text-[10px] text-[var(--text-muted)] truncate">{opt.subtitle}</p>
                 </div>
               </button>
             );
@@ -147,28 +167,28 @@ export default function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSignIn} className="space-y-4 pt-2">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Email / Username</label>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Email / Username</label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+              <Mail className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-muted)]" />
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-[#121720] border border-[#26303F] text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-600 font-medium"
+                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none font-medium"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Password</label>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+              <Lock className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-muted)]" />
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-[#121720] border border-[#26303F] text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-600"
+                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none"
                 required
               />
             </div>
@@ -176,25 +196,25 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full mt-2 bg-[#1A2E4A] hover:bg-[#243E63] text-white py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] border border-[#2E476B]/50"
+            className="w-full mt-2 bg-[var(--brand-navy)] hover:opacity-95 text-white py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
           >
             <span>Continue to {roleOptions.find(r => r.role === selectedRole)?.label}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        {/* Instant 1-Click Direct Links */}
-        <div className="border-t border-[#26303F] pt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400">
+        {/* Instant Direct Links */}
+        <div className="border-t border-[var(--border-subtle)] pt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] text-[var(--text-muted)]">
           <span>Direct Links:</span>
-          <a href="/college" className="font-semibold text-sky-400 hover:underline">/college</a>
+          <a href="/college" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">/college</a>
           <span>•</span>
-          <a href="/admin" className="font-semibold text-sky-400 hover:underline">/admin</a>
+          <a href="/admin" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">/admin</a>
           <span>•</span>
-          <a href="/student" className="font-semibold text-sky-400 hover:underline">/student</a>
+          <a href="/student" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">/student</a>
           <span>•</span>
-          <a href="/stage-controller" className="font-semibold text-sky-400 hover:underline">/stage-controller</a>
+          <a href="/stage-controller" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">/stage-controller</a>
           <span>•</span>
-          <a href="/result-entry" className="font-semibold text-sky-400 hover:underline">/result-entry</a>
+          <a href="/result-entry" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">/result-entry</a>
         </div>
       </div>
     </div>

@@ -17,6 +17,9 @@ interface FestContextType {
   triggerRefresh: () => void;
   resetDatabase: () => void;
   isSupabaseConnected: boolean;
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleTheme: () => void;
 }
 
 const FestContext = createContext<FestContextType | undefined>(undefined);
@@ -29,6 +32,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
   const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('admin'));
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
+  const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
     // Sync with live Supabase if available
@@ -52,8 +56,43 @@ export function FestProvider({ children }: { children: ReactNode }) {
           setCurrentCollegeAfflNoState(affl);
         }
       }
+
+      // Check localStorage for saved theme
+      const savedTheme = localStorage.getItem('arts_fest_theme') as 'light' | 'dark' | null;
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        setThemeState(savedTheme);
+        applyThemeClass(savedTheme);
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initial = prefersDark ? 'dark' : 'light';
+        setThemeState(initial);
+        applyThemeClass(initial);
+      }
     }
   }, []);
+
+  const applyThemeClass = (t: 'light' | 'dark') => {
+    if (typeof document !== 'undefined') {
+      if (t === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  };
+
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme);
+    applyThemeClass(newTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('arts_fest_theme', newTheme);
+    }
+  };
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+  };
 
   useEffect(() => {
     setCurrentProfile(festService.getProfileByRole(currentRole));
@@ -107,7 +146,10 @@ export function FestProvider({ children }: { children: ReactNode }) {
         refreshKey,
         triggerRefresh,
         resetDatabase,
-        isSupabaseConnected
+        isSupabaseConnected,
+        theme,
+        setTheme,
+        toggleTheme
       }}
     >
       {children}

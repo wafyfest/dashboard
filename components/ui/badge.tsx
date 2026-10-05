@@ -21,15 +21,15 @@ export function Badge({
   };
 
   const variantStyles = {
-    default:     'bg-slate-700/60 text-slate-300 border border-slate-600/60',
-    navy:        'bg-[#132238] text-slate-200 border border-[#2E476B]/60 shadow-sm',
-    secondary:   'bg-blue-900/60 text-blue-200 border border-blue-600/60',
-    success:     'bg-emerald-900/60 text-emerald-300 border border-emerald-600/60',
-    warning:     'bg-amber-900/60 text-amber-200 border border-amber-600/60',
-    destructive: 'bg-rose-900/60 text-rose-300 border border-rose-600/60',
-    outline:     'text-slate-300 border border-slate-500 bg-slate-800/50',
-    purple:      'bg-indigo-900/60 text-indigo-200 border border-indigo-600/60',
-    amber:       'bg-amber-900/60 text-amber-200 border border-amber-600/60',
+    default:     'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    navy:        'bg-[#132238] text-white border border-[#1E3558] dark:bg-[#1A2E4A] dark:text-slate-200 dark:border-[#2E476B]/60 shadow-xs',
+    secondary:   'bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800/60',
+    success:     'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60',
+    warning:     'bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
+    destructive: 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60',
+    outline:     'text-[var(--text-secondary)] border border-[var(--border-medium)] bg-transparent',
+    purple:      'bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60',
+    amber:       'bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
   };
 
   return (
@@ -44,35 +44,35 @@ export function StageStatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'On_Going':
       return (
-        <Badge variant="success" className="animate-pulse flex items-center gap-1.5 font-semibold">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+        <Badge variant="success" className="flex items-center gap-1.5 font-semibold">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           Live / On Stage
         </Badge>
       );
     case 'Starting_Soon':
       return (
         <Badge variant="amber" className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-400"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
           Starting Soon
         </Badge>
       );
     case 'Next_Item':
       return (
         <Badge variant="secondary" className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
           Next in Queue
         </Badge>
       );
     case 'Ended':
       return (
-        <Badge variant="default" className="text-slate-400">
+        <Badge variant="default" className="text-[var(--text-muted)]">
           Ended
         </Badge>
       );
     case 'Upcoming':
     default:
       return (
-        <Badge variant="outline" className="text-slate-300">
+        <Badge variant="outline">
           Upcoming
         </Badge>
       );
