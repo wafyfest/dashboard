@@ -11,7 +11,7 @@ export function Card({
     <div
       className={twMerge(
         clsx(
-          'bg-white rounded-2xl border border-slate-200/80 shadow-card transition-all duration-200',
+          'bg-[#161C24] rounded-2xl border border-[#26303F] shadow-card transition-all duration-200',
           className
         )
       )}
@@ -30,7 +30,7 @@ export function CardHeader({
   return (
     <div
       className={twMerge(
-        clsx('px-6 py-5 border-b border-slate-100 flex items-center justify-between', className))
+        clsx('px-6 py-5 border-b border-[#26303F] flex items-center justify-between', className))
       }
       {...props}
     >
@@ -47,7 +47,7 @@ export function CardTitle({
   return (
     <h3
       className={twMerge(
-        clsx('text-base font-semibold text-[#132238] tracking-tight', className)
+        clsx('text-base font-semibold text-slate-100 tracking-tight', className)
       )}
       {...props}
     >
@@ -63,7 +63,7 @@ export function CardDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={twMerge(clsx('text-xs text-slate-500 mt-0.5', className))}
+      className={twMerge(clsx('text-xs text-slate-400 mt-0.5', className))}
       {...props}
     >
       {children}
@@ -91,7 +91,7 @@ export function CardFooter({
   return (
     <div
       className={twMerge(
-        clsx('px-6 py-4 bg-slate-50/50 rounded-b-2xl border-t border-slate-100 flex items-center justify-between', className)
+        clsx('px-6 py-4 bg-[#141B26]/60 rounded-b-2xl border-t border-[#26303F] flex items-center justify-between', className)
       )}
       {...props}
     >

@@ -5,7 +5,7 @@ import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
-import { Badge, CategoryBadge, AppealStatusBadge } from '../ui/badge';
+import { Badge, CategoryBadge, AppealStatusBadge, StageStatusBadge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Modal } from '../ui/modal';
 import {
@@ -118,41 +118,41 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
           <Button
             size="xs"
             variant="outline"
-            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+            className="text-emerald-400 border-emerald-600 hover:bg-emerald-900/50 hover:text-emerald-300"
             onClick={() => {
               festService.setAllEntryLocks(true);
               triggerRefresh();
             }}
           >
-            <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Open All
+            <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-400" /> Open All
           </Button>
           <Button
             size="xs"
             variant="outline"
-            className="text-rose-700 border-rose-300 hover:bg-rose-50"
+            className="text-rose-400 border-rose-600 hover:bg-rose-900/50 hover:text-rose-300"
             onClick={() => {
               festService.setAllEntryLocks(false);
               triggerRefresh();
             }}
           >
-            <Lock className="w-3.5 h-3.5 mr-1 text-rose-600" /> Lock All
+            <Lock className="w-3.5 h-3.5 mr-1 text-rose-400" /> Lock All
           </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="w-80 min-w-[280px] font-bold text-[#132238]">
+            <TableRow className="bg-[#121720] border-b border-[#26303F]">
+              <TableHead className="w-80 min-w-[280px] font-bold text-slate-200">
                 Item ID & Event Name
               </TableHead>
               {colleges.map(col => (
-                <TableHead key={col.id} className="text-center min-w-[130px] font-bold text-[#132238]">
+                <TableHead key={col.id} className="text-center min-w-[130px] font-bold text-slate-200">
                   <div className="flex flex-col items-center">
-                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-800">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#1A2638] text-slate-200 border border-[#26303F]">
                       #{col.affl_no}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[120px] mt-0.5" title={col.name}>
+                    <span className="text-[11px] font-semibold text-slate-400 truncate max-w-[120px] mt-0.5" title={col.name}>
                       {col.short_name || col.code || col.name}
                     </span>
                   </div>
@@ -169,16 +169,16 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               const allOpen = itemCells.every(open => open);
 
               return (
-                <TableRow key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                <TableRow key={item.id} className="hover:bg-[#18202E] transition-colors">
                   {/* First Column: Item ID, Event Name & Row Lock Toggle */}
                   <TableCell className="font-medium">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-800">
+                          <span className="font-mono font-bold text-xs px-1.5 py-0.5 rounded bg-[#1A2638] text-slate-200 border border-[#26303F]">
                             {item.item_id ? String(item.item_id).padStart(2, '0') : item.code}
                           </span>
-                          <span className="font-semibold text-sm text-[#132238]">
+                          <span className="font-semibold text-sm text-white">
                             {item.name_eng || item.name}
                           </span>
                         </div>
@@ -205,8 +205,8 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                         }}
                         className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors ${
                           allOpen
-                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                            ? 'bg-[#1A2638] text-slate-200 border-[#26303F] hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/80'
+                            : 'bg-rose-950/40 text-rose-300 border-rose-800/80 hover:bg-emerald-950/40 hover:text-emerald-300 hover:border-emerald-800/80'
                         }`}
                       >
                         {allOpen ? (
@@ -267,6 +267,105 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     </Card>
   );
 
+  const renderCollegesCard = () => (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <CardTitle>Participating Colleges & Granular Overrides</CardTitle>
+            <Badge variant="navy">{colleges.length} Institutions</Badge>
+          </div>
+          <CardDescription>
+            Toggle manual lock overrides and fine exemptions per institution
+          </CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setActiveTab('locks_matrix')}>
+          <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-400" /> View Locks Matrix
+        </Button>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-[#121720] border-b border-[#26303F]">
+              <TableHead className="font-bold text-slate-200">Affl # / Code</TableHead>
+              <TableHead className="font-bold text-slate-200">College Name</TableHead>
+              <TableHead className="font-bold text-slate-200">Coordinator / Manager</TableHead>
+              <TableHead className="font-bold text-slate-200">Phone & Email</TableHead>
+              <TableHead className="font-bold text-slate-200">Fine Status</TableHead>
+              <TableHead className="font-bold text-slate-200">Lock Override</TableHead>
+              <TableHead className="text-right font-bold text-slate-200">Controls</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {colleges.map(col => (
+              <TableRow key={col.id || col.affl_no} className="hover:bg-[#162032] border-b border-[#1E293B]">
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-mono font-bold text-emerald-400 text-sm">
+                      #{col.affl_no || col.affiliation_no}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {col.short_name || col.code}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="font-semibold text-slate-100">{col.name}</div>
+                  <span className="text-[11px] text-slate-400">
+                    Type: <span className="uppercase text-slate-300 font-mono font-semibold">{col.type}</span>
+                  </span>
+                </TableCell>
+                <TableCell className="text-slate-300 text-sm">
+                  {col.coordinator_name || col.staff_coordinator_name || col.team_manager_name || '—'}
+                </TableCell>
+                <TableCell className="text-slate-400 text-xs">
+                  <div>{col.coordinator_phone || col.staff_coordinator_phone || col.contact_no || '—'}</div>
+                  <div className="text-[11px] text-slate-500">{col.email || '—'}</div>
+                </TableCell>
+                <TableCell>
+                  {col.fine_status ? (
+                    <Badge variant="destructive">Late Fine Applied</Badge>
+                  ) : (
+                    <Badge variant="success">Clear / Paid</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {col.manual_lock_override ? (
+                    <Badge variant="amber">Override Active</Badge>
+                  ) : (
+                    <span className="text-slate-400 text-xs">Standard Locks</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right space-x-1.5 whitespace-nowrap">
+                  <Button
+                    size="xs"
+                    variant={col.manual_lock_override ? 'destructive' : 'outline'}
+                    onClick={() => {
+                      festService.toggleCollegeLockOverride(col.affl_no || col.id);
+                      triggerRefresh();
+                    }}
+                  >
+                    {col.manual_lock_override ? 'Disable Override' : 'Allow Override'}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant={col.fine_status ? 'outline' : 'secondary'}
+                    onClick={() => {
+                      festService.toggleCollegeFine(col.affl_no || col.id);
+                      triggerRefresh();
+                    }}
+                  >
+                    {col.fine_status ? 'Waive Fine' : 'Apply Fine'}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
       {/* Admin Title Banner */}
@@ -277,9 +376,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               <ShieldAlert className="w-3.5 h-3.5 mr-1 text-emerald-400" />
               Fest Executive Admin Console
             </Badge>
-            <span className="text-xs text-slate-500">Full System Control & RLS Authority</span>
+            <span className="text-xs text-slate-400">Full System Control & RLS Authority</span>
           </div>
-          <h2 className="text-xl font-bold text-[#132238] mt-1">Festival Operations & Access Control</h2>
+          <h2 className="text-xl font-bold text-white mt-1">Festival Operations & Access Control</h2>
         </div>
       </div>
 
@@ -290,44 +389,44 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Institutions</span>
-                <Building2 className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Institutions</span>
+                <Building2 className="w-4 h-4 text-blue-400" />
               </div>
-              <p className="text-2xl font-bold text-[#132238] mt-2">{colleges.length}</p>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-2xl font-bold text-white mt-2">{colleges.length}</p>
+              <p className="text-[11px] text-slate-400 mt-1">
                 {colleges.filter(c => c.fine_status).length} flagged with late fines
               </p>
             </Card>
 
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Registered Students</span>
-                <Users className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Registered Students</span>
+                <Users className="w-4 h-4 text-indigo-400" />
               </div>
-              <p className="text-2xl font-bold text-[#132238] mt-2">{students.length}</p>
-              <p className="text-[11px] text-slate-500 mt-1">Across 4 age/experience categories</p>
+              <p className="text-2xl font-bold text-white mt-2">{students.length}</p>
+              <p className="text-[11px] text-slate-400 mt-1">Across 4 age/experience categories</p>
             </Card>
 
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Total Items</span>
-                <Award className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Items</span>
+                <Award className="w-4 h-4 text-emerald-400" />
               </div>
-              <p className="text-2xl font-bold text-[#132238] mt-2">{items.length}</p>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-2xl font-bold text-white mt-2">{items.length}</p>
+              <p className="text-[11px] text-slate-400 mt-1">
                 {items.filter(i => i.is_locked).length} locked globally
               </p>
             </Card>
 
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase">Pending Appeals</span>
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Appeals</span>
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
               </div>
-              <p className="text-2xl font-bold text-[#132238] mt-2">
+              <p className="text-2xl font-bold text-white mt-2">
                 {appeals.filter(a => a.status === 'Pending').length + replacements.filter(r => r.status === 'Pending').length}
               </p>
-              <p className="text-[11px] text-amber-600 font-medium mt-1">Requires admin review</p>
+              <p className="text-[11px] text-amber-400 font-medium mt-1">Requires admin review</p>
             </Card>
           </div>
 
@@ -354,26 +453,16 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   <TableBody>
                     {schedules.map(sch => (
                       <TableRow key={sch.id}>
-                        <TableCell className="font-semibold text-slate-800">{sch.stage?.name}</TableCell>
+                        <TableCell className="font-semibold text-slate-100">{sch.stage?.name}</TableCell>
                         <TableCell>
-                          <div className="font-medium text-[#132238]">{sch.item?.name}</div>
+                          <div className="font-medium text-slate-200">{sch.item?.name}</div>
                           <span className="text-[10px] text-slate-400">{sch.item?.code}</span>
                         </TableCell>
-                        <TableCell className="text-slate-500 font-mono">
+                        <TableCell className="text-slate-400 font-mono">
                           {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              sch.status === 'On_Going'
-                                ? 'success'
-                                : sch.status === 'Starting_Soon'
-                                ? 'amber'
-                                : 'default'
-                            }
-                          >
-                            {sch.status.replace('_', ' ')}
-                          </Badge>
+                          <StageStatusBadge status={sch.status} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -382,8 +471,8 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               </CardContent>
             </Card>
 
-            {/* Entry Locks Matrix */}
-            {renderLocksMatrixCard()}
+            {/* Colleges & Overrides Section */}
+            {renderCollegesCard()}
           </div>
         </div>
       )}
@@ -505,8 +594,8 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               <TableBody>
                 {items.map(item => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-mono font-bold text-slate-700">{item.code}</TableCell>
-                    <TableCell className="font-semibold text-[#132238]">{item.name}</TableCell>
+                    <TableCell className="font-mono font-bold text-slate-300">{item.code}</TableCell>
+                    <TableCell className="font-semibold text-slate-100">{item.name}</TableCell>
                     <TableCell>
                       <CategoryBadge category={item.category} />
                     </TableCell>
@@ -562,88 +651,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       )}
 
       {/* 4. COLLEGES & OVERRIDES TAB */}
-      {activeTab === 'colleges' && (
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Participating Colleges & Granular Overrides</CardTitle>
-              <CardDescription>
-                Toggle manual lock overrides and fine exemptions per institution
-              </CardDescription>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => setActiveTab('locks_matrix')}>
-              <Unlock className="w-3.5 h-3.5" /> View Locks Matrix
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>College Name</TableHead>
-                  <TableHead>Coordinator</TableHead>
-                  <TableHead>Phone / Email</TableHead>
-                  <TableHead>Fine Status</TableHead>
-                  <TableHead>Lock Override</TableHead>
-                  <TableHead className="text-right">Controls</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {colleges.map(col => (
-                  <TableRow key={col.id}>
-                    <TableCell className="font-mono font-bold text-slate-800">{col.code}</TableCell>
-                    <TableCell>
-                      <div className="font-semibold text-[#132238]">{col.name}</div>
-                      <span className="text-[11px] text-slate-400 font-mono">{col.affiliation_no}</span>
-                    </TableCell>
-                    <TableCell className="text-slate-700">{col.coordinator_name}</TableCell>
-                    <TableCell className="text-slate-500 text-[11px]">
-                      <div>{col.coordinator_phone}</div>
-                      <div>{col.email}</div>
-                    </TableCell>
-                    <TableCell>
-                      {col.fine_status ? (
-                        <Badge variant="destructive">Late Fine Applied</Badge>
-                      ) : (
-                        <Badge variant="success">Clear / Paid</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {col.manual_lock_override ? (
-                        <Badge variant="amber">Override Active</Badge>
-                      ) : (
-                        <span className="text-slate-400 text-xs">Standard Locks</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1.5">
-                      <Button
-                        size="xs"
-                        variant={col.manual_lock_override ? 'destructive' : 'outline'}
-                        onClick={() => {
-                          festService.toggleCollegeLockOverride(col.id);
-                          triggerRefresh();
-                        }}
-                      >
-                        {col.manual_lock_override ? 'Disable Override' : 'Allow Override'}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        onClick={() => {
-                          festService.toggleCollegeFine(col.id);
-                          triggerRefresh();
-                        }}
-                      >
-                        {col.fine_status ? 'Waive Fine' : 'Apply Fine'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {activeTab === 'colleges' && renderCollegesCard()}
 
       {/* 5. APPEALS & REPLACEMENTS TAB */}
       {activeTab === 'appeals' && (
@@ -680,7 +688,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   ) : (
                     appeals.map(appeal => (
                       <TableRow key={appeal.id}>
-                        <TableCell className="font-semibold text-[#132238]">{appeal.college?.name}</TableCell>
+                        <TableCell className="font-semibold text-slate-100">{appeal.college?.name}</TableCell>
                         <TableCell className="font-medium text-slate-700">{appeal.item?.name}</TableCell>
                         <TableCell className="max-w-xs text-xs text-slate-600">
                           {appeal.reason}
@@ -792,7 +800,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   ) : (
                     replacements.map(rep => (
                       <TableRow key={rep.id}>
-                        <TableCell className="font-semibold text-[#132238]">
+                        <TableCell className="font-semibold text-slate-100">
                           {rep.registration?.item?.name}
                         </TableCell>
                         <TableCell>
@@ -879,7 +887,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   results.map(res => (
                     <TableRow key={res.id}>
                       <TableCell>
-                        <div className="font-semibold text-[#132238]">{res.item?.name}</div>
+                        <div className="font-semibold text-slate-100">{res.item?.name}</div>
                         <span className="text-[10px] text-slate-400">{res.item?.code}</span>
                       </TableCell>
                       <TableCell>

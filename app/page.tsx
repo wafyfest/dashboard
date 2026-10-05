@@ -33,10 +33,10 @@ export default function RootPage() {
   }, [currentRole, router]);
 
   return (
-    <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+    <div className="min-h-screen bg-[#0D1117] flex items-center justify-center">
       <div className="text-center space-y-2">
-        <div className="w-10 h-10 border-4 border-[#132238] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs font-semibold text-slate-600">Redirecting to designated portal...</p>
+        <div className="w-10 h-10 border-4 border-slate-600 border-t-emerald-400 rounded-full animate-spin mx-auto" />
+        <p className="text-xs font-semibold text-slate-400">Redirecting to designated portal...</p>
       </div>
     </div>
   );

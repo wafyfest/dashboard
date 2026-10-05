@@ -13,23 +13,23 @@ export function Badge({
   size = 'md',
   ...props
 }: BadgeProps) {
-  const baseStyles = 'inline-flex items-center font-medium rounded-full transition-colors whitespace-nowrap';
-  
+  const baseStyles = 'inline-flex items-center font-medium rounded-full transition-colors whitespace-nowrap w-fit';
+
   const sizeStyles = {
     sm: 'px-2 py-0.5 text-[11px]',
     md: 'px-2.5 py-0.5 text-xs',
   };
 
   const variantStyles = {
-    default: 'bg-slate-100 text-slate-800 border border-slate-200/80',
-    navy: 'bg-[#132238] text-white shadow-sm',
-    secondary: 'bg-blue-50 text-blue-700 border border-blue-200/60',
-    success: 'bg-emerald-50 text-emerald-700 border border-emerald-200/70',
-    warning: 'bg-amber-50 text-amber-800 border border-amber-200/70',
-    destructive: 'bg-rose-50 text-rose-700 border border-rose-200/70',
-    outline: 'text-slate-700 border border-slate-300 bg-white',
-    purple: 'bg-indigo-50 text-indigo-700 border border-indigo-200/70',
-    amber: 'bg-orange-50 text-orange-800 border border-orange-200/70',
+    default:     'bg-slate-700/60 text-slate-300 border border-slate-600/60',
+    navy:        'bg-[#132238] text-slate-200 border border-[#2E476B]/60 shadow-sm',
+    secondary:   'bg-blue-900/60 text-blue-200 border border-blue-600/60',
+    success:     'bg-emerald-900/60 text-emerald-300 border border-emerald-600/60',
+    warning:     'bg-amber-900/60 text-amber-200 border border-amber-600/60',
+    destructive: 'bg-rose-900/60 text-rose-300 border border-rose-600/60',
+    outline:     'text-slate-300 border border-slate-500 bg-slate-800/50',
+    purple:      'bg-indigo-900/60 text-indigo-200 border border-indigo-600/60',
+    amber:       'bg-amber-900/60 text-amber-200 border border-amber-600/60',
   };
 
   return (
@@ -45,34 +45,34 @@ export function StageStatusBadge({ status }: { status: string }) {
     case 'On_Going':
       return (
         <Badge variant="success" className="animate-pulse flex items-center gap-1.5 font-semibold">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
           Live / On Stage
         </Badge>
       );
     case 'Starting_Soon':
       return (
         <Badge variant="amber" className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-orange-400"></span>
           Starting Soon
         </Badge>
       );
     case 'Next_Item':
       return (
         <Badge variant="secondary" className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
           Next in Queue
         </Badge>
       );
     case 'Ended':
       return (
-        <Badge variant="default" className="text-slate-500 bg-slate-100">
+        <Badge variant="default" className="text-slate-400">
           Ended
         </Badge>
       );
     case 'Upcoming':
     default:
       return (
-        <Badge variant="outline" className="text-slate-600">
+        <Badge variant="outline" className="text-slate-300">
           Upcoming
         </Badge>
       );

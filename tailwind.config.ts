@@ -9,16 +9,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#EEF2F6",
+        canvas: "#0D1117",
         navy: {
-          DEFAULT: "#132238",
-          light: "#1E3354",
-          dark: "#0C1625",
-          hover: "#192B45",
+          DEFAULT: "#1A2E4A",
+          light: "#243D60",
+          dark: "#0D1A2A",
+          hover: "#1E3558",
         },
         slate: {
-          850: "#15202E",
-          950: "#080E18",
+          850: "#1C2535",
+          950: "#F0F5FA",
         },
       },
       borderRadius: {
@@ -26,8 +26,8 @@ const config: Config = {
         "3xl": "1.5rem",
       },
       boxShadow: {
-        card: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)",
-        elevated: "0 10px 30px -5px rgba(19, 34, 56, 0.08)",
+        card: "0 1px 3px 0 rgba(0, 0, 0, 0.35), 0 1px 2px 0 rgba(0, 0, 0, 0.25)",
+        elevated: "0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 4px 12px -4px rgba(0, 0, 0, 0.3)",
       },
     },
   },
