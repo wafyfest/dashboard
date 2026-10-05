@@ -1,58 +1,295 @@
 @import "tailwindcss";
 
 @theme {
+  /* ─── Fonts ─────────────────────────────────────────────────────── */
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --color-canvas: #EEF2F6;
-  --color-navy: #132238;
-  --color-navy-light: #1E3354;
-  --color-navy-dark: #0C1625;
-  --color-navy-hover: #192B45;
+  /* ─── Brand Colors ───────────────────────────────────────────────── */
+  --color-canvas: #0D1117;
+  --color-navy: #1A2E4A;
+  --color-navy-light: #243D60;
+  --color-navy-dark: #0D1A2A;
+  --color-navy-hover: #1E3558;
 
-  --color-slate-850: #15202E;
-  --color-slate-950: #080E18;
-
+  /* ─── Radius ─────────────────────────────────────────────────────── */
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
 
-  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --shadow-elevated: 0 10px 30px -5px rgba(19, 34, 56, 0.08);
+  /* ─── Shadows for dark surfaces ──────────────────────────────────── */
+  --shadow-2xs:    0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-card:   0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 10px 30px -5px rgba(0, 0, 0, 0.7), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
+/* ─── CSS Custom Properties (dark theme tokens) ─────────────────────── */
 :root {
-  --background: #EEF2F6;
-  --foreground: #132238;
+  /* Page / layout backgrounds */
+  --bg-page:       #0D1117;
+  --bg-surface:    #161C24;
+  --bg-elevated:   #1C2330;
+  --bg-subtle:     #121720;
+  --bg-hover:      #1E2635;
+  --bg-active:     #1E2A3C;
+
+  /* Borders */
+  --border-subtle:   #26303F;
+  --border-medium:   #2E3B4A;
+  --border-strong:   #374350;
+
+  /* Text */
+  --text-primary:    #F0F6FC;
+  --text-secondary:  #94A3B8;
+  --text-muted:      #64748B;
+
+  /* Accent */
+  --accent-navy:     #1A2E4A;
+  --accent-emerald:  #10B981;
+
+  /* Legacy compatibility */
+  --background: #0D1117;
+  --foreground: #F0F6FC;
 }
 
+/* ─── Base ──────────────────────────────────────────────────────────── */
 body {
-  background-color: #EEF2F6;
-  color: #132238;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom subtle scrollbar */
+/* Selection */
+::selection {
+  background-color: #1A3458;
+  color: #F0F6FC;
+}
+
+/* ─── Override bg-white to dark surface ─────────────────────────────── */
+.bg-white {
+  background-color: var(--bg-surface) !important;
+}
+.hover\:bg-white:hover {
+  background-color: var(--bg-hover) !important;
+}
+.bg-white\/80 {
+  background-color: rgba(22, 28, 36, 0.8) !important;
+}
+.bg-white\/95 {
+  background-color: rgba(22, 28, 36, 0.95) !important;
+}
+
+/* ─── Global Dark Theme Overrides for Hardcoded Light Utilities ──────── */
+.bg-\[\#EEF2F6\] {
+  background-color: #0D1117 !important;
+}
+.text-\[\#132238\] {
+  color: #F0F6FC !important;
+}
+.hover\:text-\[\#132238\]:hover {
+  color: #FFFFFF !important;
+}
+
+.bg-\[\#d9e2ec\] {
+  background-color: #1E2C40 !important;
+  color: #F0F6FC !important;
+}
+.bg-\[\#d9e2ec\]\/60 {
+  background-color: rgba(30, 44, 64, 0.6) !important;
+}
+.bg-\[\#d9e2ec\]\/50 {
+  background-color: rgba(30, 44, 64, 0.5) !important;
+}
+.bg-\[\#d9e2ec\]\/40 {
+  background-color: rgba(30, 44, 64, 0.4) !important;
+}
+.bg-\[\#d9e2ec\]\/30 {
+  background-color: rgba(30, 44, 64, 0.3) !important;
+}
+.bg-\[\#d9e2ec\]\/20 {
+  background-color: rgba(30, 44, 64, 0.2) !important;
+}
+.hover\:bg-\[\#d9e2ec\]:hover {
+  background-color: #24354D !important;
+}
+
+.border-\[\#132238\] {
+  border-color: #2E476B !important;
+}
+.ring-\[\#132238\] {
+  --tw-ring-color: #2E476B !important;
+}
+.focus\:ring-\[\#132238\]\/20:focus {
+  --tw-ring-color: rgba(46, 71, 107, 0.4) !important;
+}
+
+/* ─── Light Borders & Backgrounds Mapped to Dark Palette ─────────────── */
+.border-slate-200,
+.border-slate-200\/80,
+.border-slate-200\/90 {
+  border-color: #26303F !important;
+}
+.border-slate-300,
+.border-slate-300\/60,
+.border-slate-300\/80 {
+  border-color: #2E3B4A !important;
+}
+.border-slate-100 {
+  border-color: #1E2633 !important;
+}
+
+.bg-slate-50 {
+  background-color: #121720 !important;
+}
+.bg-slate-100 {
+  background-color: #1A2333 !important;
+}
+.bg-slate-200 {
+  background-color: #243042 !important;
+}
+.hover\:bg-slate-50:hover,
+.hover\:bg-slate-50\/60:hover,
+.hover\:bg-slate-50\/70:hover {
+  background-color: #18202E !important;
+}
+.hover\:bg-slate-100:hover {
+  background-color: #202B3D !important;
+}
+.hover\:bg-slate-200:hover,
+.hover\:bg-slate-200\/60:hover,
+.hover\:bg-slate-200\/80:hover {
+  background-color: #2A384E !important;
+}
+
+/* ─── Light Text Classes High-Contrast Dark Mapping ─────────────────── */
+.text-slate-600 {
+  color: #94A3B8 !important;
+}
+.text-slate-700 {
+  color: #CBD5E1 !important;
+}
+.text-slate-800 {
+  color: #E2E8F0 !important;
+}
+.text-slate-900 {
+  color: #F0F6FC !important;
+}
+.hover\:text-slate-900:hover {
+  color: #FFFFFF !important;
+}
+
+/* ─── Semantic Pills & Status Toggles (Emerald, Rose, Amber, Blue) ───── */
+.bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.4) !important;
+}
+.text-emerald-700 {
+  color: #34D399 !important;
+}
+.text-emerald-600 {
+  color: #10B981 !important;
+}
+.border-emerald-200,
+.border-emerald-300 {
+  border-color: rgba(52, 211, 153, 0.3) !important;
+}
+.hover\:bg-emerald-50:hover,
+.hover\:bg-emerald-100:hover {
+  background-color: rgba(6, 78, 59, 0.65) !important;
+}
+
+.bg-rose-50 {
+  background-color: rgba(136, 19, 55, 0.4) !important;
+}
+.text-rose-700 {
+  color: #FB7185 !important;
+}
+.text-rose-600 {
+  color: #F43F5E !important;
+}
+.border-rose-200,
+.border-rose-300 {
+  border-color: rgba(251, 113, 133, 0.3) !important;
+}
+.hover\:bg-rose-50:hover,
+.hover\:bg-rose-100:hover {
+  background-color: rgba(136, 19, 55, 0.65) !important;
+}
+
+.bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.4) !important;
+}
+.text-amber-700 {
+  color: #FBBF24 !important;
+}
+.text-amber-600 {
+  color: #F59E0B !important;
+}
+.border-amber-200,
+.border-amber-300 {
+  border-color: rgba(251, 191, 36, 0.3) !important;
+}
+.hover\:bg-amber-50:hover,
+.hover\:bg-amber-100:hover {
+  background-color: rgba(120, 53, 15, 0.65) !important;
+}
+
+.bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.4) !important;
+}
+.text-blue-700 {
+  color: #60A5FA !important;
+}
+.text-blue-600 {
+  color: #3B82F6 !important;
+}
+.border-blue-200,
+.border-blue-300 {
+  border-color: rgba(96, 165, 250, 0.3) !important;
+}
+.hover\:bg-blue-50:hover,
+.hover\:bg-blue-100:hover {
+  background-color: rgba(30, 58, 138, 0.65) !important;
+}
+
+/* ─── Form Controls & Inputs ─────────────────────────────────────────── */
+input, select, textarea {
+  color-scheme: dark;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+select,
+textarea {
+  background-color: #121720;
+  color: #F0F6FC;
+  border-color: #26303F;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #64748B;
+}
+.disabled\:bg-slate-100:disabled {
+  background-color: #18202C !important;
+  color: #64748B !important;
+  border-color: #26303F !important;
+}
+
+/* ─── Custom Scrollbar (dark) ───────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #2E3B4A;
   border-radius: 9999px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #374350;
 }
 
+/* ─── Print overrides ───────────────────────────────────────────────── */
 @media print {
   body {
     background-color: white !important;
