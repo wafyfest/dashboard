@@ -18,7 +18,7 @@ import {
 
 export const initialFestSettings: FestSettings = {
   id: 1,
-  fest_name: 'WSF Arts Fest 2025',
+  fest_name: '14TH WAFY ARTS FEST',
   reg_deadline: new Date(Date.now() + 4 * 86400000).toISOString(),
   fine_deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
   rulebook_url: 'https://example.com/wsf_arts_manual.pdf'

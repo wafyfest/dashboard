@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import type { AuthUser } from '@supabase/supabase-js';
 import { UserRole, Profile, College, FestSettings } from '../types/fest';
 import { festService } from '../services/festService';
 
@@ -17,47 +18,142 @@ interface FestContextType {
   triggerRefresh: () => void;
   resetDatabase: () => void;
   isSupabaseConnected: boolean;
+  isAuthenticated: boolean;
+  isLoadingAuth: boolean;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
+  signOut: () => Promise<void>;
 }
 
 const FestContext = createContext<FestContextType | undefined>(undefined);
 
 export function FestProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRoleState] = useState<UserRole>('admin');
+  const [currentRole, setCurrentRoleState] = useState<UserRole>('college');
   const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-11');
   const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(11);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
-  const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('admin'));
+  const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('college'));
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
-    // Sync with live Supabase if available
-    festService.syncWithSupabase().then(connected => {
+    // Sync with live Supabase if available (college scoped if college role)
+    const scopeAffl = currentRole === 'college' ? currentCollegeAfflNo : undefined;
+    festService.syncWithSupabase(scopeAffl).then(connected => {
       setIsSupabaseConnected(connected);
       if (connected) {
         setFestSettings(festService.getFestSettings());
+        setRefreshKey(prev => prev + 1);
       }
     });
 
-    // Check localStorage for saved role
-    if (typeof window !== 'undefined') {
-      const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
-      if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
-        setCurrentRoleState(savedRole);
-      }
-      const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
-      if (savedAffl) {
-        const affl = parseInt(savedAffl);
-        if (!isNaN(affl)) {
-          setCurrentCollegeAfflNoState(affl);
-        }
-      }
+    // Subscribe to live Realtime updates via WebSockets (eliminates polling)
+    const unsubscribeRealtime = festService.subscribeToRealtimeChanges(() => {
+      triggerRefresh();
+    });
 
-      // Check localStorage for saved theme
+    // ── Real Supabase auth session check ──────────────────────────────────
+    import('@/lib/supabase/client').then(({ createClient }) => {
+      const maybeSupabase = createClient();
+      if (!maybeSupabase) {
+        // Local/demo fallback
+        if (typeof window !== 'undefined') {
+          const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
+          if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
+            setCurrentRoleState(savedRole);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+          const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+          if (savedAffl) {
+            const affl = parseInt(savedAffl);
+            if (!isNaN(affl)) setCurrentCollegeAfflNoState(affl);
+          }
+        }
+        setIsLoadingAuth(false);
+        return;
+      }
+      const supabase = maybeSupabase;
+
+      // Load initial session
+      supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, college_affl_no')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (profile) {
+            setCurrentRoleState(profile.role as UserRole);
+            setIsAuthenticated(true);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('arts_fest_active_role', profile.role);
+            }
+            if (profile.college_affl_no) {
+              setCurrentCollegeAfflNoState(profile.college_affl_no);
+              setCurrentCollegeIdState(`col-${profile.college_affl_no}`);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('arts_fest_active_affl_no', String(profile.college_affl_no));
+              }
+            }
+            setIsLoadingAuth(false);
+            return;
+          }
+        }
+        // Fallback to localStorage if no live Supabase session
+        if (typeof window !== 'undefined') {
+          const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
+          if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
+            setCurrentRoleState(savedRole);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+          const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+          if (savedAffl) {
+            const affl = parseInt(savedAffl);
+            if (!isNaN(affl)) setCurrentCollegeAfflNoState(affl);
+          }
+        }
+        setIsLoadingAuth(false);
+      });
+
+      // Listen for sign-in / sign-out events
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+        if (event === 'SIGNED_OUT') {
+          setIsAuthenticated(false);
+          setCurrentRoleState('college');
+          setCurrentCollegeAfflNoState(11);
+          setCurrentCollegeIdState('col-11');
+        }
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, college_affl_no')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (profile) {
+            setCurrentRoleState(profile.role as UserRole);
+            setIsAuthenticated(true);
+            if (profile.college_affl_no) {
+              setCurrentCollegeAfflNoState(profile.college_affl_no);
+              setCurrentCollegeIdState(`col-${profile.college_affl_no}`);
+            }
+          }
+        }
+      });
+
+      return () => { subscription.unsubscribe(); };
+    });
+    // ── End auth session check ─────────────────────────────────────────────
+
+    // Theme init
+    if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('arts_fest_theme') as 'light' | 'dark' | null;
       if (savedTheme === 'light' || savedTheme === 'dark') {
         setThemeState(savedTheme);
@@ -69,6 +165,10 @@ export function FestProvider({ children }: { children: ReactNode }) {
         applyThemeClass(initial);
       }
     }
+
+    return () => {
+      unsubscribeRealtime();
+    };
   }, []);
 
   const applyThemeClass = (t: 'light' | 'dark') => {
@@ -101,9 +201,27 @@ export function FestProvider({ children }: { children: ReactNode }) {
 
   const setCurrentRole = (role: UserRole) => {
     setCurrentRoleState(role);
+    setIsAuthenticated(true);
     if (typeof window !== 'undefined') {
       localStorage.setItem('arts_fest_active_role', role);
     }
+  };
+
+  const signOut = async () => {
+    try {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // Proceed even if Supabase signout fails
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('arts_fest_active_role');
+      localStorage.removeItem('arts_fest_active_affl_no');
+    }
+    setIsAuthenticated(false);
   };
 
   const setCurrentCollegeId = (colId: string) => {
@@ -147,9 +265,12 @@ export function FestProvider({ children }: { children: ReactNode }) {
         triggerRefresh,
         resetDatabase,
         isSupabaseConnected,
+        isAuthenticated,
+        isLoadingAuth,
         theme,
         setTheme,
-        toggleTheme
+        toggleTheme,
+        signOut
       }}
     >
       {children}

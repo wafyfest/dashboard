@@ -40,7 +40,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
-  const { festSettings, theme, toggleTheme } = useFest();
+  const { festSettings, theme, toggleTheme, signOut } = useFest();
 
   const handleNavClick = (item: NavItem) => {
     if (onSelectNavItem) {
@@ -52,7 +52,8 @@ export function DashboardLayout({
     setMobileMenuOpen(false);
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await signOut();
     router.push('/login');
   };
 
@@ -180,7 +181,7 @@ export function DashboardLayout({
               <Menu className="w-5 h-5" />
             </button>
 
-            <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight truncate">
+            <h1 className="text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight truncate" suppressHydrationWarning>
               {festSettings.fest_name}
             </h1>
           </div>

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { StageControllerView, StageControllerTab } from '@/components/roles/StageControllerView';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function StageControllerPage() {
   const [activeTab, setActiveTab] = useState<StageControllerTab>('relay');
@@ -19,16 +20,18 @@ export default function StageControllerPage() {
   ];
 
   return (
-    <DashboardLayout
-      portalTitle="Stage Console"
-      roleBadge="Stage Controller"
-      navItems={navItems}
-      activeItemId={activeTab}
-      onSelectNavItem={(id) => setActiveTab(id as StageControllerTab)}
-    >
-      <div className="max-w-7xl mx-auto">
-        <StageControllerView activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
-    </DashboardLayout>
+    <ProtectedRoute allowedRoles={['stage_controller', 'admin']}>
+      <DashboardLayout
+        portalTitle="Stage Console"
+        roleBadge="Stage Controller"
+        navItems={navItems}
+        activeItemId={activeTab}
+        onSelectNavItem={(id) => setActiveTab(id as StageControllerTab)}
+      >
+        <div className="max-w-7xl mx-auto">
+          <StageControllerView activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }

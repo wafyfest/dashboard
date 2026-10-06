@@ -37,10 +37,16 @@ import { Modal } from '@/components/ui/modal';
 import { Item, Student, StudentCategory } from '@/lib/types/fest';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, triggerRefresh } = useFest();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Navigation Items matching the reference screenshot
   const navItems: NavItem[] = [
@@ -105,7 +111,7 @@ export default function CollegePortalPage() {
         }
       });
     }
-  }, [currentCollegeId, currentCollegeAfflNo, college]);
+  }, [currentCollegeId, currentCollegeAfflNo, college?.affl_no]);
 
   const registrations = festService.getRegistrations(currentCollegeId);
   const schedules = festService.getSchedules();
@@ -116,11 +122,52 @@ export default function CollegePortalPage() {
   const registeredItemIds = new Set(registrations.map(r => r.item_id));
 
   // Category counts matching current fest categories
-  const foundationCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'foundation').length || college?.st_foundation || 56;
-  const thamheediyyaCount = students.filter(s => (s.category || s.phase)?.toLowerCase().includes('thamheed')).length || college?.st_thamheediya || 61;
-  const aliyaCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'aliya').length || college?.st_aliya || 59;
-  const pgCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'pg').length || 24;
-  const generalCount = students.filter(s => (s.category || s.phase)?.toLowerCase() === 'general').length || 18;
+  const getPhaseCount = (phaseKey: string, collegeFallbackField?: number) => {
+    const key = phaseKey.toLowerCase();
+    const count = students.filter(s => {
+      const p = (s.category || s.phase || '').toLowerCase();
+      if (key === 'foundation') {
+        return p === 'foundation' || p === 'fd' || p.includes('sub_junior') || p.includes('sub junior') || p.includes('sub-junior') || p.includes('pre foundation');
+      }
+      if (key === 'thamheediyya') {
+        return p.includes('thamheed') || p === 'th' || (p.includes('junior') && !p.includes('sub'));
+      }
+      if (key === 'aliya') {
+        return p === 'aliya' || p === 'al' || p.includes('senior');
+      }
+      if (key === 'pg') {
+        return p === 'pg';
+      }
+      if (key === 'general') {
+        return p === 'general';
+      }
+      return p === key;
+    }).length;
+
+    if (students.length > 0) {
+      return count;
+    }
+    return collegeFallbackField ?? 0;
+  };
+
+  const foundationCount = getPhaseCount('foundation', college?.st_foundation);
+  const thamheediyyaCount = getPhaseCount('thamheediyya', college?.st_thamheediya);
+  const aliyaCount = getPhaseCount('aliya', college?.st_aliya);
+  const pgCount = getPhaseCount('pg', 0);
+  const generalCount = getPhaseCount('general', 0);
+
+  const totalCount = students.length > 0
+    ? students.length
+    : (foundationCount + thamheediyyaCount + aliyaCount + pgCount + generalCount);
+
+  const categoryCards = [
+    { label: 'Foundation', count: foundationCount },
+    { label: 'Thamheediyya', count: thamheediyyaCount },
+    { label: 'Aliya', count: aliyaCount },
+    { label: 'PG', count: pgCount },
+    { label: 'General', count: generalCount },
+    { label: 'Total Students', count: totalCount, highlight: true },
+  ].filter(card => card.count > 0);
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,8 +232,32 @@ export default function CollegePortalPage() {
     alert('Participant replacement request submitted for Admin verification.');
   };
 
+  // Prevent SSR/client hydration mismatch by deferring localStorage-dependent content
+  if (!isMounted) {
+    return (
+      <DashboardLayout
+        portalTitle="Fest Dashboard"
+        roleBadge="College Portal"
+        navItems={navItems}
+        activeItemId={activeTab}
+        onSelectNavItem={setActiveTab}
+      >
+        <div className="space-y-6 max-w-7xl mx-auto">
+          <div className="h-24 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          <div className="h-40 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout
+    <ProtectedRoute allowedRoles={['college', 'admin']}>
+      <DashboardLayout
       portalTitle="Fest Dashboard"
       roleBadge="College Portal"
       navItems={navItems}
@@ -208,62 +279,40 @@ export default function CollegePortalPage() {
             </div>
 
             {/* Student Category Stat Cards Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
-              {/* Foundation Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Foundation</span>
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
-                  {foundationCount}
-                </div>
+            {categoryCards.length > 0 && (
+              <div className={`grid gap-3 lg:gap-4 ${
+                categoryCards.length === 1
+                  ? 'grid-cols-1 max-w-xs'
+                  : categoryCards.length === 2
+                  ? 'grid-cols-2 max-w-md'
+                  : categoryCards.length === 3
+                  ? 'grid-cols-1 sm:grid-cols-3'
+                  : categoryCards.length === 4
+                  ? 'grid-cols-2 sm:grid-cols-4'
+                  : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+              }`}>
+                {categoryCards.map(card => (
+                  <div
+                    key={card.label}
+                    className={`border rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs transition-all ${
+                      card.highlight
+                        ? 'bg-[#132238] border-[#132238] text-white'
+                        : 'bg-[#d9e2ec]/40 border-slate-300/80 text-[#132238]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-semibold ${card.highlight ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {card.label}
+                      </span>
+                      <User className={`w-3.5 h-3.5 ${card.highlight ? 'text-blue-300' : 'text-slate-400'}`} />
+                    </div>
+                    <div className={`text-2xl font-extrabold tracking-tight ${card.highlight ? 'text-white' : 'text-[#132238]'}`}>
+                      {card.count}
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              {/* Thamheediyya Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Thamheediyya</span>
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
-                  {thamheediyyaCount}
-                </div>
-              </div>
-
-              {/* Aliya Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">Aliya</span>
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
-                  {aliyaCount}
-                </div>
-              </div>
-
-              {/* PG Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">PG</span>
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
-                  {pgCount}
-                </div>
-              </div>
-
-              {/* General Students */}
-              <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-4 flex flex-col justify-between h-26 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-700">
-                  <span className="text-xs font-semibold">General</span>
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div className="text-2xl font-extrabold text-[#132238] tracking-tight">
-                  {generalCount}
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Institution Banner Card */}
             <div className="bg-[#d9e2ec]/40 border border-slate-300/80 rounded-2xl p-6 space-y-4 shadow-2xs">
@@ -1055,5 +1104,6 @@ export default function CollegePortalPage() {
         </form>
       </Modal>
     </DashboardLayout>
+    </ProtectedRoute>
   );
 }

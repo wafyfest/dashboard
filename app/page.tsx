@@ -6,10 +6,16 @@ import { useFest } from '@/lib/context/FestContext';
 
 export default function RootPage() {
   const router = useRouter();
-  const { currentRole } = useFest();
+  const { currentRole, isAuthenticated, isLoadingAuth } = useFest();
 
   useEffect(() => {
-    // Route to the active role's dedicated page
+    if (isLoadingAuth) return;
+
+    if (!isAuthenticated) {
+      router.replace('/login');
+      return;
+    }
+
     switch (currentRole) {
       case 'college':
         router.replace('/college');
@@ -27,10 +33,10 @@ export default function RootPage() {
         router.replace('/result-entry');
         break;
       default:
-        router.replace('/college');
+        router.replace('/login');
         break;
     }
-  }, [currentRole, router]);
+  }, [currentRole, isAuthenticated, isLoadingAuth, router]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex items-center justify-center">

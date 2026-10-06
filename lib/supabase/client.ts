@@ -1,29 +1,29 @@
 import { createBrowserClient } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-export function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
-  }
+// Single shared instance for the entire app — prevents "Multiple GoTrueClient" warning.
+// Both createClient() and the supabase export point to the exact same object.
+let _instance: ReturnType<typeof createBrowserClient> | null = null;
 
-  return createBrowserClient(supabaseUrl, supabaseKey);
-}
-
-// Fallback direct js client
-export function getSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
+function getInstance() {
   if (!supabaseUrl || !supabaseKey) return null;
-
-  return createSupabaseClient(supabaseUrl, supabaseKey);
+  if (!_instance) {
+    _instance = createBrowserClient(supabaseUrl, supabaseKey);
+  }
+  return _instance;
 }
 
-export const supabase = getSupabase();
+/** Use this in React components / hooks (Next.js App Router pattern). */
+export function createClient() {
+  return getInstance();
+}
+
+/** Use this in service classes / non-React code. Same singleton, different alias. */
+export function getSupabase() {
+  return getInstance();
+}
+
+/** Convenience export so existing imports of `supabase` continue to work. */
+export const supabase = getInstance();

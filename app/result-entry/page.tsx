@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { ResultEntryView, ResultEntryTab } from '@/components/roles/ResultEntryView';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function ResultEntryPage() {
   const [activeTab, setActiveTab] = useState<ResultEntryTab>('scoring');
@@ -19,16 +20,18 @@ export default function ResultEntryPage() {
   ];
 
   return (
-    <DashboardLayout
-      portalTitle="Tabulation Console"
-      roleBadge="Result Entry"
-      navItems={navItems}
-      activeItemId={activeTab}
-      onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
-    >
-      <div className="max-w-7xl mx-auto">
-        <ResultEntryView activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
-    </DashboardLayout>
+    <ProtectedRoute allowedRoles={['result_entry', 'admin']}>
+      <DashboardLayout
+        portalTitle="Tabulation Console"
+        roleBadge="Result Entry"
+        navItems={navItems}
+        activeItemId={activeTab}
+        onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
+      >
+        <div className="max-w-7xl mx-auto">
+          <ResultEntryView activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }
