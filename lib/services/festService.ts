@@ -47,12 +47,13 @@ class FestService {
 
   constructor() {
     if (this.isClient) {
-      // Auto-purge any stale demo registrations stored in localStorage from earlier dev sessions
-      const purgeKey = 'wafy_fest_db_reg_cleared_all_v1';
+      // Clear old mock data cached in localStorage for non-event entities
+      const purgeKey = 'wafy_fest_db_purge_non_events_v3';
       if (!localStorage.getItem(purgeKey)) {
         try {
-          this.setStorage('registrations', []);
-          this.setStorage('registration_logs', []);
+          ['colleges', 'students', 'registrations', 'registration_logs', 'schedules', 'stages', 'results', 'entryLocks', 'appeals', 'submissions'].forEach(k => {
+            localStorage.removeItem(STORAGE_KEY_PREFIX + k);
+          });
           localStorage.setItem(purgeKey, 'true');
         } catch {
           // ignore storage error in restricted contexts
@@ -81,52 +82,133 @@ class FestService {
     }
   }
 
-  // --- Live Supabase Sync ---
-  public async syncWithSupabase(): Promise<boolean> {
+  private lastSyncTime = 0;
+  private readonly SYNC_TTL = 5 * 60 * 1000; // 5 minutes TTL
+
+  // --- Live Supabase Sync (Throttled & Scoped with Specific Columns) ---
+  public async syncWithSupabase(collegeAfflNo?: number, force = false): Promise<boolean> {
     if (!supabase) return false;
+    const now = Date.now();
+    if (!force && now - this.lastSyncTime < this.SYNC_TTL) {
+      return true; // Use cached data in localStorage
+    }
+
     try {
       const client = supabase;
-      const { data: festData } = await client.from('fest_settings').select('*').limit(1).maybeSingle();
+
+      // 1. Settings: fetch specific columns
+      const { data: festData } = await client
+        .from('fest_settings')
+        .select('id, fest_name, reg_deadline, fine_deadline, max_participants_per_item, rulebook_url')
+        .limit(1)
+        .maybeSingle();
       if (festData) this.setStorage('festSettings', festData);
 
-      const { data: colData } = await client.from('colleges').select('*');
-      if (colData && colData.length > 0) this.setStorage('colleges', colData);
+      // 2. Colleges: fetch specific columns
+      const { data: colData } = await client
+        .from('colleges')
+        .select('id, name, affl_no, affiliation_no, email, phone, address, coordinator_name, coordinator_phone, manager_name, manager_phone, asst_manager_name, asst_manager_phone, st_foundation, st_thamheediya, st_aliya, manual_lock_override, fine_status');
+      if (colData) this.setStorage('colleges', colData);
 
-      const { data: itemData } = await client.from('items').select('*');
+      // 3. Items catalog: fetch specific columns
+      const { data: itemData } = await client
+        .from('items')
+        .select('id, item_id, item_code, code, name_eng, name_mal, phase, category, mode, point_type, item_type, no_of_participants, min_participants, max_participants, is_locked, reg_deadline, fine_deadline');
       if (itemData && itemData.length > 0) this.setStorage('items', itemData);
 
-      let allStudents: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
-      while (true) {
-        const { data: pageData, error } = await client.from('students').select('*').range(from, from + pageSize - 1);
-        if (error || !pageData || pageData.length === 0) break;
-        allStudents = allStudents.concat(pageData);
-        if (pageData.length < pageSize) break;
-        from += pageSize;
+      // 4. Students: Scoped fetch (if collegeAfflNo provided, fetch only that college's roster)
+      let studentQuery = client
+        .from('students')
+        .select('id, chest_no, name, full_name, admission_no, college_affl_no, category, phase, class, phone, photo_url');
+      if (collegeAfflNo) {
+        studentQuery = studentQuery.eq('college_affl_no', collegeAfflNo);
       }
-      if (allStudents.length > 0) this.setStorage('students', allStudents);
+      const { data: studentData } = await studentQuery;
+      if (studentData) {
+        if (collegeAfflNo) {
+          const existing = this.getStorage<Student[]>('students', []);
+          const otherColleges = existing.filter(s => s.college_affl_no !== collegeAfflNo);
+          this.setStorage('students', [...otherColleges, ...studentData]);
+        } else {
+          this.setStorage('students', studentData);
+        }
+      }
 
-      const { data: stgData } = await client.from('stages').select('*');
-      if (stgData && stgData.length > 0) this.setStorage('stages', stgData);
+      // 5. Stages & Schedules
+      const { data: stgData } = await client
+        .from('stages')
+        .select('id, stage_id, name, location, capacity, is_active');
+      if (stgData) this.setStorage('stages', stgData);
 
-      const { data: schData } = await client.from('schedules').select('*');
-      if (schData && schData.length > 0) this.setStorage('schedules', schData);
+      const { data: schData } = await client
+        .from('schedules')
+        .select('id, schedule_id, item_id, stage_id, starting, scheduled_start, status, current_chest_no');
+      if (schData) this.setStorage('schedules', schData);
 
-      const { data: regData } = await client.from('registrations').select('*');
-      if (regData && regData.length > 0) this.setStorage('registrations', regData);
+      // 6. Registrations: Scoped fetch
+      let regQuery = client
+        .from('registrations')
+        .select('id, item_id, college_affl_no, code_letter, participants, registered_at');
+      if (collegeAfflNo) {
+        regQuery = regQuery.eq('college_affl_no', collegeAfflNo);
+      }
+      const { data: regData } = await regQuery;
+      if (regData) {
+        if (collegeAfflNo) {
+          const existing = this.getStorage<Registration[]>('registrations', []);
+          const otherColleges = existing.filter(r => r.college_affl_no !== collegeAfflNo);
+          this.setStorage('registrations', [...otherColleges, ...regData]);
+        } else {
+          this.setStorage('registrations', regData);
+        }
+      }
 
-      const { data: resData } = await client.from('results').select('*');
-      if (resData && resData.length > 0) this.setStorage('results', resData);
+      // 7. Results & Locks
+      const { data: resData } = await client
+        .from('results')
+        .select('id, item_id, first_place, second_place, third_place, published_at');
+      if (resData) this.setStorage('results', resData);
 
-      const { data: lockData } = await client.from('entry_locks').select('*');
-      if (lockData && lockData.length > 0) this.setStorage('entryLocks', lockData);
+      const { data: lockData } = await client
+        .from('entry_locks')
+        .select('item_id, college_affl_no, is_open');
+      if (lockData) this.setStorage('entryLocks', lockData);
 
+      this.lastSyncTime = Date.now();
       return true;
     } catch (err) {
-      console.warn('Notice: Supabase sync deferred (using local cache until tables populated):', err);
+      console.warn('Notice: Supabase sync deferred:', err);
       return false;
     }
+  }
+
+  // --- Supabase Realtime Subscriptions (Replaces Polling with WebSockets) ---
+  public subscribeToRealtimeChanges(onUpdate: () => void): () => void {
+    if (!supabase) return () => {};
+
+    const channel = supabase
+      .channel('fest_realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
+        this.lastSyncTime = 0; // Invalidate cache
+        this.syncWithSupabase(undefined, true).then(onUpdate);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'results' }, () => {
+        this.lastSyncTime = 0;
+        this.syncWithSupabase(undefined, true).then(onUpdate);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_locks' }, () => {
+        this.lastSyncTime = 0;
+        this.syncWithSupabase(undefined, true).then(onUpdate);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => {
+        this.lastSyncTime = 0;
+        this.syncWithSupabase(undefined, true).then(onUpdate);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }
 
   // --- Reset Database ---
@@ -215,7 +297,7 @@ class FestService {
 
   // --- Colleges ---
   public getColleges(): College[] {
-    const cols = this.getStorage<College[]>('colleges', initialColleges);
+    const cols = this.getStorage<College[]>('colleges', []);
     return cols.map(c => ({
       ...c,
       code: c.short_name,
@@ -350,7 +432,7 @@ class FestService {
 
   // --- Entry Locks Matrix ---
   public getEntryLocks(): EntryLock[] {
-    const raw = this.getStorage<EntryLock[]>('entryLocks', initialEntryLocks);
+    const raw = this.getStorage<EntryLock[]>('entryLocks', []);
     const colleges = this.getColleges();
     const items = this.getItems();
     let updated = false;
@@ -480,7 +562,7 @@ class FestService {
 
   // --- Students ---
   public getStudents(collegeAfflNoOrId?: number | string): Student[] {
-    const students = this.getStorage<Student[]>('students', initialStudents);
+    const students = this.getStorage<Student[]>('students', []);
     const colleges = this.getColleges();
     const enriched = students.map(s => {
       const cic = s.admission_no ?? (s as any).cic_no ?? (s as any).cic_number;
@@ -524,6 +606,27 @@ class FestService {
     return this.getStudents(afflNo);
   }
 
+  public async fetchRegistrationsForCollege(afflNo?: number): Promise<Registration[]> {
+    if (supabase) {
+      try {
+        let query = supabase.from('registrations').select('*');
+        if (afflNo) {
+          query = query.eq('college_affl_no', afflNo);
+        }
+        const { data, error } = await query;
+        if (!error && data) {
+          const allStored = this.getStorage<Registration[]>('registrations', []);
+          const otherRegs = afflNo ? allStored.filter(r => r.college_affl_no !== afflNo) : [];
+          this.setStorage('registrations', afflNo ? [...otherRegs, ...data] : data);
+          return this.getRegistrations(afflNo);
+        }
+      } catch (err) {
+        console.warn('Error fetching registrations from Supabase:', err);
+      }
+    }
+    return this.getRegistrations(afflNo);
+  }
+
   public getStudent(idOrChest: string): Student | undefined {
     return this.getStudents().find(s => s.id === idOrChest || s.chest_no === idOrChest);
   }
@@ -533,7 +636,7 @@ class FestService {
   }
 
   public saveStudent(student: Partial<Student>): Student {
-    const students = this.getStorage<Student[]>('students', initialStudents);
+    const students = this.getStorage<Student[]>('students', []);
     if (student.chest_no) {
       const idx = students.findIndex(s => s.chest_no === student.chest_no);
       if (idx >= 0) {
@@ -577,7 +680,7 @@ class FestService {
 
   // --- Registrations (Multiple-Row Flat Architecture) ---
   public getRegistrations(collegeAfflNoOrId?: number | string): Registration[] {
-    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
+    const regs = this.getStorage<Registration[]>('registrations', []);
     const items = this.getItems();
     const colleges = this.getColleges();
     const students = this.getStudents();
@@ -657,8 +760,8 @@ class FestService {
       }
     }
 
-    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
 
     // 1. Remove existing entries for this college and item (logging delete)
     const existing = regs.filter(r => r.item_id === item.item_id && r.college_affl_no === college.affl_no);
@@ -724,8 +827,8 @@ class FestService {
     const item = this.getItem(itemIdOrCode);
     if (!college || !item) return { success: false, error: 'College or event not found' };
 
-    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
 
     const existing = regs.filter(r => r.item_id === item.item_id && r.college_affl_no === college.affl_no);
     existing.forEach(oldReg => {
@@ -755,8 +858,8 @@ class FestService {
   }
 
   public clearAllRegistrations(collegeAfflNoOrId?: number | string): { success: boolean; count: number } {
-    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
     let remaining: Registration[] = [];
     let clearedCount = 0;
 
@@ -804,7 +907,7 @@ class FestService {
 
   // --- Registration Logs ---
   public getRegistrationLogs(collegeAfflNoOrId?: number | string): RegistrationLog[] {
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', initialRegistrationLogs);
+    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
     if (!collegeAfflNoOrId) return logs;
     const col = this.getCollege(collegeAfflNoOrId);
     return col ? logs.filter(l => l.college_affl_no === col.affl_no) : logs;
@@ -816,7 +919,7 @@ class FestService {
     collegeAfflNoOrCode: number | string,
     codeLetter?: string
   ): void {
-    const regs = this.getStorage<Registration[]>('registrations', initialRegistrations);
+    const regs = this.getStorage<Registration[]>('registrations', []);
 
     // Case 1: called with (regId, codeLetter)
     if (codeLetter === undefined && typeof collegeAfflNoOrCode === 'string') {
@@ -854,11 +957,11 @@ class FestService {
   }
 
   public getStages(): Stage[] {
-    return this.getStorage('stages', initialStages);
+    return this.getStorage('stages', []);
   }
 
   public getSchedules(): Schedule[] {
-    const schedules = this.getStorage<Schedule[]>('schedules', initialSchedules);
+    const schedules = this.getStorage<Schedule[]>('schedules', []);
     const items = this.getItems();
     const stages = this.getStages();
 
@@ -873,7 +976,7 @@ class FestService {
 
   public updateScheduleStatus(itemIdOrScheduleId: number | string, status: StageStatus): void {
     const itm = this.getItem(itemIdOrScheduleId);
-    const schedules = this.getStorage<Schedule[]>('schedules', initialSchedules);
+    const schedules = this.getStorage<Schedule[]>('schedules', []);
     const idx = itm
       ? schedules.findIndex(s => s.item_id === itm.item_id)
       : schedules.findIndex(s => s.id === itemIdOrScheduleId);
@@ -890,7 +993,7 @@ class FestService {
 
   // --- Result Entry & Scoring ---
   public getResults(): Result[] {
-    const results = this.getStorage<Result[]>('results', initialResults);
+    const results = this.getStorage<Result[]>('results', []);
     const items = this.getItems();
     const colleges = this.getColleges();
     const students = this.getStudents();
@@ -939,7 +1042,7 @@ class FestService {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
 
-    const results = this.getStorage<Result[]>('results', initialResults);
+    const results = this.getStorage<Result[]>('results', []);
     const remaining = results.filter(r => r.item_id !== itemId);
 
     const sorted = [...scores].sort((a, b) => (b.mark_percentage || b.total || 0) - (a.mark_percentage || a.total || 0));
@@ -975,7 +1078,7 @@ class FestService {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
 
-    const results = this.getStorage<Result[]>('results', initialResults);
+    const results = this.getStorage<Result[]>('results', []);
     results.forEach(r => {
       if (r.item_id === itemId) {
         r.published = publish;
@@ -989,7 +1092,7 @@ class FestService {
 
   // --- Appeals ---
   public getAppeals(collegeAfflNoOrId?: number | string): Appeal[] {
-    const appeals = this.getStorage<Appeal[]>('appeals', initialAppeals);
+    const appeals = this.getStorage<Appeal[]>('appeals', []);
     const items = this.getItems();
     const colleges = this.getColleges();
 
@@ -1015,7 +1118,7 @@ class FestService {
     reason?: string,
     feeReceiptUrl?: string
   ): Appeal {
-    const appeals = this.getStorage<Appeal[]>('appeals', initialAppeals);
+    const appeals = this.getStorage<Appeal[]>('appeals', []);
 
     // Overload 1: passed as object
     if (typeof collegeAfflNoOrObj === 'object') {
@@ -1074,7 +1177,7 @@ class FestService {
   }
 
   public reviewAppeal(appealId: string, status: AppealStatus, remarks: string): void {
-    const appeals = this.getStorage<Appeal[]>('appeals', initialAppeals);
+    const appeals = this.getStorage<Appeal[]>('appeals', []);
     const idx = appeals.findIndex(a => a.id === appealId);
     if (idx >= 0) {
       appeals[idx].current_status = status;
@@ -1128,7 +1231,7 @@ class FestService {
 
   // --- Submissions ---
   public getSubmissionEntries(collegeAfflNoOrId?: number | string): SubmissionEntry[] {
-    const subs = this.getStorage<SubmissionEntry[]>('submissions', initialSubmissionEntries);
+    const subs = this.getStorage<SubmissionEntry[]>('submissions', []);
     const items = this.getItems();
     const students = this.getStudents();
     const enriched = subs.map(s => ({

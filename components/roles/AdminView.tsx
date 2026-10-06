@@ -53,7 +53,7 @@ interface AdminViewProps {
 }
 
 export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewProps = {}) {
-  const { festSettings, triggerRefresh } = useFest();
+  const { festSettings, refreshKey, triggerRefresh } = useFest();
   const [internalTab, setInternalTab] = useState<AdminTab>('overview');
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = (tab: AdminTab) => {
@@ -91,6 +91,35 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
   const [selectedCollegeAfflForReg, setSelectedCollegeAfflForReg] = useState<number>(() => {
     return colleges.length > 0 ? colleges[0].affl_no : 11;
   });
+
+  // Loading state for student/registration data fetch
+  const [isLoadingCollegeData, setIsLoadingCollegeData] = useState(false);
+
+  React.useEffect(() => {
+    if (colleges.length > 0 && !colleges.some(c => c.affl_no === selectedCollegeAfflForReg)) {
+      setSelectedCollegeAfflForReg(colleges[0].affl_no);
+    }
+  }, [colleges.length, selectedCollegeAfflForReg]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const affl = selectedCollegeAfflForReg || (colleges.length > 0 ? colleges[0].affl_no : 11);
+    if (!affl) return;
+    setIsLoadingCollegeData(true);
+    Promise.all([
+      festService.fetchStudentsForCollege(affl),
+      festService.fetchRegistrationsForCollege(affl)
+    ]).then(() => {
+      if (isMounted) {
+        triggerRefresh();
+        setIsLoadingCollegeData(false);
+      }
+    }).catch(() => {
+      if (isMounted) setIsLoadingCollegeData(false);
+    });
+    return () => { isMounted = false; };
+  }, [selectedCollegeAfflForReg]);
+
   const [regSearchQuery, setRegSearchQuery] = useState('');
   const [regCategoryFilter, setRegCategoryFilter] = useState('All');
   const [regStatusFilter, setRegStatusFilter] = useState<'All' | 'Registered' | 'Unregistered'>('All');
@@ -346,11 +375,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                           festService.setEntryLockRow(item.item_id, !allOpen);
                           triggerRefresh();
                         }}
-                        className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors ${
-                          allOpen
-                            ? 'bg-[#1A2638] text-slate-200 border-[#26303F] hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/80'
-                            : 'bg-rose-950/40 text-rose-300 border-rose-800/80 hover:bg-emerald-950/40 hover:text-emerald-300 hover:border-emerald-800/80'
-                        }`}
+                        className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors ${allOpen
+                          ? 'bg-[#1A2638] text-slate-200 border-[#26303F] hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/80'
+                          : 'bg-rose-950/40 text-rose-300 border-rose-800/80 hover:bg-emerald-950/40 hover:text-emerald-300 hover:border-emerald-800/80'
+                          }`}
                       >
                         {allOpen ? (
                           <>
@@ -380,11 +408,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                             festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
                             triggerRefresh();
                           }}
-                          className={`w-full py-1.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-xs border ${
-                            isOpen
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                          }`}
+                          className={`w-full py-1.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-xs border ${isOpen
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            }`}
                         >
                           {isOpen ? (
                             <>
@@ -540,13 +567,13 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       const name = item.name || item.name_eng || '';
       const code = item.code || item.item_code || '';
       const matchesSearch = name.toLowerCase().includes(regSearchQuery.toLowerCase()) ||
-                            code.toLowerCase().includes(regSearchQuery.toLowerCase());
+        code.toLowerCase().includes(regSearchQuery.toLowerCase());
       const itemCat = item.category || item.phase || '';
       const matchesCategory = regCategoryFilter === 'All' || itemCat.toLowerCase() === regCategoryFilter.toLowerCase();
       const isRegistered = registeredItemIds.has(item.item_id);
       const matchesStatus = regStatusFilter === 'All' ||
-                            (regStatusFilter === 'Registered' && isRegistered) ||
-                            (regStatusFilter === 'Unregistered' && !isRegistered);
+        (regStatusFilter === 'Registered' && isRegistered) ||
+        (regStatusFilter === 'Unregistered' && !isRegistered);
       return matchesSearch && matchesCategory && matchesStatus;
     });
 
@@ -554,6 +581,13 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
     return (
       <div className="space-y-6">
+        {/* Loading Banner */}
+        {isLoadingCollegeData && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl text-sm text-blue-700 dark:text-blue-300">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+            <span>Fetching latest student &amp; registration data from Supabase...</span>
+          </div>
+        )}
         {/* College Selector & Institution Profile Card */}
         <Card className="p-5 border-l-4 border-l-blue-600">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -715,11 +749,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             <button
               type="button"
               onClick={() => setRegViewMode('events')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                regViewMode === 'events'
-                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${regViewMode === 'events'
+                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
             >
               <Award className="w-4 h-4 text-blue-500" />
               <span>By Events & Rosters</span>
@@ -731,11 +764,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             <button
               type="button"
               onClick={() => setRegViewMode('students')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                regViewMode === 'students'
-                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${regViewMode === 'students'
+                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
             >
               <Users className="w-4 h-4 text-indigo-500" />
               <span>By Registered Students & Details</span>
@@ -761,19 +793,17 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                 <button
                   type="button"
                   onClick={() => setEventsSubTab('registered_list')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    eventsSubTab === 'registered_list'
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                  }`}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${eventsSubTab === 'registered_list'
+                    ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    }`}
                 >
                   <ListChecks className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Registered Events List</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                    registeredEventsCount > 0
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                      : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
-                  }`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${registeredEventsCount > 0
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+                    }`}>
                     {registeredEventsCount}
                   </span>
                 </button>
@@ -781,11 +811,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                 <button
                   type="button"
                   onClick={() => setEventsSubTab('all_events')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    eventsSubTab === 'all_events'
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                  }`}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${eventsSubTab === 'all_events'
+                    ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    }`}
                 >
                   <Award className="w-3.5 h-3.5 text-blue-500" />
                   <span>All Events Catalog</span>
@@ -1103,11 +1132,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                             key={status}
                             type="button"
                             onClick={() => setRegStatusFilter(status)}
-                            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                              regStatusFilter === status
-                                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs font-semibold'
-                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                            }`}
+                            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${regStatusFilter === status
+                              ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs font-semibold'
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                              }`}
                           >
                             {status === 'All' ? `All (${items.length})` : status === 'Registered' ? `Registered (${registeredEventsCount})` : `Not Enrolled (${items.length - registeredEventsCount})`}
                           </button>
@@ -1120,11 +1148,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                             key={cat}
                             type="button"
                             onClick={() => setRegCategoryFilter(cat)}
-                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors border ${
-                              regCategoryFilter.toLowerCase() === cat.toLowerCase()
-                                ? 'bg-[#132238] text-white border-[#1E3558] dark:bg-[#1A2E4A] dark:border-[#2E476B]'
-                                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'
-                            }`}
+                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors border ${regCategoryFilter.toLowerCase() === cat.toLowerCase()
+                              ? 'bg-[#132238] text-white border-[#1E3558] dark:bg-[#1A2E4A] dark:border-[#2E476B]'
+                              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'
+                              }`}
                           >
                             {cat}
                           </button>
@@ -1342,8 +1369,8 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             const stuRegs = collegeRegs.filter(r => r.chest_no === stu.chest_no);
             const isEnrolled = stuRegs.length > 0;
             const matchesStatus = studentRegStatusFilter === 'All' ||
-                                  (studentRegStatusFilter === 'Registered' && isEnrolled) ||
-                                  (studentRegStatusFilter === 'Unregistered' && !isEnrolled);
+              (studentRegStatusFilter === 'Registered' && isEnrolled) ||
+              (studentRegStatusFilter === 'Unregistered' && !isEnrolled);
 
             return matchesSearch && matchesCategory && matchesStatus;
           });
@@ -1371,11 +1398,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                           key={status}
                           type="button"
                           onClick={() => setStudentRegStatusFilter(status)}
-                          className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                            studentRegStatusFilter === status
-                              ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs font-semibold'
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                          }`}
+                          className={`px-2.5 py-1 rounded-md font-medium transition-colors ${studentRegStatusFilter === status
+                            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs font-semibold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
                         >
                           {status === 'All' ? `All (${collegeStudents.length})` : status === 'Registered' ? `Enrolled (${activeStudentChestNos.size})` : `Not Enrolled (${collegeStudents.length - activeStudentChestNos.size})`}
                         </button>
@@ -1388,11 +1414,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                           key={cat}
                           type="button"
                           onClick={() => setStudentCategoryFilter(cat)}
-                          className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors border ${
-                            studentCategoryFilter.toLowerCase() === cat.toLowerCase()
-                              ? 'bg-[#132238] text-white border-[#1E3558] dark:bg-[#1A2E4A] dark:border-[#2E476B]'
-                              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'
-                          }`}
+                          className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors border ${studentCategoryFilter.toLowerCase() === cat.toLowerCase()
+                            ? 'bg-[#132238] text-white border-[#1E3558] dark:bg-[#1A2E4A] dark:border-[#2E476B]'
+                            : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'
+                            }`}
                         >
                           {cat}
                         </button>
@@ -1522,11 +1547,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                               </TableCell>
 
                               <TableCell className="text-center">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-mono font-bold border ${
-                                  enrolledItems.length > 0
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
-                                    : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]'
-                                }`}>
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-mono font-bold border ${enrolledItems.length > 0
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
+                                  : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] border-[var(--border-subtle)]'
+                                  }`}>
                                   {enrolledItems.length}
                                 </span>
                               </TableCell>
@@ -1570,12 +1594,12 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       const stuChest = stu.chest_no || '';
       const stuAdm = stu.admission_no != null ? String(stu.admission_no) : '';
       const matchesSearch = stuName.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
-                            stuChest.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
-                            stuAdm.toLowerCase().includes(regModalStudentSearch.toLowerCase());
+        stuChest.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
+        stuAdm.toLowerCase().includes(regModalStudentSearch.toLowerCase());
       const itemCategory = (selectedItemForAdminReg.category || selectedItemForAdminReg.phase || '').toLowerCase();
       const matchesCategory = regModalShowAllCategories ||
-                              (stu.phase && stu.phase.toLowerCase() === itemCategory) ||
-                              (stu.category && stu.category.toLowerCase() === itemCategory);
+        (stu.phase && stu.phase.toLowerCase() === itemCategory) ||
+        (stu.category && stu.category.toLowerCase() === itemCategory);
       return matchesSearch && matchesCategory;
     });
 
@@ -1653,11 +1677,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               <button
                 type="button"
                 onClick={() => setRegModalShowAllCategories(!regModalShowAllCategories)}
-                className={`px-2 py-1.5 text-[11px] rounded-lg font-medium border transition-colors whitespace-nowrap ${
-                  regModalShowAllCategories
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300'
-                    : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                }`}
+                className={`px-2 py-1.5 text-[11px] rounded-lg font-medium border transition-colors whitespace-nowrap ${regModalShowAllCategories
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300'
+                  : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
               >
                 {regModalShowAllCategories ? 'All Categories (Showing All)' : `Filter: ${selectedItemForAdminReg.category} only`}
               </button>
@@ -1689,11 +1712,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   <div
                     key={student.id || chestNo}
                     onClick={() => handleToggleStudentSelection(chestNo)}
-                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${
-                      isSelected
-                        ? 'bg-blue-50/80 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800/80'
-                        : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
-                    }`}
+                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${isSelected
+                      ? 'bg-blue-50/80 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800/80'
+                      : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
+                      }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="text-blue-600 dark:text-blue-400">
@@ -2071,132 +2093,132 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       {activeTab === 'settings' && (
         <div className="space-y-6">
           <Card className="max-w-3xl">
-          <CardHeader>
-            <div>
-              <CardTitle>System Settings & Registration Windows</CardTitle>
+            <CardHeader>
+              <div>
+                <CardTitle>System Settings & Registration Windows</CardTitle>
+                <CardDescription>
+                  Configure fest branding, regular registration deadline, and late registration fine cutoffs
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Arts Fest Title</label>
+                  <input
+                    type="text"
+                    value={settingsForm.fest_name}
+                    onChange={e => setSettingsForm({ ...settingsForm, fest_name: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Standard Registration Deadline
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={settingsForm.reg_deadline}
+                      onChange={e => setSettingsForm({ ...settingsForm, reg_deadline: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
+                      required
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Colleges can register without penalty until this time.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Late Registration (Fine) Cutoff
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={settingsForm.fine_deadline}
+                      onChange={e => setSettingsForm({ ...settingsForm, fine_deadline: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
+                      required
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Registrations after standard deadline incur late fees.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Official Rulebook PDF URL</label>
+                  <input
+                    type="url"
+                    value={settingsForm.rulebook_url}
+                    onChange={e => setSettingsForm({ ...settingsForm, rulebook_url: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
+                    placeholder="https://fest.edu/rulebook.pdf"
+                  />
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <Button type="submit">Save Deadline Settings</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone / Data Management Card */}
+          <Card className="max-w-3xl border-rose-500/20 bg-rose-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Badge variant="destructive" size="sm">
+                  <AlertTriangle className="w-3 h-3 mr-1" /> System Reset & Danger Zone
+                </Badge>
+              </div>
+              <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">Data Management & Registration Purge</CardTitle>
               <CardDescription>
-                Configure fest branding, regular registration deadline, and late registration fine cutoffs
+                Irreversible administrative controls to wipe participant enrollments and reset cached festival records
               </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Arts Fest Title</label>
-                <input
-                  type="text"
-                  value={settingsForm.fest_name}
-                  onChange={e => setSettingsForm({ ...settingsForm, fest_name: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Standard Registration Deadline
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={settingsForm.reg_deadline}
-                    onChange={e => setSettingsForm({ ...settingsForm, reg_deadline: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
-                    required
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Colleges can register without penalty until this time.</p>
+                  <h4 className="text-sm font-bold text-[var(--text-primary)]">Purge All Registrations</h4>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Wipes all {registrations.length} student registrations across all participating institutions. Resets quotas and clears database records.
+                  </p>
                 </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleClearAllFestivalRegistrations}
+                  disabled={registrations.length === 0}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Clear All Registrations ({registrations.length})
+                </Button>
+              </div>
 
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Late Registration (Fine) Cutoff
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={settingsForm.fine_deadline}
-                    onChange={e => setSettingsForm({ ...settingsForm, fine_deadline: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
-                    required
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Registrations after standard deadline incur late fees.</p>
+                  <h4 className="text-sm font-bold text-[var(--text-primary)]">Reset Local Database to Defaults</h4>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Clears local storage caches and re-initializes colleges, events, and empty registration rosters.
+                  </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-rose-600 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to reset all local festival data to defaults?')) {
+                      festService.resetToDefaults();
+                      triggerRefresh();
+                      alert('Festival cache reset to default clean state.');
+                    }
+                  }}
+                >
+                  Reset System State
+                </Button>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Official Rulebook PDF URL</label>
-                <input
-                  type="url"
-                  value={settingsForm.rulebook_url}
-                  onChange={e => setSettingsForm({ ...settingsForm, rulebook_url: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#132238]/20 focus:outline-none font-mono"
-                  placeholder="https://fest.edu/rulebook.pdf"
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end">
-                <Button type="submit">Save Deadline Settings</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Danger Zone / Data Management Card */}
-        <Card className="max-w-3xl border-rose-500/20 bg-rose-500/5">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive" size="sm">
-                <AlertTriangle className="w-3 h-3 mr-1" /> System Reset & Danger Zone
-              </Badge>
-            </div>
-            <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">Data Management & Registration Purge</CardTitle>
-            <CardDescription>
-              Irreversible administrative controls to wipe participant enrollments and reset cached festival records
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-              <div>
-                <h4 className="text-sm font-bold text-[var(--text-primary)]">Purge All Registrations</h4>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  Wipes all {registrations.length} student registrations across all participating institutions. Resets quotas and clears database records.
-                </p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleClearAllFestivalRegistrations}
-                disabled={registrations.length === 0}
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                Clear All Registrations ({registrations.length})
-              </Button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-              <div>
-                <h4 className="text-sm font-bold text-[var(--text-primary)]">Reset Local Database to Defaults</h4>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  Clears local storage caches and re-initializes colleges, events, and empty registration rosters.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-rose-600 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to reset all local festival data to defaults?')) {
-                    festService.resetToDefaults();
-                    triggerRefresh();
-                    alert('Festival cache reset to default clean state.');
-                  }
-                }}
-              >
-                Reset System State
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* 3. ITEMS CATALOG TAB */}
