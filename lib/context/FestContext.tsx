@@ -56,31 +56,16 @@ export function FestProvider({ children }: { children: ReactNode }) {
       triggerRefresh();
     });
 
-    // ── Real Supabase auth session check ──────────────────────────────────
+    // ── Strict Supabase Auth Session Check ──────────────────────────────────
     import('@/lib/supabase/client').then(({ createClient }) => {
-      const maybeSupabase = createClient();
-      if (!maybeSupabase) {
-        // Local/demo fallback
-        if (typeof window !== 'undefined') {
-          const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
-          if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
-            setCurrentRoleState(savedRole);
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-          const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
-          if (savedAffl) {
-            const affl = parseInt(savedAffl);
-            if (!isNaN(affl)) setCurrentCollegeAfflNoState(affl);
-          }
-        }
+      const supabase = createClient();
+      if (!supabase) {
+        setIsAuthenticated(false);
         setIsLoadingAuth(false);
         return;
       }
-      const supabase = maybeSupabase;
 
-      // Load initial session
+      // Load initial authenticated user session
       supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
         if (user) {
           const { data: profile } = await supabase
@@ -88,42 +73,23 @@ export function FestProvider({ children }: { children: ReactNode }) {
             .select('role, college_affl_no')
             .eq('id', user.id)
             .maybeSingle();
-          if (profile) {
-            setCurrentRoleState(profile.role as UserRole);
-            setIsAuthenticated(true);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('arts_fest_active_role', profile.role);
-            }
-            if (profile.college_affl_no) {
-              setCurrentCollegeAfflNoState(profile.college_affl_no);
-              setCurrentCollegeIdState(`col-${profile.college_affl_no}`);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('arts_fest_active_affl_no', String(profile.college_affl_no));
-              }
-            }
-            setIsLoadingAuth(false);
-            return;
+
+          const role = (profile?.role as UserRole) || (user.user_metadata?.role as UserRole) || 'college';
+          const afflNo = profile?.college_affl_no || user.user_metadata?.college_affl_no;
+
+          setCurrentRoleState(role);
+          setIsAuthenticated(true);
+          if (afflNo) {
+            setCurrentCollegeAfflNoState(afflNo);
+            setCurrentCollegeIdState(`col-${afflNo}`);
           }
-        }
-        // Fallback to localStorage if no live Supabase session
-        if (typeof window !== 'undefined') {
-          const savedRole = localStorage.getItem('arts_fest_active_role') as UserRole;
-          if (savedRole && ['admin', 'college', 'student', 'stage_controller', 'result_entry'].includes(savedRole)) {
-            setCurrentRoleState(savedRole);
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-          const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
-          if (savedAffl) {
-            const affl = parseInt(savedAffl);
-            if (!isNaN(affl)) setCurrentCollegeAfflNoState(affl);
-          }
+        } else {
+          setIsAuthenticated(false);
         }
         setIsLoadingAuth(false);
       });
 
-      // Listen for sign-in / sign-out events
+      // Subscribe to Supabase Auth State Changes (login, logout, token refresh)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
         if (event === 'SIGNED_OUT') {
           setIsAuthenticated(false);
@@ -137,13 +103,15 @@ export function FestProvider({ children }: { children: ReactNode }) {
             .select('role, college_affl_no')
             .eq('id', session.user.id)
             .maybeSingle();
-          if (profile) {
-            setCurrentRoleState(profile.role as UserRole);
-            setIsAuthenticated(true);
-            if (profile.college_affl_no) {
-              setCurrentCollegeAfflNoState(profile.college_affl_no);
-              setCurrentCollegeIdState(`col-${profile.college_affl_no}`);
-            }
+
+          const role = (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'college';
+          const afflNo = profile?.college_affl_no || session.user.user_metadata?.college_affl_no;
+
+          setCurrentRoleState(role);
+          setIsAuthenticated(true);
+          if (afflNo) {
+            setCurrentCollegeAfflNoState(afflNo);
+            setCurrentCollegeIdState(`col-${afflNo}`);
           }
         }
       });
@@ -204,6 +172,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
     if (typeof window !== 'undefined') {
       localStorage.setItem('arts_fest_active_role', role);
+      document.cookie = `arts_fest_active_role=${role}; path=/; max-age=86400; SameSite=Lax`;
     }
   };
 
@@ -220,6 +189,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('arts_fest_active_role');
       localStorage.removeItem('arts_fest_active_affl_no');
+      document.cookie = 'arts_fest_active_role=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'arts_fest_active_affl_no=; path=/; max-age=0; SameSite=Lax';
     }
     setIsAuthenticated(false);
   };
@@ -237,6 +208,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
     setCurrentCollegeIdState(`col-${afflNo}`);
     if (typeof window !== 'undefined') {
       localStorage.setItem('arts_fest_active_affl_no', afflNo.toString());
+      document.cookie = `arts_fest_active_affl_no=${afflNo}; path=/; max-age=86400; SameSite=Lax`;
     }
   };
 

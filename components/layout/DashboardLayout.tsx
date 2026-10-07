@@ -10,7 +10,7 @@ import {
   Sun,
   Moon,
   User,
-  Sparkles
+  Award
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 
@@ -72,7 +72,7 @@ export function DashboardLayout({
         {/* Logo and Brand */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6">
           <div className="w-8 h-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-slate-700/30">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <Award className="w-4 h-4 text-emerald-400" />
           </div>
           <span className="font-bold text-sm text-[var(--text-primary)] tracking-tight">
             {portalTitle}
@@ -122,7 +122,7 @@ export function DashboardLayout({
         <div className="flex items-center justify-between px-2 py-3 mb-6">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-slate-700/30">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <Award className="w-4 h-4 text-emerald-400" />
             </div>
             <span className="font-bold text-sm text-[var(--text-primary)]">{portalTitle}</span>
           </div>

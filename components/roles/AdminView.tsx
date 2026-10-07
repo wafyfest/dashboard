@@ -28,7 +28,6 @@ import {
   Filter,
   CheckSquare,
   Square,
-  Sparkles,
   ClipboardList,
   Eye,
   GraduationCap,
@@ -36,6 +35,15 @@ import {
   ListChecks
 } from 'lucide-react';
 import { Item, College, ItemType, StudentCategory, EntryLock, Student } from '@/lib/types/fest';
+import { LocksMatrixTab } from '../admin/tabs/LocksMatrixTab';
+import { SettingsTab } from '../admin/tabs/SettingsTab';
+import {
+  findStudentByIdentifier,
+  getCanonicalChestNo,
+  getStudentDisplayIdentifier,
+  registrationContainsStudent,
+  calculateStudentEvents
+} from '@/lib/utils/studentIdentity';
 
 export type AdminTab =
   | 'overview'
@@ -211,7 +219,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     }
   };
 
-  const handleSaveAdminReg = (e: React.FormEvent) => {
+  const handleSaveAdminReg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItemForAdminReg) return;
 
@@ -226,7 +234,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       return;
     }
 
-    const result = festService.registerCollegeForItem(
+    const result = await festService.registerCollegeForItem(
       selectedCollegeAfflForReg,
       selectedItemForAdminReg.item_id,
       selectedStudentChestNosForAdminReg,
@@ -245,9 +253,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     triggerRefresh();
   };
 
-  const handleAdminUnregister = (itemId: number, eventName: string) => {
+  const handleAdminUnregister = async (itemId: number, eventName: string) => {
     if (window.confirm(`Are you sure you want to remove registration for "${eventName}" for this college? All enrolled participants will be removed and quotas restored.`)) {
-      const res = festService.unregisterCollegeForItem(selectedCollegeAfflForReg, itemId);
+      const res = await festService.unregisterCollegeForItem(selectedCollegeAfflForReg, itemId);
       if (!res.success) {
         alert(res.error || 'Failed to unregister event');
       } else {
@@ -548,10 +556,10 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
   );
 
   const renderCollegeRegistrationsTab = () => {
-    const currentCol = colleges.find(c => c.affl_no === selectedCollegeAfflForReg) || colleges[0];
-    const currentColAffl = currentCol?.affl_no || 11;
-    const collegeRegs = registrations.filter(r => r.college_affl_no === currentColAffl);
-    const collegeStudents = students.filter(s => s.college_affl_no === currentColAffl);
+    const currentCol = colleges.find(c => Number(c.affl_no) === Number(selectedCollegeAfflForReg)) || colleges[0];
+    const currentColAffl = Number(currentCol?.affl_no) || 11;
+    const collegeRegs = registrations.filter(r => Number(r.college_affl_no) === Number(currentColAffl));
+    const collegeStudents = students.filter(s => Number(s.college_affl_no) === Number(currentColAffl));
     const registeredItemIds = new Set(collegeRegs.map(r => r.item_id));
     const activeStudentChestNos = new Set(collegeRegs.map(r => r.chest_no));
 
@@ -842,9 +850,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                 const matchesItem = name.toLowerCase().includes(q) || code.toLowerCase().includes(q);
                 const itemRegs = collegeRegs.filter(r => r.item_id === item.item_id);
                 const matchesStudent = itemRegs.some(r => {
-                  const s = collegeStudents.find(stu => stu.chest_no === r.chest_no);
+                  const s = findStudentByIdentifier(collegeStudents, r.chest_no) || findStudentByIdentifier(students, r.chest_no);
                   return (
-                    r.chest_no.toLowerCase().includes(q) ||
+                    (r.chest_no && r.chest_no.toLowerCase().includes(q)) ||
                     (s && (s.name || s.full_name || '').toLowerCase().includes(q))
                   );
                 });
@@ -855,7 +863,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                 <div className="space-y-4">
                   {/* Active Registered Students Summary Strip */}
                   {activeStudentChestNos.size > 0 && (
-                    <Card className="p-3.5 bg-gradient-to-r from-blue-50/50 via-[var(--bg-surface)] to-[var(--bg-surface)] dark:from-blue-950/20">
+                    <Card className="p-3.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           <Users className="w-3.5 h-3.5 text-blue-500" />
@@ -869,18 +877,18 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                       </div>
                       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                         {Array.from(activeStudentChestNos).map(cNo => {
-                          const stu = collegeStudents.find(s => s.chest_no === cNo) || students.find(s => s.chest_no === cNo);
-                          const stuRegCount = collegeRegs.filter(r => r.chest_no === cNo).length;
+                          const stu = findStudentByIdentifier(collegeStudents, cNo) || findStudentByIdentifier(students, cNo);
+                          const stuRegCount = stu ? calculateStudentEvents(stu, collegeRegs, items).registeredEventsCount : collegeRegs.filter(r => r.chest_no === cNo).length;
                           return (
                             <button
                               key={cNo}
                               type="button"
                               onClick={() => stu && setSelectedStudentForDetails(stu)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-blue-400 hover:shadow-xs transition-all text-xs cursor-pointer group"
-                              title={stu ? `${stu.name} (${cNo}) - Registered in ${stuRegCount} event(s)` : cNo}
+                              title={stu ? `${stu.name} (${getCanonicalChestNo(stu)}) - Registered in ${stuRegCount} event(s)` : cNo}
                             >
                               <span className="font-mono font-bold text-blue-600 dark:text-blue-400 group-hover:underline">
-                                {cNo}
+                                {stu ? getCanonicalChestNo(stu) : cNo}
                               </span>
                               <span className="font-medium text-[var(--text-primary)] truncate max-w-[120px]">
                                 {stu?.name || 'Student'}
@@ -956,7 +964,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                         const itemRegs = collegeRegs.filter(r => r.item_id === item.item_id);
                         const registeredChestNos = itemRegs.map(r => r.chest_no);
                         const registeredStudentObjects = registeredChestNos
-                          .map(cNo => collegeStudents.find(s => s.chest_no === cNo) || students.find(s => s.chest_no === cNo))
+                          .map(cNo => findStudentByIdentifier(collegeStudents, cNo) || findStudentByIdentifier(students, cNo))
                           .filter(Boolean) as Student[];
 
                         const min = item.min_participants || item.no_of_participants || 1;
@@ -1212,7 +1220,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                             const isReg = itemRegs.length > 0;
                             const registeredChestNos = itemRegs.map(r => r.chest_no);
                             const registeredStudentObjects = registeredChestNos
-                              .map(cNo => collegeStudents.find(s => s.chest_no === cNo) || students.find(s => s.chest_no === cNo))
+                              .map(cNo => findStudentByIdentifier(collegeStudents, cNo) || findStudentByIdentifier(students, cNo))
                               .filter(Boolean) as Student[];
 
                             const lock = locks.find(l => l.item_id === item.item_id && l.college_affl_no === currentColAffl);
@@ -1296,7 +1304,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                                   ) : isReg ? (
                                     <div className="flex flex-wrap gap-1.5">
                                       {registeredChestNos.map(cNo => {
-                                        const foundStu = collegeStudents.find(s => s.chest_no === cNo) || students.find(s => s.chest_no === cNo);
+                                        const foundStu = findStudentByIdentifier(collegeStudents, cNo) || findStudentByIdentifier(students, cNo);
                                         return (
                                           <button
                                             key={cNo}
@@ -1305,7 +1313,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                                             className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-blue-500 font-bold border border-[var(--border-subtle)] hover:border-blue-400 cursor-pointer"
                                             title="Click to view student details"
                                           >
-                                            {cNo}
+                                            {foundStu ? getCanonicalChestNo(foundStu) : cNo}
                                           </button>
                                         );
                                       })}
@@ -1366,7 +1374,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             const cat = (stu.phase || stu.category || '').toLowerCase();
             const matchesCategory = studentCategoryFilter === 'All' || cat === studentCategoryFilter.toLowerCase();
 
-            const stuRegs = collegeRegs.filter(r => r.chest_no === stu.chest_no);
+            const stuRegs = collegeRegs.filter(r => registrationContainsStudent(r, stu));
             const isEnrolled = stuRegs.length > 0;
             const matchesStatus = studentRegStatusFilter === 'All' ||
               (studentRegStatusFilter === 'Registered' && isEnrolled) ||
@@ -1475,7 +1483,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                         </TableRow>
                       ) : (
                         filteredStudentsList.map(stu => {
-                          const stuRegs = collegeRegs.filter(r => r.chest_no === stu.chest_no);
+                          const stuRegs = collegeRegs.filter(r => registrationContainsStudent(r, stu));
                           const stuItemIds = new Set(stuRegs.map(r => r.item_id));
                           const enrolledItems = items.filter(i => stuItemIds.has(i.item_id));
 
@@ -1491,7 +1499,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                                       {stu.name || stu.full_name}
                                     </div>
                                     <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400">
-                                      {stu.chest_no}
+                                      {getCanonicalChestNo(stu)}
                                     </span>
                                   </div>
                                 </div>
@@ -1704,9 +1712,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               </div>
             ) : (
               filteredCollegeStudents.map(student => {
-                const chestNo = student.chest_no || student.id;
-                const isSelected = selectedStudentChestNosForAdminReg.includes(chestNo);
-                const studentRegCount = registrations.filter(r => r.chest_no === chestNo).length;
+                const chestNo = getCanonicalChestNo(student);
+                const isSelected = selectedStudentChestNosForAdminReg.includes(student.id) || selectedStudentChestNosForAdminReg.includes(chestNo);
+                const studentRegCount = calculateStudentEvents(student, registrations, items).registeredEventsCount;
 
                 return (
                   <div
@@ -1798,8 +1806,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     const stu = selectedStudentForDetails;
     const stuCollege = colleges.find(c => c.affl_no === stu.college_affl_no || c.id === stu.college_id);
 
-    // Registrations for this student
-    const stuRegs = registrations.filter(r => r.chest_no === stu.chest_no);
+    // Registrations & stats for this student
+    const stats = calculateStudentEvents(stu, registrations, items);
+    const stuRegs = stats.events.map(e => e.registration);
     const stuItemIds = new Set(stuRegs.map(r => r.item_id));
     const stuItems = items.filter(i => stuItemIds.has(i.item_id));
     const stuSchedules = schedules.filter(s => stuItemIds.has(s.item_id));
@@ -1811,28 +1820,28 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     const stageMax = quota?.on_max || 2;
     const offstageMax = quota?.off_max || 2;
 
-    const onstageCount = stuItems.filter(i => i.mode === 'onstage').length;
-    const offstageCount = stuItems.filter(i => i.mode === 'offstage').length;
+    const onstageCount = stats.onstageCount;
+    const offstageCount = stats.offstageCount;
 
     return (
       <Modal
         isOpen={!!selectedStudentForDetails}
         onClose={() => setSelectedStudentForDetails(null)}
         title="Student Registration & Event Details"
-        description={`Chest No: ${stu.chest_no || 'N/A'} • Admission: ${stu.admission_no}`}
+        description={`Chest No: ${getCanonicalChestNo(stu)} • Admission: ${stu.admission_no}`}
       >
         <div className="space-y-5">
           {/* Profile Card */}
           <div className="p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-xl bg-[#132238] text-white flex items-center justify-center font-bold text-lg dark:bg-[#1A2E4A] shadow-xs">
-                {stu.chest_no ? stu.chest_no.replace('CH-', '') : <GraduationCap className="w-6 h-6" />}
+                {getCanonicalChestNo(stu).replace('CH-', '').replace('ST-', '')}
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="text-base font-bold text-[var(--text-primary)]">{stu.name || stu.full_name}</h4>
                   <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                    {stu.chest_no}
+                    {getCanonicalChestNo(stu)}
                   </span>
                 </div>
                 <div className="text-xs text-[var(--text-muted)] flex flex-wrap items-center gap-2 mt-0.5">
@@ -2087,7 +2096,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       )}
 
       {/* 2. ENTRY LOCKS MATRIX TAB */}
-      {activeTab === 'locks_matrix' && renderLocksMatrixCard()}
+      {activeTab === 'locks_matrix' && <LocksMatrixTab />}
 
       {/* 2. SETTINGS & DEADLINES TAB */}
       {activeTab === 'settings' && (

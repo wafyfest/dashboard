@@ -13,11 +13,15 @@ import {
   Calendar,
   Award,
   Clock,
-  Sparkles,
   QrCode,
   Trophy
 } from 'lucide-react';
 import { Student } from '@/lib/types/fest';
+import {
+  findStudentByIdentifier,
+  getCanonicalChestNo,
+  registrationContainsStudent
+} from '@/lib/utils/studentIdentity';
 
 export type StudentTab = 'schedule' | 'admit_card' | 'results';
 
@@ -47,20 +51,17 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const leaderboard = festService.getLeaderboard();
 
   // Find student matching query (chest number or admission number or name)
-  const currentStudent: Student | undefined = students.find(
-    s =>
-      s.chest_no?.toLowerCase() === searchQuery.trim().toLowerCase() ||
-      String(s.admission_no).toLowerCase() === searchQuery.trim().toLowerCase() ||
-      (s.full_name || s.name || '').toLowerCase().includes(searchQuery.trim().toLowerCase())
-  ) || students[0];
+  const queryStr = searchQuery.trim();
+  const currentStudent: Student | undefined = queryStr
+    ? findStudentByIdentifier(students, queryStr) ||
+      students.find(s => (s.full_name || s.name || '').toLowerCase().includes(queryStr.toLowerCase()))
+    : students[0];
 
-  const studentCollege = colleges.find(c => c.affl_no === currentStudent?.college_affl_no || c.id === currentStudent?.college_id);
+  const targetStu = currentStudent || students[0];
+  const studentCollege = colleges.find(c => c.affl_no === targetStu?.college_affl_no || c.id === targetStu?.college_id);
 
   // Events this student is registered for
-  const studentRegistrations = registrations.filter(r =>
-    r.chest_no === currentStudent?.chest_no ||
-    r.participants?.some(p => p.id === currentStudent?.id || p.chest_no === currentStudent?.chest_no)
-  );
+  const studentRegistrations = targetStu ? registrations.filter(r => registrationContainsStudent(r, targetStu, students)) : [];
 
   const studentItemIds = new Set(studentRegistrations.map(r => r.item_id));
   const studentSchedules = schedules.filter(s => studentItemIds.has(s.item_id));
@@ -68,24 +69,24 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   return (
     <div className="space-y-6">
       {/* Student Search & Quick Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold text-lg">
-            <GraduationCap className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-lg border border-slate-700/30">
+            <GraduationCap className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-[#132238]">
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">
                 {currentStudent ? currentStudent.full_name : 'Student Portal'}
               </h2>
-              {currentStudent?.chest_no && (
-                <span className="px-2.5 py-0.5 rounded-full bg-[#132238] text-white font-mono text-xs font-bold">
-                  {currentStudent.chest_no}
+              {targetStu && (
+                <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-navy)] text-white font-mono text-xs font-bold">
+                  {getCanonicalChestNo(targetStu)}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Institution: <strong className="text-slate-700">{studentCollege?.name}</strong> ({studentCollege?.code}) | Admission: <span className="font-mono">{currentStudent?.admission_no}</span>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Institution: <strong className="text-[var(--text-primary)]">{studentCollege?.name}</strong> ({studentCollege?.code}) | Admission: <span className="font-mono">{currentStudent?.admission_no}</span>
             </p>
           </div>
         </div>

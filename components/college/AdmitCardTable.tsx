@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Student, College, Registration, FestSettings } from '@/lib/types/fest';
 import { generateAdmitCardPdf } from '@/lib/utils/admitCardPdf';
+import { getCanonicalChestNo, registrationContainsStudent } from '@/lib/utils/studentIdentity';
 
 interface AdmitCardTableProps {
   students: Student[];
@@ -35,41 +36,40 @@ export function AdmitCardTable({
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Derive stable chest number for each student
-  const getChestNo = (student: Student, index: number): string => {
-    if (student.chest_no && student.chest_no.trim() !== '') {
-      return student.chest_no;
-    }
-    // Check if chest_no exists in registrations
-    const reg = registrations.find(
-      r => r.participants?.some(p => p.id === student.id) || r.chest_no
-    );
-    if (reg && reg.chest_no && reg.chest_no.trim() !== '') {
-      return reg.chest_no;
-    }
-    // Stable default: college affl_no + 2-digit index e.g. 1101, 1102
-    const affl = student.college_affl_no || collegeAfflNo || 11;
-    return `${affl}${String(index + 1).padStart(2, '0')}`;
+  const getChestNo = (student: Student): string => {
+    return getCanonicalChestNo(student);
   };
 
-  // Search filter across Name, CIC No, or Chest No
+  // Filter students to ONLY those who have active registrations
+  const registeredStudents = useMemo(() => {
+    if (!students || students.length === 0 || !registrations || registrations.length === 0) {
+      return [];
+    }
+
+    return students.filter(student =>
+      registrations.some(r => registrationContainsStudent(r, student, students))
+    );
+  }, [students, registrations]);
+
+  // Search filter across Name, CIC No, or Chest No for registered students only
   const filteredStudents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return students;
+    if (!query) return registeredStudents;
 
     const tokens = query.split(/\s+/).filter(Boolean);
 
-    return students.filter((student, idx) => {
+    return registeredStudents.filter(student => {
       const name = (student.name || student.full_name || '').toLowerCase();
       const cic = String(
         student.admission_no ?? student.cic_no ?? student.cic_number ?? ''
       ).toLowerCase();
-      const chest = getChestNo(student, idx).toLowerCase();
+      const chest = getChestNo(student).toLowerCase();
 
       return tokens.every(
         t => name.includes(t) || cic.includes(t) || chest.includes(t)
       );
     });
-  }, [students, searchQuery, registrations, collegeAfflNo]);
+  }, [registeredStudents, searchQuery]);
 
   // Handle single student PDF download
   const handleDownload = async (student: Student, idx: number) => {
@@ -77,12 +77,9 @@ export function AdmitCardTable({
       setDownloadingId(student.id || `idx-${idx}`);
 
       // Filter registrations specifically for this student
-      const studentRegs = registrations.filter(r =>
-        r.participants?.some(p => p.id === student.id || p.chest_no === student.chest_no) ||
-        (student.chest_no && r.chest_no === student.chest_no)
-      );
+      const studentRegs = registrations.filter(r => registrationContainsStudent(r, student, students));
 
-      const chestNo = getChestNo(student, idx);
+      const chestNo = getChestNo(student);
 
       const doc = generateAdmitCardPdf({
         student,
@@ -134,7 +131,7 @@ export function AdmitCardTable({
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs text-slate-500 font-medium px-2.5 py-1 rounded-lg bg-slate-100">
-              {students.length} Participants
+              {registeredStudents.length} Registered Participants
             </span>
           </div>
         </div>
@@ -180,12 +177,12 @@ export function AdmitCardTable({
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 px-6 text-center text-slate-400">
-                    <div className="max-w-xs mx-auto space-y-2">
+                    <div className="max-w-md mx-auto space-y-2">
                       <UserCheck className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="font-semibold text-slate-600">
                         {searchQuery
-                          ? `No participants matching "${searchQuery}"`
-                          : 'No participants available in this college roster'}
+                          ? `No registered participants matching "${searchQuery}"`
+                          : 'No registered participants found. Admit cards are generated only for students registered in events.'}
                       </p>
                       {searchQuery && (
                         <button
@@ -205,7 +202,7 @@ export function AdmitCardTable({
                     student.cic_no ??
                     student.cic_number ??
                     '—';
-                  const chestNo = getChestNo(student, idx);
+                  const chestNo = getChestNo(student);
                   const isDownloading = downloadingId === (student.id || `idx-${idx}`);
 
                   return (
@@ -269,7 +266,7 @@ export function AdmitCardTable({
       <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 px-1">
         <div>
           Showing <span className="font-semibold text-slate-800">{filteredStudents.length}</span> of{' '}
-          <span className="font-semibold text-slate-800">{students.length}</span> registered participants
+          <span className="font-semibold text-slate-800">{registeredStudents.length}</span> registered participants
           {searchQuery && (
             <span>
               {' '}

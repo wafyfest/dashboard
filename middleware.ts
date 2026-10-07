@@ -1,12 +1,21 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/student', '/_next', '/favicon', '/api'];
+// Paths that require NO authentication at all
+const PUBLIC_PATHS = ['/login', '/student', '/_next', '/favicon'];
+
+// Route → allowed roles mapping (admin can access everything)
+const ROUTE_ROLE_MAP: Record<string, string[]> = {
+  '/admin': ['admin'],
+  '/college': ['college', 'admin'],
+  '/stage-controller': ['stage_controller', 'admin'],
+  '/result-entry': ['result_entry', 'admin'],
+};
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
+  // 1. Allow public paths without checking auth
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
     return NextResponse.next();
   }
@@ -16,21 +25,7 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // If no Supabase config, skip auth (demo mode)
   if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.next();
-  }
-
-  // Check if any Supabase auth cookies exist before making server API calls
-  const allCookies = request.cookies.getAll();
-  const hasAuthCookie = allCookies.some(c => 
-    c.name.startsWith('sb-') || 
-    c.name.includes('auth-token') || 
-    c.name.includes('access_token')
-  );
-
-  // If no auth cookie exists at all, redirect to /login immediately without querying Supabase
-  if (!hasAuthCookie) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     return NextResponse.redirect(loginUrl);
@@ -53,14 +48,54 @@ export async function middleware(request: NextRequest) {
     }
   });
 
+  // 2. Strict authentication via Supabase Auth
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Not logged in → redirect to login
   if (!user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     return NextResponse.redirect(loginUrl);
   }
+
+  // 3. Retrieve user role from profiles table (or fallback to auth metadata)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const userRole = profile?.role || (user.user_metadata?.role as string) || 'college';
+
+  // 4. Server-side role authorization check
+  const matchedRoute = Object.keys(ROUTE_ROLE_MAP).find(route => pathname.startsWith(route));
+
+  if (matchedRoute) {
+    const allowedRoles = ROUTE_ROLE_MAP[matchedRoute];
+
+    if (!allowedRoles.includes(userRole)) {
+      const roleRouteMap: Record<string, string> = {
+        college: '/college',
+        admin: '/admin',
+        student: '/student',
+        stage_controller: '/stage-controller',
+        result_entry: '/result-entry',
+      };
+      const redirectPath = roleRouteMap[userRole] || '/login';
+
+      if (redirectPath !== pathname) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = redirectPath;
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+  }
+
+  // Security headers
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-DNS-Prefetch-Control', 'on');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
   return response;
 }

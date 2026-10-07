@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
+import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
 import { Badge, StageStatusBadge } from '../ui/badge';
@@ -14,7 +15,6 @@ import {
   Play,
   CheckCircle2,
   Users,
-  Sparkles,
   AlertCircle,
   Calendar,
   Award
@@ -275,7 +275,7 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
                           </TableCell>
                           <TableCell>
                             <div className="text-xs font-semibold text-slate-800">
-                              {reg.participants?.map(p => `${p.full_name} (${p.chest_no})`).join(', ') || 'No names'}
+                              {reg.participants?.map(p => `${p.full_name || p.name} (${getCanonicalChestNo(p)})`).join(', ') || 'No names'}
                             </div>
                             <span className="text-[10px] text-slate-400">
                               {reg.participants?.length} participant(s) verified
@@ -310,14 +310,14 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
             </Card>
 
             {/* Blind Code Handout Card for Tabulation Officer */}
-            <div className="bg-slate-900 text-slate-200 rounded-2xl p-4 border border-slate-800 text-xs flex items-center justify-between">
+            <div className="bg-[var(--bg-subtle)] text-[var(--text-secondary)] rounded-xl p-4 border border-[var(--border-subtle)] text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <Shuffle className="w-4 h-4 text-amber-500 shrink-0" />
                 <span>
                   <strong>Judging Protocol:</strong> Judges only see <strong>Blind Code Letters (A, B, C...)</strong> on scoring sheets. College names and chest numbers remain strictly masked.
                 </span>
               </div>
-              <span className="font-mono text-emerald-400 font-bold">Encrypted Allotment</span>
+              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">Encrypted Allotment</span>
             </div>
           </div>
         </div>
@@ -393,7 +393,7 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
                         </TableCell>
                         <TableCell>
                           <div className="text-xs font-semibold text-slate-800">
-                            {reg.participants?.map(p => `${p.full_name} (${p.chest_no})`).join(', ') || 'No names'}
+                            {reg.participants?.map(p => `${p.full_name || p.name} (${getCanonicalChestNo(p)})`).join(', ') || 'No names'}
                           </div>
                           <span className="text-[10px] text-slate-400">
                             {reg.participants?.length} participant(s) verified
