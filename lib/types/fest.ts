@@ -78,15 +78,15 @@ export interface Student {
   id: string;
   name: string;
   full_name?: string; // alias for name
-  admission_no: string | number;
-  cic_no?: string | number; // alias for admission_no
-  cic_number?: string | number; // alias for admission_no
+  cic_no?: string | number; // Primary human-facing student identifier (CIC No)
+  admission_no?: string | number; // alias for cic_no
+  cic_number?: string | number; // alias for cic_no
   college_affl_no: number;
   college_id?: string;
   class?: string | null;
   phase: string;
   category?: string; // formatted category e.g. Sub Junior, Junior, Senior, General
-  chest_no?: string;
+  chest_no?: string; // fest display chest number (derived from cic_no)
   phone?: string | null;
   photo_url?: string | null;
   created_at?: string;
@@ -96,7 +96,7 @@ export interface Student {
 export function formatStudentCategory(phaseOrCat?: string | null): string {
   if (!phaseOrCat) return 'Sub Junior';
   const val = phaseOrCat.trim().toUpperCase();
-  if (val === 'FD' || val === 'FOUNDATION' || val === 'SUB_JUNIOR' || val === 'SUB JUNIOR' || val === 'SUB-JUNIOR') {
+  if (val === 'FD' || val === 'FOUNDATION' || val === 'PFD' || val === 'PFD1' || val === 'PRE FOUNDATION' || val === 'PRE_FOUNDATION' || val === 'SUB_JUNIOR' || val === 'SUB JUNIOR' || val === 'SUB-JUNIOR') {
     return 'Sub Junior';
   }
   if (val === 'TH' || val === 'THAMHEEDIYYA' || val === 'THAMHEEDIYA' || val === 'JUNIOR') {
@@ -109,6 +109,63 @@ export function formatStudentCategory(phaseOrCat?: string | null): string {
     return 'General';
   }
   return phaseOrCat;
+}
+
+export function normalizeCategoryKey(val?: string | null): string {
+  if (!val) return 'GENERAL';
+  const clean = val.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean === 'FD' || clean === 'FOUNDATION' || clean === 'PFD' || clean === 'PFD1' || clean === 'SUBJUNIOR' || clean === 'PREFOUNDATION') {
+    return 'FOUNDATION';
+  }
+  if (clean === 'TH' || clean === 'THAMHEEDIYYA' || clean === 'THAMHEEDIYA' || clean === 'THAMHEED' || clean === 'JUNIOR') {
+    return 'THAMHEEDIYYA';
+  }
+  if (clean === 'AL' || clean === 'ALIYA' || clean === 'SENIOR') {
+    return 'ALIYA';
+  }
+  if (clean === 'PG') {
+    return 'PG';
+  }
+  if (clean === 'GENERAL') {
+    return 'GENERAL';
+  }
+  return clean;
+}
+
+export function isCategoryMatching(studentCatOrPhase?: string | null, itemCatOrPhase?: string | null): boolean {
+  if (!itemCatOrPhase) return true;
+  const itemKey = normalizeCategoryKey(itemCatOrPhase);
+  if (itemKey === 'GENERAL') return true;
+  const studentKey = normalizeCategoryKey(studentCatOrPhase);
+  if (studentKey === 'GENERAL') return true;
+  return studentKey === itemKey;
+}
+
+export function isItemEligibleForCollege(
+  item: Item,
+  students: Student[],
+  college?: College,
+  registeredItemIds?: Set<number | string>
+): boolean {
+  if (registeredItemIds && (registeredItemIds.has(item.item_id) || registeredItemIds.has(item.id))) {
+    return true;
+  }
+
+  const itemPhase = item.phase || item.category;
+  if (!itemPhase || normalizeCategoryKey(itemPhase) === 'GENERAL') return true;
+
+  if (students && students.length > 0) {
+    return students.some(s => isCategoryMatching(s.category || s.phase, itemPhase));
+  }
+
+  if (college) {
+    const key = normalizeCategoryKey(itemPhase);
+    if (key === 'FOUNDATION') return (college.st_foundation ?? 0) > 0;
+    if (key === 'THAMHEEDIYYA') return (college.st_thamheediya ?? 0) > 0;
+    if (key === 'ALIYA') return (college.st_aliya ?? 0) > 0;
+  }
+
+  return true;
 }
 
 export interface Item {
@@ -243,11 +300,14 @@ export interface Appeal {
   id: string;
   phase: string;
   item_id: number;
+  participant_name?: string | null;
   chest_no?: string | null;
   code_letter?: string | null;
   appeal_description?: string | null;
   reason_for_appeal: string;
   reason?: string; // alias
+  payment_mode?: 'Cash' | 'GPay' | string | null;
+  paid_to?: string | null;
   transaction_number: string;
   fee_receipt_url?: string | null;
   team_manager_name: string;

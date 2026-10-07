@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Send,
-  Sparkles,
   Trophy,
   ShieldAlert,
   BookOpen,

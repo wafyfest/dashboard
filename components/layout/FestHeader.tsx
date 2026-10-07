@@ -163,10 +163,10 @@ export function FestHeader() {
           })}
         </div>
 
-        {/* Institution selector when viewing as College */}
-        {currentRole === 'college' && (
+        {/* Institution selector when viewing as Admin */}
+        {currentRole === 'admin' && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--text-muted)] font-medium">Switch College:</span>
+            <span className="text-[var(--text-muted)] font-medium">Inspect College:</span>
             <select
               value={currentCollegeId}
               onChange={e => setCurrentCollegeId(e.target.value)}

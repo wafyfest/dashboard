@@ -20,9 +20,9 @@ import {
   FileText,
   UserPlus,
   QrCode,
-  Sparkles
+  Trash2
 } from 'lucide-react';
-import { Item, Student, StudentCategory } from '@/lib/types/fest';
+import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
 
@@ -70,6 +70,10 @@ export function CollegeView() {
   // Registered item IDs for this college
   const registeredItemIds = new Set(registrations.map(r => r.item_id));
 
+  const collegeEligibleItems = allItems.filter(item =>
+    isItemEligibleForCollege(item, students, college, registeredItemIds)
+  );
+
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
     festService.saveStudent({
@@ -95,11 +99,11 @@ export function CollegeView() {
     setIsRegisterModalOpen(true);
   };
 
-  const handleConfirmRegistration = (e: React.FormEvent) => {
+  const handleConfirmRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItemForReg) return;
 
-    const res = festService.registerCollegeForItem(
+    const res = await festService.registerCollegeForItem(
       currentCollegeAfflNo || currentCollegeId,
       selectedItemForReg.item_id || selectedItemForReg.id,
       selectedStudentIds
@@ -110,6 +114,24 @@ export function CollegeView() {
       return;
     }
 
+    setIsRegisterModalOpen(false);
+    triggerRefresh();
+  };
+
+  const handleUnregisterRegistration = async (item: Item) => {
+    const itemId = item.item_id || item.id;
+    const itemName = item.name_eng || item.name;
+    if (!confirm(`Are you sure you want to remove/unregister your entry for "${itemName}"?`)) {
+      return;
+    }
+    const res = await festService.unregisterCollegeForItem(
+      currentCollegeAfflNo || currentCollegeId,
+      itemId
+    );
+    if (!res.success) {
+      alert(`Unregister Error: ${res.error}`);
+      return;
+    }
     setIsRegisterModalOpen(false);
     triggerRefresh();
   };
@@ -255,7 +277,7 @@ export function CollegeView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allItems.map(item => {
+                {collegeEligibleItems.map(item => {
                   const reg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
                   const lockCheck = festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
 
@@ -302,14 +324,27 @@ export function CollegeView() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="xs"
-                          variant={reg ? 'outline' : lockCheck.canRegister ? 'primary' : 'secondary'}
-                          disabled={!lockCheck.canRegister && !reg}
-                          onClick={() => handleOpenRegistrationModal(item)}
-                        >
-                          {reg ? 'Modify Roster' : 'Register Entry'}
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="xs"
+                            variant={reg ? 'outline' : lockCheck.canRegister ? 'primary' : 'secondary'}
+                            disabled={!lockCheck.canRegister && !reg}
+                            onClick={() => handleOpenRegistrationModal(item)}
+                          >
+                            {reg ? 'Modify Roster' : 'Register Entry'}
+                          </Button>
+                          {reg && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              title="Remove Registration"
+                              onClick={() => handleUnregisterRegistration(item)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -558,6 +593,9 @@ export function CollegeView() {
         {selectedItemForReg && (() => {
           const minPart = selectedItemForReg.min_participants ?? (selectedItemForReg.point_type === 'individual' ? 1 : (selectedItemForReg.no_of_participants || 1));
           const maxPart = selectedItemForReg.max_participants ?? (selectedItemForReg.no_of_participants || 1);
+          const isAlreadyRegistered = registrations.some(
+            r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id)
+          );
 
           return (
             <form onSubmit={handleConfirmRegistration} className="space-y-4">
@@ -582,10 +620,7 @@ export function CollegeView() {
                     const isSelected = selectedStudentIds.includes(s.id);
                     const sCat = s.category || s.phase;
                     const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
-                    const isCategoryMatch =
-                      itemCat === 'General' ||
-                      sCat === itemCat ||
-                      sCat === 'General';
+                    const isCategoryMatch = isCategoryMatching(sCat, itemCat);
 
                     return (
                       <label
@@ -639,6 +674,17 @@ export function CollegeView() {
                     )}
                 </div>
                 <div className="flex gap-2">
+                  {isAlreadyRegistered && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                      onClick={() => handleUnregisterRegistration(selectedItemForReg)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Remove Registration
+                    </Button>
+                  )}
                   <Button type="button" variant="outline" onClick={() => setIsRegisterModalOpen(false)}>
                     Cancel
                   </Button>
@@ -732,7 +778,7 @@ export function CollegeView() {
               required
             >
               <option value="">-- Select Registered Event --</option>
-              {registrations.map(r => (
+              {Array.from(new Map(registrations.map(r => [r.item_id, r])).values()).map(r => (
                 <option key={r.id} value={r.id}>
                   {r.item?.name} ({r.item?.code})
                 </option>

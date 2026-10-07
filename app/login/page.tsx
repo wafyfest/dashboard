@@ -3,13 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Building2,
-  ShieldAlert,
-  GraduationCap,
-  Radio,
-  ClipboardPen,
   ArrowRight,
-  Sparkles,
+  Award,
   Lock,
   Mail,
   Sun,
@@ -30,55 +25,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const roleOptions: {
-    role: UserRole;
-    route: string;
-    label: string;
-    subtitle: string;
-    icon: React.ComponentType<{ className?: string }>;
-    hint: string;
-  }[] = [
-    {
-      role: 'college',
-      route: '/college',
-      label: 'Institution Portal',
-      subtitle: 'Registration & Student Management',
-      icon: Building2,
-      hint: 'Use your college email address'
-    },
-    {
-      role: 'admin',
-      route: '/admin',
-      label: 'Executive Admin',
-      subtitle: 'Fest Committee & Lock Overrides',
-      icon: ShieldAlert,
-      hint: 'admin@wsfartsfest.in'
-    },
-    {
-      role: 'student',
-      route: '/student',
-      label: 'Student / Public',
-      subtitle: 'Admit Card & Results Viewer',
-      icon: GraduationCap,
-      hint: 'Public access — no login needed'
-    },
-    {
-      role: 'stage_controller',
-      route: '/stage-controller',
-      label: 'Stage Controller',
-      subtitle: 'Backstage Tablet & Blind Allotment',
-      icon: Radio,
-      hint: 'Use your stage controller credentials'
-    },
-    {
-      role: 'result_entry',
-      route: '/result-entry',
-      label: 'Result Entry',
-      subtitle: 'Write-once Fast Tabulation',
-      icon: ClipboardPen,
-      hint: 'Use your result entry credentials'
-    }
-  ];
+  const routeMap: Record<UserRole, string> = {
+    college: '/college',
+    admin: '/admin',
+    student: '/student',
+    stage_controller: '/stage-controller',
+    result_entry: '/result-entry'
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,64 +40,73 @@ export default function LoginPage() {
 
     const supabase = createClient();
 
-    // Student / public: no login required
     if (!supabase) {
-      setError('Database not configured. Please contact the administrator.');
+      setError('Database connection error. Please verify configuration.');
       setLoading(false);
       return;
     }
 
     try {
+      // 1. Authenticate credentials against Supabase Auth
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password
       });
 
       if (authError) {
-        setError(authError.message === 'Invalid login credentials'
-          ? 'Incorrect email or password. Please try again.'
-          : authError.message);
+        await supabase.auth.signOut().catch(() => {});
+        setError(
+          authError.message === 'Invalid login credentials'
+            ? 'Incorrect email or password. Please check your credentials.'
+            : authError.message
+        );
         setLoading(false);
         return;
       }
 
       if (!data.user) {
-        setError('Login failed. Please try again.');
+        setError('Authentication failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      // Fetch their profile to get role + college
-      const { data: profile, error: profileError } = await supabase
+      // 2. Query user profile from Supabase PostgreSQL
+      const { data: profile } = await supabase
         .from('profiles')
         .select('role, college_affl_no, full_name')
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (profileError || !profile) {
-        setError('Your account is not yet configured. Please contact the fest administrator.');
-        setLoading(false);
-        return;
+      let userRole: UserRole = (profile?.role as UserRole) || (data.user.user_metadata?.role as UserRole) || 'college';
+      let afflNo = profile?.college_affl_no || data.user.user_metadata?.college_affl_no;
+
+      // Fallback: match college by email if profile link is pending
+      if (!profile && !afflNo) {
+        const { data: matchedCollege } = await supabase
+          .from('colleges')
+          .select('affl_no')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+        if (matchedCollege) {
+          afflNo = matchedCollege.affl_no;
+          userRole = 'college';
+        }
       }
 
-      const userRole = profile.role as UserRole;
+      // 3. Update active context state
       setCurrentRole(userRole);
-      if (profile.college_affl_no) {
-        setCurrentCollegeAfflNo(profile.college_affl_no);
+      if (afflNo) {
+        setCurrentCollegeAfflNo(afflNo);
       }
 
-      // Route based on role
-      const routeMap: Record<UserRole, string> = {
-        college: '/college',
-        admin: '/admin',
-        student: '/student',
-        stage_controller: '/stage-controller',
-        result_entry: '/result-entry'
-      };
-      router.push(routeMap[userRole] || '/college');
+      // 4. Navigate to user's assigned portal
+      const destination = routeMap[userRole] || '/college';
+      router.push(destination);
+      router.refresh();
 
     } catch (err: any) {
-      setError(err?.message || 'Unexpected error. Please try again.');
+      setError(err?.message || 'An unexpected error occurred during login.');
       setLoading(false);
     }
   };
@@ -175,13 +137,13 @@ export default function LoginPage() {
       {/* Brand Header */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--brand-navy)] text-white shadow-xs mb-3 border border-slate-700/30">
-          <Sparkles className="w-5 h-5 text-emerald-400" />
+          <Award className="w-5 h-5 text-emerald-400" />
         </div>
         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
           {festSettings.fest_name}
         </h1>
         <p className="text-xs text-[var(--text-muted)] mt-1">
-          Inter-College Arts Fest Management System • Secure Portal
+          Inter-College Arts Fest Management System
         </p>
       </div>
 
@@ -189,27 +151,15 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-[var(--bg-surface)] rounded-xl border border-[var(--border-subtle)] shadow-card p-6 sm:p-8 space-y-5">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Staff & Institution Login
+            Portal Authentication
           </span>
           <h2 className="text-base font-bold text-[var(--text-primary)] mt-0.5">
-            Sign In to Your Portal
+            Sign In to your Dashboard
           </h2>
         </div>
 
-        {/* Who can log in info */}
-        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-          {roleOptions.filter(r => r.role !== 'student').map(opt => {
-            const Icon = opt.icon;
-            return (
-              <div key={opt.role} className="flex items-center gap-1.5 text-[var(--text-muted)]">
-                <Icon className="w-3 h-3 shrink-0" />
-                <span>{opt.label}</span>
-              </div>
-            );
-          })}
-        </div>
 
-        {/* Error */}
+        {/* Error Alert */}
         {error && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -217,11 +167,11 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Form */}
+        {/* Supabase Auth Form */}
         <form onSubmit={handleSignIn} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-              Email Address
+              Registered Email Address
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-muted)]" />
@@ -230,9 +180,9 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="college@example.com"
+                placeholder="college@example.com or admin@wsfartsfest.in"
                 autoComplete="email"
-                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--brand-navy)] font-medium placeholder:text-[var(--text-muted)]"
+                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium placeholder:text-[var(--text-muted)]"
                 required
                 disabled={loading}
               />
@@ -250,9 +200,9 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="Enter password"
                 autoComplete="current-password"
-                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--brand-navy)]"
+                className="w-full pl-10 pr-3.5 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 required
                 disabled={loading}
               />
@@ -263,12 +213,12 @@ export default function LoginPage() {
             type="submit"
             id="login-submit"
             disabled={loading}
-            className="w-full mt-1 bg-[var(--brand-navy)] hover:opacity-95 disabled:opacity-60 text-white py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
+            className="w-full mt-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Signing in...</span>
+                <span>Verifying Credentials...</span>
               </>
             ) : (
               <>
@@ -279,21 +229,21 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Public Access Divider */}
+        {/* Public Student Results Link */}
         <div className="border-t border-[var(--border-subtle)] pt-4 text-center">
-          <p className="text-[10px] text-[var(--text-muted)] mb-2">Looking for results or admit cards?</p>
+          <p className="text-[10px] text-[var(--text-muted)] mb-2">Looking for public results or admit cards?</p>
           <button
             onClick={handlePublicAccess}
             id="public-access-btn"
-            className="text-xs font-semibold text-sky-500 dark:text-sky-400 hover:underline cursor-pointer"
+            className="text-xs font-semibold text-sky-400 hover:underline cursor-pointer"
           >
-            Continue as Student / Public →
+            Continue to Public Student View →
           </button>
         </div>
       </div>
 
       <p className="mt-4 text-[10px] text-[var(--text-muted)] text-center">
-        Contact the fest admin if you need login credentials
+        Arts Fest Management System • Executive Committee Portal
       </p>
     </div>
   );

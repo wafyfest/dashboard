@@ -5,6 +5,7 @@ import { FestProvider } from '@/lib/context/FestContext';
 export const metadata: Metadata = {
   title: 'Arts Fest Portal | Inter-College Arts Fest Management System',
   description: 'Enterprise multi-tenant Arts Fest Management System with RBAC, capacity checks, blind judging, and live stage tracking.',
+  icons: { icon: '/icon.svg' },
 };
 
 export default function RootLayout({
