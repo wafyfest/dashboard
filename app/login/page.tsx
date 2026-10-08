@@ -77,8 +77,8 @@ export default function LoginPage() {
         .eq('id', data.user.id)
         .maybeSingle();
 
-      let userRole: UserRole = (profile?.role as UserRole) || (data.user.user_metadata?.role as UserRole) || 'college';
-      let afflNo = profile?.college_affl_no || data.user.user_metadata?.college_affl_no;
+      let userRole: UserRole = (profile?.role as UserRole) || 'college';
+      let afflNo = profile?.college_affl_no;
 
       // Fallback: match college by email if profile link is pending
       if (!profile && !afflNo) {
@@ -112,7 +112,6 @@ export default function LoginPage() {
   };
 
   const handlePublicAccess = () => {
-    setCurrentRole('student');
     router.push('/student');
   };
 

@@ -31,23 +31,7 @@ import {
   isUuid
 } from '../utils/studentIdentity';
 
-import {
-  initialColleges,
-  initialFestSettings,
-  initialItems,
-  initialStages,
-  initialStudents,
-  initialRegistrations,
-  initialRegistrationLogs,
-  initialSubmissionEntries,
-  initialSchedules,
-  initialResults,
-  initialEntryLocks,
-  initialCollegeItemLocks,
-  initialAppeals,
-  initialMaxParticipation,
-  mockProfiles
-} from './mockData';
+// Mock data removed
 import { supabase } from '../supabase/client';
 
 const STORAGE_KEY_PREFIX = 'wafy_fest_db_';
@@ -126,23 +110,6 @@ class FestService {
         .select('*');
       if (itemData && itemData.length > 0) {
         this.setStorage('items', itemData);
-      } else {
-        const dbItems = initialItems.map(i => ({
-          item_id: Number(i.item_id),
-          item_code: i.item_code,
-          name_eng: i.name_eng,
-          name_mal: i.name_mal,
-          phase: i.phase,
-          mode: i.mode,
-          category: i.category,
-          tabulation: i.tabulation,
-          point_type: i.point_type,
-          no_of_participants: i.no_of_participants,
-          l_star: i.l_star,
-          em_star: i.em_star
-        }));
-        await client.from('items').upsert(dbItems, { onConflict: 'item_id' }).catch(() => {});
-        this.setStorage('items', initialItems);
       }
 
       // 4. Students: Scoped fetch
@@ -238,25 +205,18 @@ class FestService {
     };
   }
 
-  // --- Reset Database ---
-  public resetToDefaults(): void {
-    if (!this.isClient) return;
-    const keys = [
-      'festSettings', 'colleges', 'items', 'stages', 'students',
-      'registrations', 'registration_logs', 'schedules', 'results',
-      'entryLocks', 'itemLocks', 'appeals', 'submissions', 'maxParticipation', 'replacements'
-    ];
-    keys.forEach(k => localStorage.removeItem(STORAGE_KEY_PREFIX + k));
-  }
-
   // --- Profiles & Auth ---
-  public getProfileByRole(role: UserRole): Profile {
-    return mockProfiles[role] || mockProfiles.college;
-  }
+  // public getProfileByRole is removed as it's no longer used.
 
   // --- Fest Settings ---
   public getFestSettings(): FestSettings {
-    return this.getStorage('festSettings', initialFestSettings);
+    const defaultSettings: FestSettings = {
+      id: 1,
+      fest_name: 'WAFY ARTS FEST',
+      reg_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      fine_deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    return this.getStorage('festSettings', defaultSettings);
   }
 
   public updateFestSettings(settings: Partial<FestSettings>): FestSettings {
@@ -378,7 +338,7 @@ class FestService {
 
   // --- Items ---
   public getItems(): Item[] {
-    const items = this.getStorage<Item[]>('items', initialItems);
+    const items = this.getStorage<Item[]>('items', []);
     return items.map(i => ({
       ...i,
       code: i.item_code,
@@ -400,7 +360,7 @@ class FestService {
     const item = this.getItem(itemIdOrCode);
     if (!item) return false;
 
-    const items = this.getStorage<Item[]>('items', initialItems);
+    const items = this.getStorage<Item[]>('items', []);
     const idx = items.findIndex(i => i.item_id === item.item_id);
     if (idx >= 0) {
       items[idx].is_locked = !items[idx].is_locked;
@@ -414,7 +374,7 @@ class FestService {
   }
 
   public saveItem(item: Partial<Item>): Item {
-    const items = this.getStorage<Item[]>('items', initialItems);
+    const items = this.getStorage<Item[]>('items', []);
     if (item.item_id) {
       const idx = items.findIndex(i => i.item_id === item.item_id);
       if (idx >= 0) {
@@ -737,7 +697,7 @@ class FestService {
 
   // --- Max Participation Quotas ---
   public getMaxParticipation(): MaxParticipation[] {
-    return this.getStorage('maxParticipation', initialMaxParticipation);
+    return this.getStorage('maxParticipation', []);
   }
 
   // --- Registrations (Multiple-Row Flat Architecture) ---
