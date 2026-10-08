@@ -30,9 +30,8 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-function generatePassword(afflNo) {
-  const rand = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `WafyFest2025!${afflNo}_${rand}`;
+function generatePassword() {
+  return crypto.randomBytes(16).toString('base64'); // Strong, throwaway initial password
 }
 
 async function main() {
@@ -57,7 +56,7 @@ async function main() {
     const afflNo = col.affl_no;
     const name = col.name;
     const email = col.email?.trim().toLowerCase() || `college${afflNo}@wsfartsfest.in`;
-    const password = generatePassword(afflNo);
+    const password = generatePassword();
 
     try {
       const { data: userData, error: createError } = await supabase.auth.admin.createUser({
@@ -92,19 +91,15 @@ async function main() {
         console.warn(`⚠ [Affl #${afflNo}] Profile upsert error:`, profileError.message);
       }
 
-      console.log(`✅ [Affl #${afflNo}] ${name} -> ${email} | Password: ${password}`);
-      results.push({ affl_no: afflNo, name, email, password, status: 'CREATED' });
+      console.log(`✅ [Affl #${afflNo}] ${name} -> ${email} | Account provisioned (use password reset to access)`);
+      results.push({ affl_no: afflNo, name, email, status: 'CREATED' });
     } catch (err) {
       console.error(`❌ [Affl #${afflNo}] Unexpected error:`, err.message);
       results.push({ affl_no: afflNo, name, email, status: 'ERROR', error: err.message });
     }
   }
 
-  // Save report artifact
-  const exportPath = path.join(process.cwd(), 'college_credentials_export.json');
-  fs.writeFileSync(exportPath, JSON.stringify(results, null, 2));
-
-  console.log(`\n🎉 Provisioning complete! Credentials report saved to ${exportPath}`);
+  console.log(`\n🎉 Provisioning complete!`);
 }
 
 main().catch(err => {

@@ -24,7 +24,6 @@ export function FestHeader() {
     currentCollegeId,
     setCurrentCollegeId,
     festSettings,
-    resetDatabase,
     theme,
     toggleTheme
   } = useFest();
@@ -101,19 +100,6 @@ export function FestHeader() {
               </>
             )}
           </button>
-
-          <button
-            onClick={() => {
-              if (confirm('Reset mock database to initial seed state?')) {
-                resetDatabase();
-              }
-            }}
-            title="Reset to initial seed data"
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-0.5 rounded-md text-[11px] flex items-center gap-1 transition-colors hover:bg-[var(--bg-hover)] cursor-pointer"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span className="hidden sm:inline">Reset Demo</span>
-          </button>
         </div>
       </div>
 
@@ -141,29 +127,6 @@ export function FestHeader() {
           </div>
         </div>
 
-        {/* Interactive RBAC Switcher Toolbar */}
-        <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] overflow-x-auto max-w-full">
-          {roles.map(r => {
-            const isActive = currentRole === r.role;
-            return (
-              <button
-                key={r.role}
-                onClick={() => setCurrentRole(r.role)}
-                title={r.desc}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-[var(--brand-navy)] text-white shadow-xs'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                {r.icon}
-                <span className="whitespace-nowrap">{r.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Institution selector when viewing as Admin */}
         {currentRole === 'admin' && (
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[var(--text-muted)] font-medium">Inspect College:</span>

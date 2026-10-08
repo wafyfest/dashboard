@@ -8,7 +8,6 @@ import { festService } from '../services/festService';
 interface FestContextType {
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
-  currentProfile: Profile;
   currentCollegeId: string;
   setCurrentCollegeId: (id: string) => void;
   currentCollegeAfflNo: number;
@@ -16,7 +15,6 @@ interface FestContextType {
   festSettings: FestSettings;
   refreshKey: number;
   triggerRefresh: () => void;
-  resetDatabase: () => void;
   isSupabaseConnected: boolean;
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
@@ -36,7 +34,6 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
-  const [currentProfile, setCurrentProfile] = useState<Profile>(() => festService.getProfileByRole('college'));
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
@@ -74,8 +71,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
             .eq('id', user.id)
             .maybeSingle();
 
-          const role = (profile?.role as UserRole) || (user.user_metadata?.role as UserRole) || 'college';
-          const afflNo = profile?.college_affl_no || user.user_metadata?.college_affl_no;
+          const role = (profile?.role as UserRole) || 'college';
+          const afflNo = profile?.college_affl_no;
 
           setCurrentRoleState(role);
           setIsAuthenticated(true);
@@ -104,8 +101,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          const role = (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'college';
-          const afflNo = profile?.college_affl_no || session.user.user_metadata?.college_affl_no;
+          const role = (profile?.role as UserRole) || 'college';
+          const afflNo = profile?.college_affl_no;
 
           setCurrentRoleState(role);
           setIsAuthenticated(true);
@@ -163,7 +160,6 @@ export function FestProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    setCurrentProfile(festService.getProfileByRole(currentRole));
     setFestSettings(festService.getFestSettings());
   }, [currentRole, refreshKey]);
 
@@ -217,17 +213,11 @@ export function FestProvider({ children }: { children: ReactNode }) {
     setFestSettings(festService.getFestSettings());
   };
 
-  const resetDatabase = () => {
-    festService.resetToDefaults();
-    triggerRefresh();
-  };
-
   return (
     <FestContext.Provider
       value={{
         currentRole,
         setCurrentRole,
-        currentProfile,
         currentCollegeId,
         setCurrentCollegeId,
         currentCollegeAfflNo,
@@ -235,7 +225,6 @@ export function FestProvider({ children }: { children: ReactNode }) {
         festSettings,
         refreshKey,
         triggerRefresh,
-        resetDatabase,
         isSupabaseConnected,
         isAuthenticated,
         isLoadingAuth,
