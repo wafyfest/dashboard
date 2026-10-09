@@ -36,79 +36,118 @@ import { supabase } from '../supabase/client';
 
 const STORAGE_KEY_PREFIX = 'wafy_fest_db_';
 
+export interface RegistrationStatus {
+  canRegister: boolean;
+  reason?: string;
+  isFinePeriod: boolean;
+}
+
 class FestService {
   private isClient = typeof window !== 'undefined';
+  private cache: Record<string, any> = {
+    festSettings: null,
+    colleges: [],
+    items: [],
+    students: [],
+    registrations: [],
+    registration_logs: [],
+    entryLocks: [],
+    schedules: [],
+    stages: [],
+    results: [],
+    appeals: [],
+    maxParticipation: []
+  };
 
   constructor() {
-    if (this.isClient) {
-      // Clear registrations cached in localStorage
-      const purgeKey = 'wafy_fest_db_reset_registrations_v5';
-      if (!localStorage.getItem(purgeKey)) {
-        try {
-          ['registrations', 'registration_logs'].forEach(k => {
-            localStorage.removeItem(STORAGE_KEY_PREFIX + k);
-          });
-          localStorage.setItem(purgeKey, 'true');
-        } catch {
-          // ignore storage error in restricted contexts
-        }
-      }
-    }
+    // In-memory RAM storage initialized
   }
 
   private getStorage<T>(key: string, fallback: T): T {
-    if (!this.isClient) return fallback;
-    try {
-      const val = localStorage.getItem(STORAGE_KEY_PREFIX + key);
-      return val ? JSON.parse(val) : fallback;
-    } catch (e) {
-      console.warn(`Error reading ${key} from storage:`, e);
-      return fallback;
+    if (this.cache[key] !== undefined && this.cache[key] !== null) {
+      if (Array.isArray(fallback) && Array.isArray(this.cache[key])) {
+        if (this.cache[key].length > 0 || !this.isClient) {
+          return this.cache[key] as T;
+        }
+      } else {
+        return this.cache[key] as T;
+      }
     }
+    return fallback;
   }
 
   private setStorage<T>(key: string, value: T): void {
-    if (!this.isClient) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(value));
-    } catch (e) {
-      console.warn(`Error writing ${key} to storage:`, e);
-    }
+    this.cache[key] = value;
   }
 
-  private lastSyncTime = 0;
+  public async clearCacheAndRefetch(): Promise<void> {
+    this.cache = {
+      festSettings: null,
+      colleges: [],
+      items: [],
+      students: [],
+      registrations: [],
+      registration_logs: [],
+      entryLocks: [],
+      schedules: [],
+      stages: [],
+      results: [],
+      appeals: [],
+      maxParticipation: []
+    };
+    this.scopeSyncTimes.clear();
+    await this.syncWithSupabase(undefined, true);
+  }
+
+  private scopeSyncTimes = new Map<string | number, number>();
   private readonly SYNC_TTL = 15 * 60 * 1000; // 15 minutes TTL for Free Plan bandwidth optimization
 
   // --- Live Supabase Sync (Throttled & Scoped with Specific Columns) ---
   public async syncWithSupabase(collegeAfflNo?: number, force = false): Promise<boolean> {
     if (!supabase) return false;
+    const scopeKey = collegeAfflNo ? Number(collegeAfflNo) : 'global';
+    const lastTime = this.scopeSyncTimes.get(scopeKey) || 0;
     const now = Date.now();
-    if (!force && now - this.lastSyncTime < this.SYNC_TTL) {
-      return true; // Use cached data in localStorage
+    if (!force && now - lastTime < this.SYNC_TTL) {
+      return true; // Use in-memory RAM cache
     }
 
     try {
       const client = supabase;
+      let hasError = false;
 
       // 1. Settings
-      const { data: festData } = await client
+      const { data: festData, error: festErr } = await client
         .from('fest_settings')
         .select('*')
         .limit(1)
         .maybeSingle();
-      if (festData) this.setStorage('festSettings', festData);
+      if (festErr) {
+        console.warn('Supabase sync error (fest_settings):', festErr.message);
+        hasError = true;
+      } else if (festData) {
+        this.setStorage('festSettings', festData);
+      }
 
       // 2. Colleges
-      const { data: colData } = await client
+      const { data: colData, error: colErr } = await client
         .from('colleges')
         .select('*');
-      if (colData) this.setStorage('colleges', colData);
+      if (colErr) {
+        console.warn('Supabase sync error (colleges):', colErr.message);
+        hasError = true;
+      } else if (colData) {
+        this.setStorage('colleges', colData);
+      }
 
       // 3. Items catalog
-      const { data: itemData } = await client
+      const { data: itemData, error: itemErr } = await client
         .from('items')
         .select('*');
-      if (itemData && itemData.length > 0) {
+      if (itemErr) {
+        console.warn('Supabase sync error (items):', itemErr.message);
+        hasError = true;
+      } else if (itemData && itemData.length > 0) {
         this.setStorage('items', itemData);
       }
 
@@ -117,8 +156,11 @@ class FestService {
       if (collegeAfflNo) {
         studentQuery = studentQuery.eq('college_affl_no', collegeAfflNo);
       }
-      const { data: studentData } = await studentQuery;
-      if (studentData) {
+      const { data: studentData, error: stuErr } = await studentQuery;
+      if (stuErr) {
+        console.warn('Supabase sync error (students):', stuErr.message);
+        hasError = true;
+      } else if (studentData) {
         if (collegeAfflNo) {
           const existing = this.getStorage<Student[]>('students', []);
           const otherColleges = existing.filter(s => s.college_affl_no !== collegeAfflNo);
@@ -129,19 +171,32 @@ class FestService {
       }
 
       // 5. Stages & Schedules
-      const { data: stgData } = await client.from('stages').select('*');
-      if (stgData) this.setStorage('stages', stgData);
+      const { data: stgData, error: stgErr } = await client.from('stages').select('*');
+      if (stgErr) {
+        console.warn('Supabase sync error (stages):', stgErr.message);
+        hasError = true;
+      } else if (stgData) {
+        this.setStorage('stages', stgData);
+      }
 
-      const { data: schData } = await client.from('schedules').select('*');
-      if (schData) this.setStorage('schedules', schData);
+      const { data: schData, error: schErr } = await client.from('schedules').select('*');
+      if (schErr) {
+        console.warn('Supabase sync error (schedules):', schErr.message);
+        hasError = true;
+      } else if (schData) {
+        this.setStorage('schedules', schData);
+      }
 
       // 6. Registrations: Scoped fetch
       let regQuery = client.from('registrations').select('*');
       if (collegeAfflNo) {
         regQuery = regQuery.eq('college_affl_no', collegeAfflNo);
       }
-      const { data: regData } = await regQuery;
-      if (regData) {
+      const { data: regData, error: regErr } = await regQuery;
+      if (regErr) {
+        console.warn('Supabase sync error (registrations):', regErr.message);
+        hasError = true;
+      } else if (regData) {
         const normalizedData = regData.map((r: Record<string, any>) => ({ ...r, college_affl_no: Number(r.college_affl_no), item_id: Number(r.item_id) }));
         if (collegeAfflNo) {
           const numAffl = Number(collegeAfflNo);
@@ -155,21 +210,55 @@ class FestService {
         this.repairLegacyRegistrations();
       }
 
-      // 7. Results & Locks
-      const { data: resData } = await client.from('results').select('*');
-      if (resData) this.setStorage('results', resData);
-
-      const { data: lockData } = await client.from('entry_locks').select('*');
-      if (lockData) this.setStorage('entryLocks', lockData);
-
-      // 8. Appeals
-      const { data: appealData } = await client.from('appeals').select('*');
-      if (appealData) {
-        this.setStorage('appeals', appealData);
+      // 7. Results & Locks: Safe fetch
+      const { data: resData, error: resErr } = await client.from('results').select('*');
+      if (resErr) {
+        console.warn('Supabase sync notice (results):', resErr.message);
+      } else if (resData) {
+        this.setStorage('results', resData);
       }
 
-      this.lastSyncTime = Date.now();
-      return true;
+      const { data: lockData, error: lockErr } = await client.from('entry_locks').select('*');
+      if (lockErr) {
+        console.warn('Supabase sync notice (entry_locks):', lockErr.message);
+      } else if (lockData) {
+        const normalizedLocks = lockData.map((l: Record<string, any>) => ({
+          ...l,
+          item_id: Number(l.item_id),
+          college_affl_no: Number(l.college_affl_no || l.affl_no || (l.college_id ? String(l.college_id).replace('col-', '') : 0)),
+          is_open: Boolean(l.is_open)
+        }));
+        this.setStorage('entryLocks', normalizedLocks);
+      }
+
+      // 8. Appeals: Scoped fetch with safe fallback
+      let appealQuery = client.from('appeals').select('*');
+      if (collegeAfflNo) {
+        appealQuery = appealQuery.eq('college_affl_no', collegeAfflNo);
+      }
+      const { data: appealData, error: appealErr } = await appealQuery;
+      if (appealErr) {
+        console.warn('Supabase sync notice (appeals):', appealErr.message);
+        // Fallback: query without college_affl_no filter if column isn't populated on remote table yet
+        const { data: fallbackAppeals } = await client.from('appeals').select('*');
+        if (fallbackAppeals) {
+          this.setStorage('appeals', fallbackAppeals);
+        }
+      } else if (appealData) {
+        if (collegeAfflNo) {
+          const numAffl = Number(collegeAfflNo);
+          const existing = this.getStorage<Appeal[]>('appeals', []);
+          const otherColleges = existing.filter(a => Number(a.college_affl_no) !== numAffl);
+          this.setStorage('appeals', [...otherColleges, ...appealData]);
+        } else {
+          this.setStorage('appeals', appealData);
+        }
+      }
+
+      if (!hasError) {
+        this.scopeSyncTimes.set(scopeKey, Date.now());
+      }
+      return !hasError;
     } catch (err) {
       console.warn('Notice: Supabase sync deferred:', err);
       return false;
@@ -180,27 +269,28 @@ class FestService {
   public subscribeToRealtimeChanges(onUpdate: () => void): () => void {
     if (!supabase) return () => {};
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const triggerDebouncedSync = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.scopeSyncTimes.clear(); // Invalidate cache
+        this.syncWithSupabase(undefined, true).then(onUpdate);
+      }, 300);
+    };
+
     const channel = supabase
       .channel('fest_realtime_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
-        this.lastSyncTime = 0; // Invalidate cache
-        this.syncWithSupabase(undefined, true).then(onUpdate);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'results' }, () => {
-        this.lastSyncTime = 0;
-        this.syncWithSupabase(undefined, true).then(onUpdate);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_locks' }, () => {
-        this.lastSyncTime = 0;
-        this.syncWithSupabase(undefined, true).then(onUpdate);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => {
-        this.lastSyncTime = 0;
-        this.syncWithSupabase(undefined, true).then(onUpdate);
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'results' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_locks' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appeals' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fest_settings' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, triggerDebouncedSync)
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }
@@ -229,25 +319,17 @@ class FestService {
     return updated;
   }
 
-  // Check if registration is open for a college and item
-  public isRegistrationOpen(collegeAfflNoOrId: number | string, itemIdOrCode: number | string): {
-    canRegister: boolean;
-    reason?: string;
-    isFinePeriod: boolean;
-  } {
-    const settings = this.getFestSettings();
-    const college = this.getCollege(collegeAfflNoOrId);
-    const item = this.getItem(itemIdOrCode);
-    const now = new Date();
-
+  private evaluateRegistrationStatus(
+    settings: FestSettings,
+    college: College | undefined,
+    item: Item | undefined,
+    cell: EntryLock | undefined,
+    now: Date
+  ): RegistrationStatus {
     if (!item) return { canRegister: false, reason: 'Event not found', isFinePeriod: false };
     if (!college) return { canRegister: false, reason: 'College not found', isFinePeriod: false };
 
     // Check 2D Matrix Cell: entry_locks(item_id, college_affl_no)
-    const entryLocks = this.getEntryLocks();
-    const cell = entryLocks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
-
-    // If explicitly marked closed in the matrix:
     if (cell && !cell.is_open) {
       return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
     }
@@ -280,6 +362,56 @@ class FestService {
     }
 
     return { canRegister: false, reason: 'Registration deadline has passed', isFinePeriod: false };
+  }
+
+  // Bulk availability calculator for an array of items (O(1) matrix lookup per item)
+  public getRegistrationStatuses(
+    collegeAfflNoOrId: number | string,
+    items: Item[]
+  ): Map<number, RegistrationStatus> {
+    const settings = this.getFestSettings();
+    const college = this.getCollege(collegeAfflNoOrId);
+    const locksByItemId = new Map<number, EntryLock>();
+
+    if (college) {
+      const allLocks = this.getEntryLocks();
+      for (const lock of allLocks) {
+        if (lock.college_affl_no === college.affl_no) {
+          locksByItemId.set(Number(lock.item_id), lock);
+        }
+      }
+    }
+
+    const now = new Date();
+    const statuses = new Map<number, RegistrationStatus>();
+    for (const item of items) {
+      const itemIdNum = Number(item.item_id || item.id);
+      statuses.set(
+        itemIdNum,
+        this.evaluateRegistrationStatus(
+          settings,
+          college,
+          item,
+          locksByItemId.get(itemIdNum),
+          now
+        )
+      );
+    }
+    return statuses;
+  }
+
+  // Check if registration is open for a college and single item
+  public isRegistrationOpen(collegeAfflNoOrId: number | string, itemIdOrCode: number | string): RegistrationStatus {
+    const settings = this.getFestSettings();
+    const college = this.getCollege(collegeAfflNoOrId);
+    const item = this.getItem(itemIdOrCode);
+    if (!college || !item) {
+      return this.evaluateRegistrationStatus(settings, college, item, undefined, new Date());
+    }
+
+    const entryLocks = this.getEntryLocks();
+    const cell = entryLocks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
+    return this.evaluateRegistrationStatus(settings, college, item, cell, new Date());
   }
 
   // --- Colleges ---
@@ -452,16 +584,18 @@ class FestService {
     const items = this.getItems();
     let updated = false;
     const locks = [...raw];
+    const existingKeys = new Set(raw.map(l => `${l.item_id}:${l.college_affl_no}`));
 
     items.forEach(item => {
       colleges.forEach(col => {
-        const found = locks.find(l => l.item_id === item.item_id && l.college_affl_no === col.affl_no);
-        if (!found) {
+        const key = `${item.item_id}:${col.affl_no}`;
+        if (!existingKeys.has(key)) {
           locks.push({
             item_id: item.item_id,
             college_affl_no: col.affl_no,
             is_open: !item.is_locked
           });
+          existingKeys.add(key);
           updated = true;
         }
       });
@@ -519,19 +653,37 @@ class FestService {
     const locks = this.getEntryLocks();
     const now = new Date().toISOString();
 
+    // O(1) Index Map for fast lookup by college_affl_no
+    const lockMap = new Map<number, number>();
+    locks.forEach((l, idx) => {
+      if (l.item_id === itemId) {
+        lockMap.set(l.college_affl_no, idx);
+      }
+    });
+
+    const dbRows: Array<{ item_id: number; college_affl_no: number; is_open: boolean; updated_at: string }> = [];
+
     colleges.forEach(col => {
-      const idx = locks.findIndex(l => l.item_id === itemId && l.college_affl_no === col.affl_no);
-      if (idx >= 0) {
+      const idx = lockMap.get(col.affl_no);
+      if (idx !== undefined) {
         locks[idx].is_open = isOpen;
         locks[idx].updated_at = now;
       } else {
-        locks.push({
+        const newLock = {
           item_id: itemId,
           college_affl_no: col.affl_no,
           is_open: isOpen,
           updated_at: now
-        });
+        };
+        locks.push(newLock);
+        lockMap.set(col.affl_no, locks.length - 1);
       }
+      dbRows.push({
+        item_id: itemId,
+        college_affl_no: col.affl_no,
+        is_open: isOpen,
+        updated_at: now
+      });
     });
 
     // Also update item.is_locked flag to keep consistency
@@ -545,25 +697,96 @@ class FestService {
     this.setStorage('entryLocks', locks);
 
     const client = supabase;
-    if (client) {
-      colleges.forEach(col => {
-        Promise.resolve(
-          client.from('entry_locks').upsert({
-            item_id: itemId,
-            college_affl_no: col.affl_no,
-            is_open: isOpen,
-            updated_at: now
-          })
-        ).catch(() => {});
-      });
+    if (client && dbRows.length > 0) {
+      client.from('entry_locks')
+        .upsert(dbRows, { onConflict: 'item_id,college_affl_no' })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            console.error('❌ Supabase entry_locks row upsert error:', error.message);
+          }
+        })
+        .catch((err: any) => console.warn('Supabase network error (setEntryLockRow):', err));
+
+      client.from('items')
+        .update({ is_locked: !isOpen })
+        .eq('item_id', itemId)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            console.error('❌ Supabase item lock update error:', error.message);
+          }
+        })
+        .catch(() => {});
     }
   }
 
   public setAllEntryLocks(isOpen: boolean): void {
     const items = this.getItems();
-    items.forEach(itm => {
-      this.setEntryLockRow(itm.item_id, isOpen);
+    const colleges = this.getColleges();
+    const locks = this.getEntryLocks();
+    const now = new Date().toISOString();
+
+    // Build O(1) Hash Map for item_id:college_affl_no lookup
+    const lockMap = new Map<string, number>();
+    locks.forEach((l, idx) => {
+      lockMap.set(`${l.item_id}:${l.college_affl_no}`, idx);
     });
+
+    const bulkRows: Array<{ item_id: number; college_affl_no: number; is_open: boolean; updated_at: string }> = [];
+
+    items.forEach(itm => {
+      itm.is_locked = !isOpen;
+      colleges.forEach(col => {
+        const key = `${itm.item_id}:${col.affl_no}`;
+        const idx = lockMap.get(key);
+
+        if (idx !== undefined) {
+          locks[idx].is_open = isOpen;
+          locks[idx].updated_at = now;
+        } else {
+          const newLock = {
+            item_id: itm.item_id,
+            college_affl_no: col.affl_no,
+            is_open: isOpen,
+            updated_at: now
+          };
+          locks.push(newLock);
+          lockMap.set(key, locks.length - 1);
+        }
+
+        bulkRows.push({
+          item_id: itm.item_id,
+          college_affl_no: col.affl_no,
+          is_open: isOpen,
+          updated_at: now
+        });
+      });
+    });
+
+    this.setStorage('items', items);
+    this.setStorage('entryLocks', locks);
+
+    const client = supabase;
+    if (client && bulkRows.length > 0) {
+      // Single batched bulk upsert instead of launching N individual requests!
+      client.from('entry_locks')
+        .upsert(bulkRows, { onConflict: 'item_id,college_affl_no' })
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            console.error('❌ Supabase bulk entry_locks upsert error:', error.message);
+          }
+        })
+        .catch((err: any) => console.warn('Supabase network error (setAllEntryLocks):', err));
+
+      client.from('items')
+        .update({ is_locked: !isOpen })
+        .gte('item_id', 0)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            console.error('❌ Supabase items bulk lock update error:', error.message);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   // Backward compatibility helper
@@ -690,7 +913,8 @@ class FestService {
     students.push(newStudent);
     this.setStorage('students', students);
     if (supabase) {
-      supabase.from('students').insert(newStudent).then();
+      const { id, college_id, category, cic_no, ...dbPayload } = newStudent as any;
+      supabase.from('students').insert(dbPayload).then();
     }
     return newStudent;
   }
@@ -702,16 +926,34 @@ class FestService {
 
   // --- Registrations (Multiple-Row Flat Architecture) ---
   public getRegistrations(collegeAfflNoOrId?: number | string): Registration[] {
-    const regs = this.getStorage<Registration[]>('registrations', []);
+    const allRegs = this.getStorage<Registration[]>('registrations', []);
+    const col = collegeAfflNoOrId ? this.getCollege(collegeAfflNoOrId) : undefined;
+    const targetAffl = col ? col.affl_no : (typeof collegeAfflNoOrId === 'number' ? collegeAfflNoOrId : undefined);
+
+    const regs = targetAffl ? allRegs.filter(r => Number(r.college_affl_no) === targetAffl) : allRegs;
+
+    const rowsByCollegeAndItem = new Map<string, Registration[]>();
+    for (const row of regs) {
+      const key = `${row.college_affl_no}:${row.item_id}`;
+      const group = rowsByCollegeAndItem.get(key) || [];
+      group.push(row);
+      rowsByCollegeAndItem.set(key, group);
+    }
+
     const items = this.getItems();
     const colleges = this.getColleges();
     const students = this.getStudents();
 
-    const enriched = regs.map(r => normalizeRegistration(r, students, items, colleges, regs));
-
-    if (!collegeAfflNoOrId) return enriched;
-    const col = this.getCollege(collegeAfflNoOrId);
-    return col ? enriched.filter(r => r.college_affl_no === col.affl_no) : enriched;
+    return regs.map(row => {
+      const key = `${row.college_affl_no}:${row.item_id}`;
+      return normalizeRegistration(
+        row,
+        students,
+        items,
+        colleges,
+        rowsByCollegeAndItem.get(key) || []
+      );
+    });
   }
 
   public repairLegacyRegistrations(): number {
@@ -1139,7 +1381,10 @@ class FestService {
     if (supabase) {
       const client = supabase;
       client.from('results').delete().eq('item_id', itemId).then(() => {
-        client.from('results').insert(remaining.filter(r => r.item_id === itemId)).then();
+        const dbPayloads = remaining
+          .filter(r => r.item_id === itemId)
+          .map(({ id, ...rest }) => rest);
+        client.from('results').insert(dbPayloads).then();
       });
     }
   }
@@ -1165,21 +1410,31 @@ class FestService {
     const appeals = this.getStorage<Appeal[]>('appeals', []);
     const items = this.getItems();
     const colleges = this.getColleges();
+    const students = this.getStudents();
 
     const enriched = appeals.map(a => {
       const itm = items.find(i => i.item_id === a.item_id);
+      const student = a.chest_no ? students.find(s => s.chest_no === a.chest_no) : null;
+      
+      const col = (a.college_affl_no && colleges.find(c => c.affl_no === Number(a.college_affl_no)))
+        || (student && colleges.find(c => c.affl_no === student.college_affl_no))
+        || colleges.find(c => c.team_manager_phone === a.mobile_number || c.staff_coordinator_phone === a.mobile_number)
+        || (collegeAfflNoOrId ? colleges.find(c => c.affl_no === (this.getCollege(collegeAfflNoOrId)?.affl_no)) : null)
+        || colleges[0];
+
       return {
         ...a,
+        college_affl_no: a.college_affl_no ? Number(a.college_affl_no) : col?.affl_no,
         reason: a.reason_for_appeal,
         status: a.current_status,
         item: itm,
-        college: colleges.find(c => c.team_manager_phone === a.mobile_number) || colleges[0]
+        college: col
       };
     });
 
     if (!collegeAfflNoOrId) return enriched;
     const col = this.getCollege(collegeAfflNoOrId);
-    return col ? enriched.filter(a => a.college?.affl_no === col.affl_no) : enriched;
+    return col ? enriched.filter(a => a.college?.affl_no === col.affl_no || a.college_affl_no === col.affl_no) : enriched;
   }
 
   public submitAppeal(
@@ -1189,12 +1444,18 @@ class FestService {
     feeReceiptUrl?: string
   ): Appeal {
     const appeals = this.getStorage<Appeal[]>('appeals', []);
+    const colleges = this.getColleges();
 
     // Overload 1: passed as object
     if (typeof collegeAfflNoOrObj === 'object') {
       const obj = collegeAfflNoOrObj;
+      const col = obj.college_affl_no 
+        ? this.getCollege(obj.college_affl_no) 
+        : colleges.find(c => c.team_manager_phone === obj.mobile_number || c.staff_coordinator_phone === obj.mobile_number);
+      
       const newAppeal: Appeal = {
         id: `app-${Date.now()}`,
+        college_affl_no: obj.college_affl_no ? Number(obj.college_affl_no) : (col?.affl_no || null),
         phase: obj.phase || 'Senior',
         item_id: obj.item_id || 1,
         participant_name: obj.participant_name || null,
@@ -1207,8 +1468,8 @@ class FestService {
         paid_to: obj.paid_to || 'Fazil',
         transaction_number: obj.transaction_number || 'UPI-REF-001',
         fee_receipt_url: obj.fee_receipt_url || null,
-        team_manager_name: obj.team_manager_name || 'Team Manager',
-        mobile_number: obj.mobile_number || '9800000000',
+        team_manager_name: obj.team_manager_name || col?.team_manager_name || 'Team Manager',
+        mobile_number: obj.mobile_number || col?.team_manager_phone || '9800000000',
         acknowledgment: obj.acknowledgment !== undefined ? obj.acknowledgment : true,
         current_status: 'Pending',
         status: 'Pending',
@@ -1217,7 +1478,10 @@ class FestService {
       };
       appeals.push(newAppeal);
       this.setStorage('appeals', appeals);
-      if (supabase) supabase.from('appeals').insert(newAppeal).then();
+      if (supabase) {
+        const { id, reason, status, payment_mode, paid_to, participant_name, ...dbPayload } = newAppeal as any;
+        supabase.from('appeals').insert(dbPayload).then();
+      }
       return newAppeal;
     }
 
@@ -1226,6 +1490,7 @@ class FestService {
     const col = this.getCollege(collegeAfflNoOrObj);
     const newAppeal: Appeal = {
       id: `app-${Date.now()}`,
+      college_affl_no: col ? col.affl_no : Number(collegeAfflNoOrObj) || null,
       phase: itm ? itm.phase : 'Senior',
       item_id: itm ? itm.item_id : 1,
       chest_no: null,
@@ -1245,7 +1510,10 @@ class FestService {
     };
     appeals.push(newAppeal);
     this.setStorage('appeals', appeals);
-    if (supabase) supabase.from('appeals').insert(newAppeal).then();
+    if (supabase) {
+      const { id, reason, status, payment_mode, paid_to, participant_name, ...dbPayload } = newAppeal as any;
+      supabase.from('appeals').insert(dbPayload).then();
+    }
     return newAppeal;
   }
 

@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { AuthUser } from '@supabase/supabase-js';
-import { UserRole, Profile, College, FestSettings } from '../types/fest';
+import { UserRole, FestSettings } from '../types/fest';
 import { festService } from '../services/festService';
+import { createClient } from '@/lib/supabase/client';
 
 interface FestContextType {
   currentRole: UserRole;
@@ -30,92 +31,142 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRoleState] = useState<UserRole>('college');
   const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-11');
   const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(11);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
-  useEffect(() => {
-    // Sync with live Supabase if available (college scoped if college role)
-    const scopeAffl = currentRole === 'college' ? currentCollegeAfflNo : undefined;
-    festService.syncWithSupabase(scopeAffl).then(connected => {
-      setIsSupabaseConnected(connected);
-      if (connected) {
-        setFestSettings(festService.getFestSettings());
-        setRefreshKey(prev => prev + 1);
-      }
-    });
+  const isAuthenticatedRef = React.useRef<boolean>(false);
+  const setIsAuthenticated = (auth: boolean) => {
+    isAuthenticatedRef.current = auth;
+    setIsAuthenticatedState(auth);
+  };
 
-    // Subscribe to live Realtime updates via WebSockets (eliminates polling)
+  useEffect(() => {
+    // Subscribe to live Realtime updates via WebSockets
     const unsubscribeRealtime = festService.subscribeToRealtimeChanges(() => {
       triggerRefresh();
     });
 
-    // ── Strict Supabase Auth Session Check ──────────────────────────────────
-    import('@/lib/supabase/client').then(({ createClient }) => {
-      const supabase = createClient();
-      if (!supabase) {
-        setIsAuthenticated(false);
-        setIsLoadingAuth(false);
-        return;
-      }
+    const supabase = createClient();
+    if (!supabase) {
+      setIsAuthenticated(false);
+      setIsLoadingAuth(false);
+      return () => { unsubscribeRealtime(); };
+    }
 
-      // Load initial authenticated user session
-      supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
-        if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role, college_affl_no')
-            .eq('id', user.id)
-            .maybeSingle();
+    let authSubscription: { unsubscribe: () => void } | null = null;
 
-          const role = (profile?.role as UserRole) || 'college';
-          const afflNo = profile?.college_affl_no;
+    // Load initial authenticated user session
+    supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, college_affl_no')
+          .eq('id', user.id)
+          .maybeSingle();
 
-          setCurrentRoleState(role);
-          setIsAuthenticated(true);
-          if (afflNo) {
-            setCurrentCollegeAfflNoState(afflNo);
-            setCurrentCollegeIdState(`col-${afflNo}`);
+        const role = profile?.role as UserRole | undefined;
+        const afflNo = profile?.college_affl_no;
+
+        if (role === 'admin') {
+          setCurrentRoleState('admin');
+          const connected = await festService.syncWithSupabase(undefined, true);
+          setIsSupabaseConnected(connected);
+          if (connected) {
+            setFestSettings(festService.getFestSettings());
+            setRefreshKey(prev => prev + 1);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+          }
+        } else if (role === 'college' && afflNo) {
+          setCurrentRoleState('college');
+          setCurrentCollegeAfflNoState(afflNo);
+          setCurrentCollegeIdState(`col-${afflNo}`);
+          const connected = await festService.syncWithSupabase(afflNo, true);
+          setIsSupabaseConnected(connected);
+          if (connected) {
+            setFestSettings(festService.getFestSettings());
+            setRefreshKey(prev => prev + 1);
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
           }
         } else {
+          console.warn('[FestContext] User profile missing or college affiliation not assigned');
           setIsAuthenticated(false);
         }
-        setIsLoadingAuth(false);
-      });
-
-      // Subscribe to Supabase Auth State Changes (login, logout, token refresh)
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-        if (event === 'SIGNED_OUT') {
-          setIsAuthenticated(false);
-          setCurrentRoleState('college');
-          setCurrentCollegeAfflNoState(11);
-          setCurrentCollegeIdState('col-11');
-        }
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role, college_affl_no')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          const role = (profile?.role as UserRole) || 'college';
-          const afflNo = profile?.college_affl_no;
-
-          setCurrentRoleState(role);
-          setIsAuthenticated(true);
-          if (afflNo) {
-            setCurrentCollegeAfflNoState(afflNo);
-            setCurrentCollegeIdState(`col-${afflNo}`);
-          }
-        }
-      });
-
-      return () => { subscription.unsubscribe(); };
+      } else {
+        setIsAuthenticated(false);
+        const connected = await festService.syncWithSupabase(undefined, false);
+        setIsSupabaseConnected(connected);
+      }
+      setIsLoadingAuth(false);
     });
-    // ── End auth session check ─────────────────────────────────────────────
+
+    // Subscribe to Supabase Auth State Changes (login, logout, token refresh, window focus)
+    const { data } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        setCurrentRoleState('college');
+        setCurrentCollegeAfflNoState(11);
+        setCurrentCollegeIdState('col-11');
+      }
+      if (event === 'SIGNED_IN' && session?.user) {
+        const isFreshLogin = !isAuthenticatedRef.current;
+        if (isFreshLogin) {
+          setIsLoadingAuth(true);
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, college_affl_no')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const role = profile?.role as UserRole | undefined;
+        const afflNo = profile?.college_affl_no;
+
+        if (role === 'admin') {
+          setCurrentRoleState('admin');
+          const connected = await festService.syncWithSupabase(undefined, isFreshLogin);
+          setIsSupabaseConnected(connected);
+          if (connected) {
+            setFestSettings(festService.getFestSettings());
+            if (isFreshLogin) setRefreshKey(prev => prev + 1);
+            setIsAuthenticated(true);
+          } else {
+            if (isFreshLogin) setIsAuthenticated(false);
+          }
+        } else if (role === 'college' && afflNo) {
+          setCurrentRoleState('college');
+          setCurrentCollegeAfflNoState(afflNo);
+          setCurrentCollegeIdState(`col-${afflNo}`);
+          const connected = await festService.syncWithSupabase(afflNo, isFreshLogin);
+          setIsSupabaseConnected(connected);
+          if (connected) {
+            setFestSettings(festService.getFestSettings());
+            if (isFreshLogin) setRefreshKey(prev => prev + 1);
+            setIsAuthenticated(true);
+          } else {
+            if (isFreshLogin) setIsAuthenticated(false);
+          }
+        } else {
+          console.warn('[FestContext] User profile missing or college affiliation not assigned');
+          setIsAuthenticated(false);
+        }
+        if (isFreshLogin) {
+          setIsLoadingAuth(false);
+        }
+      }
+    });
+
+    if (data?.subscription) {
+      authSubscription = data.subscription;
+    }
 
     // Theme init
     if (typeof window !== 'undefined') {
@@ -132,6 +183,9 @@ export function FestProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
       unsubscribeRealtime();
     };
   }, []);

@@ -40,15 +40,33 @@ export function AdmitCardTable({
     return getCanonicalChestNo(student);
   };
 
-  // Filter students to ONLY those who have active registrations
+  // Filter students to ONLY those who have active registrations (O(1) Set lookup)
   const registeredStudents = useMemo(() => {
     if (!students || students.length === 0 || !registrations || registrations.length === 0) {
       return [];
     }
 
-    return students.filter(student =>
-      registrations.some(r => registrationContainsStudent(r, student, students))
-    );
+    const registeredKeys = new Set<string>();
+    registrations.forEach(r => {
+      if (r.chest_no) registeredKeys.add(r.chest_no.trim().toUpperCase());
+      if (r.student?.id) registeredKeys.add(r.student.id);
+      if (r.student?.chest_no) registeredKeys.add(r.student.chest_no.trim().toUpperCase());
+      r.participants?.forEach(p => {
+        if (p.id) registeredKeys.add(p.id);
+        if (p.chest_no) registeredKeys.add(p.chest_no.trim().toUpperCase());
+        const cic = p.admission_no ?? p.cic_no ?? p.cic_number;
+        if (cic) registeredKeys.add(String(cic).trim().toUpperCase());
+      });
+    });
+
+    return students.filter(student => {
+      if (student.id && registeredKeys.has(student.id)) return true;
+      const chest = getCanonicalChestNo(student).toUpperCase();
+      if (chest !== 'ST-N/A' && registeredKeys.has(chest)) return true;
+      const cic = String(student.admission_no ?? student.cic_no ?? student.cic_number ?? '').trim().toUpperCase();
+      if (cic && registeredKeys.has(cic)) return true;
+      return registrationContainsStudent(registrations[0], student, students);
+    });
   }, [students, registrations]);
 
   // Search filter across Name, CIC No, or Chest No for registered students only

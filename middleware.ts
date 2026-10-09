@@ -57,14 +57,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 3. Retrieve user role from profiles table (or fallback to auth metadata)
+  // 3. Retrieve user role from profiles table
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  const userRole = (profile?.role as string) || 'college';
+  if (!profile || !profile.role) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.searchParams.set('error', 'no_role_assigned');
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const userRole = profile.role as string;
 
   // 4. Server-side role authorization check
   const matchedRoute = Object.keys(ROUTE_ROLE_MAP).find(route => pathname.startsWith(route));

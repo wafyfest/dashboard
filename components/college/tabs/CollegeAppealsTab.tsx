@@ -153,6 +153,7 @@ export function CollegeAppealsTab({
     const item = allItems.find(i => String(i.id) === selectedItemId || String(i.item_id) === selectedItemId);
 
     festService.submitAppeal({
+      college_affl_no: college?.affl_no,
       phase: item?.phase || item?.category || 'Senior',
       item_id: item?.item_id || (item ? Number(item.id) : 1),
       participant_name: participantName || null,
@@ -164,7 +165,9 @@ export function CollegeAppealsTab({
       paid_to: paidTo,
       fee_receipt_url: null,
       current_status: 'Pending',
-      status: 'Pending'
+      status: 'Pending',
+      team_manager_name: college?.team_manager_name || 'Team Manager',
+      mobile_number: college?.team_manager_phone || college?.staff_coordinator_phone || '9800000000'
     });
 
     resetForm();
