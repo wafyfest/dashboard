@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   ClipboardPen,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
-import { festService } from '@/lib/services/festService';
+import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { Badge, CategoryBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
@@ -29,7 +29,7 @@ import { CollegeScheduleTab } from '@/components/college/tabs/CollegeScheduleTab
 import { CollegeAppealsTab } from '@/components/college/tabs/CollegeAppealsTab';
 
 export default function CollegePortalPage() {
-  const { currentCollegeId, currentCollegeAfflNo, festSettings, triggerRefresh } = useFest();
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -60,7 +60,7 @@ export default function CollegePortalPage() {
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedItemForReg, setSelectedItemForReg] = useState<Item | null>(null);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
 
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [appealForm, setAppealForm] = useState({ itemId: '', reason: '', feeReceiptUrl: '' });
@@ -73,10 +73,22 @@ export default function CollegePortalPage() {
     reason: ''
   });
 
-  const college = festService.getCollege(currentCollegeId);
-  const allItems = festService.getItems();
-  const registrations = festService.getRegistrations(currentCollegeId);
-  const registeredItemIds = new Set(registrations.map(r => r.item_id));
+  const college = useMemo(
+    () => festService.getCollege(currentCollegeId),
+    [currentCollegeId, refreshKey]
+  );
+  const allItems = useMemo(
+    () => festService.getItems(),
+    [refreshKey]
+  );
+  const registrations = useMemo(
+    () => festService.getRegistrations(currentCollegeId),
+    [currentCollegeId, refreshKey]
+  );
+  const registeredItemIds = useMemo(
+    () => new Set(registrations.map(r => r.item_id)),
+    [registrations]
+  );
 
   const [students, setStudents] = useState<Student[]>(() =>
     festService.getStudents(currentCollegeId)
@@ -94,72 +106,100 @@ export default function CollegePortalPage() {
         }
       });
     }
-  }, [currentCollegeId, currentCollegeAfflNo, college?.affl_no]);
+  }, [currentCollegeId, currentCollegeAfflNo, college?.affl_no, refreshKey]);
 
-  const collegeEligibleItems = allItems.filter(item =>
-    isItemEligibleForCollege(item, students, college, registeredItemIds)
+  const collegeEligibleItems = useMemo(
+    () =>
+      allItems.filter(item =>
+        isItemEligibleForCollege(item, students, college, registeredItemIds)
+      ),
+    [allItems, students, college, registeredItemIds]
   );
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All Categories');
-  const categoryOptions = Array.from(
-    new Set(collegeEligibleItems.map(item => item.phase || item.category).filter(Boolean))
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          collegeEligibleItems
+            .map(item => item.phase || item.category)
+            .filter(Boolean)
+        )
+      ),
+    [collegeEligibleItems]
   );
 
-  const filteredItems = collegeEligibleItems.filter(item => {
-    if (selectedCategory === 'All Categories') return true;
-    return isCategoryMatching(item.phase || item.category, selectedCategory);
-  });
+  const filteredItems = useMemo(
+    () =>
+      collegeEligibleItems.filter(item => {
+        if (selectedCategory === 'All Categories') return true;
+        return isCategoryMatching(item.phase || item.category, selectedCategory);
+      }),
+    [collegeEligibleItems, selectedCategory]
+  );
 
-  const schedules = festService.getSchedules();
-  const appeals = festService.getAppeals(currentCollegeId);
+  const registrationStatusByItem = useMemo(
+    () =>
+      activeTab === 'registration'
+        ? festService.getRegistrationStatuses(
+            currentCollegeAfflNo || currentCollegeId,
+            filteredItems
+          )
+        : new Map<number, RegistrationStatus>(),
+    [
+      activeTab,
+      currentCollegeAfflNo,
+      currentCollegeId,
+      filteredItems,
+      refreshKey
+    ]
+  );
 
-  // Category counts
-  const getPhaseCount = (phaseKey: string, collegeFallbackField?: number) => {
-    const key = phaseKey.toLowerCase();
-    const count = students.filter(s => {
-      const p = (s.category || s.phase || '').toLowerCase();
-      if (key === 'foundation') {
-        return p === 'foundation' || p === 'fd' || p.includes('sub_junior') || p.includes('sub junior') || p.includes('sub-junior') || p.includes('pre foundation');
-      }
-      if (key === 'thamheediyya') {
-        return p.includes('thamheed') || p === 'th' || (p.includes('junior') && !p.includes('sub'));
-      }
-      if (key === 'aliya') {
-        return p === 'aliya' || p === 'al' || p.includes('senior');
-      }
-      if (key === 'pg') {
-        return p === 'pg';
-      }
-      if (key === 'general') {
-        return p === 'general';
-      }
-      return p === key;
-    }).length;
+  const schedules = useMemo(() => festService.getSchedules(), [refreshKey]);
+  const appeals = useMemo(() => festService.getAppeals(currentCollegeId), [currentCollegeId, refreshKey]);
+
+  // Category counts calculated in a single pass (memoized)
+  const categoryCards = useMemo(() => {
+    let foundationCount = 0;
+    let thamheediyyaCount = 0;
+    let aliyaCount = 0;
+    let pgCount = 0;
+    let generalCount = 0;
 
     if (students.length > 0) {
-      return count;
+      students.forEach(s => {
+        const p = (s.category || s.phase || '').toLowerCase();
+        if (p === 'foundation' || p === 'fd' || p.includes('sub_junior') || p.includes('sub junior') || p.includes('sub-junior') || p.includes('pre foundation')) {
+          foundationCount++;
+        } else if (p.includes('thamheed') || p === 'th' || (p.includes('junior') && !p.includes('sub'))) {
+          thamheediyyaCount++;
+        } else if (p === 'aliya' || p === 'al' || p.includes('senior')) {
+          aliyaCount++;
+        } else if (p === 'pg') {
+          pgCount++;
+        } else if (p === 'general') {
+          generalCount++;
+        }
+      });
+    } else {
+      foundationCount = college?.st_foundation ?? 0;
+      thamheediyyaCount = college?.st_thamheediya ?? 0;
+      aliyaCount = college?.st_aliya ?? 0;
     }
-    return collegeFallbackField ?? 0;
-  };
 
-  const foundationCount = getPhaseCount('foundation', college?.st_foundation);
-  const thamheediyyaCount = getPhaseCount('thamheediyya', college?.st_thamheediya);
-  const aliyaCount = getPhaseCount('aliya', college?.st_aliya);
-  const pgCount = getPhaseCount('pg', 0);
-  const generalCount = getPhaseCount('general', 0);
+    const totalCount = students.length > 0
+      ? students.length
+      : (foundationCount + thamheediyyaCount + aliyaCount + pgCount + generalCount);
 
-  const totalCount = students.length > 0
-    ? students.length
-    : (foundationCount + thamheediyyaCount + aliyaCount + pgCount + generalCount);
-
-  const categoryCards = [
-    { label: 'Foundation', count: foundationCount },
-    { label: 'Thamheediyya', count: thamheediyyaCount },
-    { label: 'Aliya', count: aliyaCount },
-    { label: 'PG', count: pgCount },
-    { label: 'General', count: generalCount },
-    { label: 'Total Students', count: totalCount, highlight: true },
-  ].filter(card => card.count > 0);
+    return [
+      { label: 'Foundation', count: foundationCount },
+      { label: 'Thamheediyya', count: thamheediyyaCount },
+      { label: 'Aliya', count: aliyaCount },
+      { label: 'PG', count: pgCount },
+      { label: 'General', count: generalCount },
+      { label: 'Total Students', count: totalCount, highlight: true },
+    ].filter(card => card.count > 0);
+  }, [students, college]);
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,7 +213,7 @@ export default function CollegePortalPage() {
     const existingReg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
     const preselected = existingReg?.participants?.map(p => p.id) || [];
     setSelectedItemForReg(item);
-    setSelectedStudentIds(preselected);
+    setSelectedStudentIds(new Set(preselected));
     setIsRegisterModalOpen(true);
   };
 
@@ -183,7 +223,7 @@ export default function CollegePortalPage() {
     const res = await festService.registerCollegeForItem(
       currentCollegeAfflNo || currentCollegeId,
       selectedItemForReg.item_id || selectedItemForReg.id,
-      selectedStudentIds
+      Array.from(selectedStudentIds)
     );
     if (!res.success) {
       alert(`Registration Error: ${res.error}`);
@@ -299,6 +339,7 @@ export default function CollegePortalPage() {
               onOpenRegistrationModal={handleOpenRegistrationModal}
               onUnregisterRegistration={handleUnregisterRegistration}
               allItemsCount={allItems.length}
+              registrationStatusByItem={registrationStatusByItem}
             />
           )}
 
@@ -452,12 +493,12 @@ export default function CollegePortalPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Select Participants ({selectedStudentIds.length} / {maxPart} selected)
+                    Select Participants ({selectedStudentIds.size} / {maxPart} selected)
                   </label>
 
                   <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                     {students.map(s => {
-                      const isSelected = selectedStudentIds.includes(s.id);
+                      const isSelected = selectedStudentIds.has(s.id);
                       const sCat = s.category || s.phase;
                       const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                       const isCategoryMatch = isCategoryMatching(sCat, itemCat);
@@ -475,14 +516,19 @@ export default function CollegePortalPage() {
                               checked={isSelected}
                               disabled={!isCategoryMatch && !isSelected}
                               onChange={e => {
-                                if (e.target.checked) {
-                                  if (selectedStudentIds.length >= maxPart) {
+                                const checked = e.target.checked;
+                                if (checked) {
+                                  if (selectedStudentIds.size >= maxPart) {
                                     alert(`Maximum participant limit (${maxPart}) reached for this event.`);
                                     return;
                                   }
-                                  setSelectedStudentIds([...selectedStudentIds, s.id]);
+                                  setSelectedStudentIds(prev => new Set(prev).add(s.id));
                                 } else {
-                                  setSelectedStudentIds(selectedStudentIds.filter(id => id !== s.id));
+                                  setSelectedStudentIds(prev => {
+                                    const next = new Set(prev);
+                                    next.delete(s.id);
+                                    return next;
+                                  });
                                 }
                               }}
                               className="rounded border-slate-300 dark:border-slate-700 text-[#132238] focus:ring-[#132238]"
@@ -503,13 +549,13 @@ export default function CollegePortalPage() {
 
                 <div className="pt-4 flex items-center justify-between">
                   <div className="text-xs">
-                    {selectedStudentIds.length < minPart && (
+                    {selectedStudentIds.size < minPart && (
                       <span className="text-rose-600 font-medium">
                         Need at least {minPart} participant(s).
                       </span>
                     )}
-                    {selectedStudentIds.length >= minPart &&
-                      selectedStudentIds.length <= maxPart && (
+                    {selectedStudentIds.size >= minPart &&
+                      selectedStudentIds.size <= maxPart && (
                         <span className="text-emerald-600 font-medium">Capacity verified!</span>
                       )}
                   </div>
@@ -531,8 +577,8 @@ export default function CollegePortalPage() {
                     <Button
                       type="submit"
                       disabled={
-                        selectedStudentIds.length < minPart ||
-                        selectedStudentIds.length > maxPart
+                        selectedStudentIds.size < minPart ||
+                        selectedStudentIds.size > maxPart
                       }
                     >
                       Save Registration

@@ -298,6 +298,7 @@ export interface Result {
 
 export interface Appeal {
   id: string;
+  college_affl_no?: number | null;
   phase: string;
   item_id: number;
   participant_name?: string | null;

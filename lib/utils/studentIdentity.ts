@@ -63,11 +63,11 @@ export function findStudentByIdentifier(
   const upperStr = rawStr.toUpperCase();
   const digitsOnly = rawStr.replace(/\D/g, '');
 
-  // Scope to college if specified, but maintain global list as fallback
+  // Scope to college if specified; do not fallback to other colleges if collegeAfflNo is provided
   const pool = collegeAfflNo
     ? students.filter(s => s.college_affl_no === collegeAfflNo)
     : students;
-  const fallbackPool = collegeAfflNo ? students : [];
+  const fallbackPool: Student[] = [];
 
   const searchInPool = (list: Student[]): Student | undefined => {
     // 1. Direct ID match
@@ -228,7 +228,7 @@ export function normalizeRegistration(
   students: Student[],
   items?: Item[],
   colleges?: College[],
-  allRegistrations?: Registration[]
+  allOrGroupRegistrations?: Registration[]
 ): Registration {
   const colAffl = registration.college_affl_no;
   const item = items?.find(i => i.item_id === registration.item_id);
@@ -239,10 +239,14 @@ export function normalizeRegistration(
 
   // Group event participant aggregation
   let participants: Student[] = [];
-  if (allRegistrations && allRegistrations.length > 0) {
-    const groupRows = allRegistrations.filter(
+  if (allOrGroupRegistrations && allOrGroupRegistrations.length > 0) {
+    const groupRows = allOrGroupRegistrations.every(
       r => r.item_id === registration.item_id && r.college_affl_no === colAffl
-    );
+    )
+      ? allOrGroupRegistrations
+      : allOrGroupRegistrations.filter(
+          r => r.item_id === registration.item_id && r.college_affl_no === colAffl
+        );
     participants = groupRows
       .map(r => findStudentByIdentifier(students, r.chest_no, colAffl))
       .filter((s): s is Student => s !== undefined);

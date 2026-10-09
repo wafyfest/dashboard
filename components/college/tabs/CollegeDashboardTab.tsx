@@ -103,12 +103,16 @@ export function CollegeDashboardTab({
       {/* Institution Banner Card */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6 space-y-4 shadow-2xs">
         <h2 className="text-base sm:text-lg font-black text-[#132238] dark:text-slate-100 uppercase tracking-tight">
-          {college?.name || 'PMSA POOKOYA THANGAL ISLAMIC & ARTS COLLEGE'}
+          {college?.name ? (
+            college.name
+          ) : (
+            <span className="inline-block w-64 h-5 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          )}
         </h2>
 
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#132238] dark:bg-slate-800 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 border border-slate-700/40">
-            #{college?.affl_no || college?.affiliation_no || '11'}
+            #{college?.affl_no || college?.affiliation_no || '—'}
           </div>
           <span className="text-xs font-semibold text-[var(--text-secondary)]">Institution Affiliation Number</span>
         </div>
@@ -116,7 +120,7 @@ export function CollegeDashboardTab({
         <div className="space-y-2 pt-1 text-xs text-[var(--text-secondary)]">
           <div className="flex items-center gap-2.5">
             <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
-            <span className="font-medium">{college?.email || 'wafypmsa@gmail.com'}</span>
+            <span className="font-medium">{college?.email || 'N/A'}</span>
           </div>
           {college?.address && (
             <div className="flex items-start gap-2.5">

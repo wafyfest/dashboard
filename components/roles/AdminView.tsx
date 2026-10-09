@@ -2216,7 +2216,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   className="text-rose-600 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                   onClick={() => {
                     if (window.confirm('Are you sure you want to reset all local festival data to defaults?')) {
-                      festService.resetToDefaults();
+                      localStorage.clear();
                       triggerRefresh();
                       alert('Festival cache reset to default clean state.');
                     }

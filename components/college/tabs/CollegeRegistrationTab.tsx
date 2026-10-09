@@ -6,7 +6,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Badge, CategoryBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Item, Registration } from '@/lib/types/fest';
-import { festService } from '@/lib/services/festService';
+import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { ChevronDown, Plus, SquarePen, Trash2 } from 'lucide-react';
 
@@ -21,6 +21,7 @@ interface CollegeRegistrationTabProps {
   onOpenRegistrationModal: (item: Item) => void;
   onUnregisterRegistration?: (item: Item) => void;
   allItemsCount: number;
+  registrationStatusByItem?: Map<number, RegistrationStatus>;
 }
 
 export function CollegeRegistrationTab({
@@ -33,8 +34,19 @@ export function CollegeRegistrationTab({
   currentCollegeAfflNo,
   onOpenRegistrationModal,
   onUnregisterRegistration,
-  allItemsCount
+  allItemsCount,
+  registrationStatusByItem
 }: CollegeRegistrationTabProps) {
+  const registrationByItemId = React.useMemo(() => {
+    const byItem = new Map<number, Registration>();
+    for (const reg of registrations) {
+      if (!byItem.has(reg.item_id)) {
+        byItem.set(reg.item_id, reg);
+      }
+    }
+    return byItem;
+  }, [registrations]);
+
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
@@ -81,8 +93,9 @@ export function CollegeRegistrationTab({
           </TableHeader>
           <TableBody>
             {filteredItems.map((item, index) => {
-              const reg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
-              const lockCheck = festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
+              const reg = registrationByItemId.get(item.item_id);
+              const lockCheck = registrationStatusByItem?.get(item.item_id)
+                || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
               const itemCategory = item.phase || item.category;
               const itemType = item.point_type
                 ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')

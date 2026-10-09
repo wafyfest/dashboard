@@ -163,11 +163,11 @@ export function SettingsTab() {
               variant="outline"
               size="sm"
               className="text-rose-600 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm('Are you sure you want to reset all local festival data to defaults?')) {
-                  festService.resetToDefaults();
+                  await festService.clearCacheAndRefetch();
                   triggerRefresh();
-                  alert('Festival cache reset to default clean state.');
+                  alert('Festival cache reset to clean database state.');
                 }
               }}
             >
