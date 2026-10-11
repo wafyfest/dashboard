@@ -418,7 +418,12 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
               ) : (
                 filteredColleges.map(col => {
                   const regCount = regCountByCollege.get(col.affl_no) || 0;
-                  const totalQuota = (col.st_foundation || 0) + (col.st_thamheediya || 0) + (col.st_aliya || 0);
+                  const totalQuota =
+                    (col.st_pre_foundation || 0) +
+                    (col.st_foundation || 0) +
+                    (col.st_thamheediya || 0) +
+                    (col.st_aliya || 0) +
+                    (col.st_pg || 0);
 
                   return (
                     <TableRow
@@ -482,7 +487,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                           </span>
                           <span
                             className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5 cursor-help"
-                            title={`Category Quotas: Foundation: ${col.st_foundation || 0} | Thamheediya: ${col.st_thamheediya || 0} | Aliya: ${col.st_aliya || 0}`}
+                            title={`Category Quotas: Pre-Foundation: ${col.st_pre_foundation || 0} | Foundation: ${col.st_foundation || 0} | Thamheediya: ${col.st_thamheediya || 0} | Aliya: ${col.st_aliya || 0} | PG: ${col.st_pg || 0}`}
                           >
                             Quota: {totalQuota > 0 ? totalQuota : '—'}
                           </span>
@@ -722,7 +727,13 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
               <h4 className="font-bold text-[var(--text-primary)] mb-2 flex items-center gap-1.5 text-xs">
                 <GraduationCap className="w-3.5 h-3.5 text-purple-500" /> Category Student Quotas
               </h4>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-center">
+                <div className="p-2 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
+                  <div className="text-[10px] text-[var(--text-muted)] font-semibold">Pre-Foundation</div>
+                  <div className="text-base font-bold font-mono text-[var(--text-primary)] mt-0.5">
+                    {selectedCollegeForDetail.st_pre_foundation || 0}
+                  </div>
+                </div>
                 <div className="p-2 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
                   <div className="text-[10px] text-[var(--text-muted)] font-semibold">Foundation</div>
                   <div className="text-base font-bold font-mono text-[var(--text-primary)] mt-0.5">
@@ -739,6 +750,12 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                   <div className="text-[10px] text-[var(--text-muted)] font-semibold">Aliya</div>
                   <div className="text-base font-bold font-mono text-[var(--text-primary)] mt-0.5">
                     {selectedCollegeForDetail.st_aliya || 0}
+                  </div>
+                </div>
+                <div className="p-2 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
+                  <div className="text-[10px] text-[var(--text-muted)] font-semibold">PG</div>
+                  <div className="text-base font-bold font-mono text-[var(--text-primary)] mt-0.5">
+                    {selectedCollegeForDetail.st_pg || 0}
                   </div>
                 </div>
               </div>

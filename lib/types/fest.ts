@@ -46,9 +46,11 @@ export interface College {
   short_name: string;
   code?: string; // alias for short_name
   type: CollegeType;
+  st_pre_foundation?: number;
   st_foundation: number;
   st_thamheediya: number;
   st_aliya: number;
+  st_pg?: number;
   email?: string | null;
   address?: string | null;
   union_name?: string | null;
@@ -160,9 +162,10 @@ export function isItemEligibleForCollege(
 
   if (college) {
     const key = normalizeCategoryKey(itemPhase);
-    if (key === 'FOUNDATION') return (college.st_foundation ?? 0) > 0;
+    if (key === 'FOUNDATION') return ((college.st_foundation ?? 0) > 0 || (college.st_pre_foundation ?? 0) > 0);
     if (key === 'THAMHEEDIYYA') return (college.st_thamheediya ?? 0) > 0;
     if (key === 'ALIYA') return (college.st_aliya ?? 0) > 0;
+    if (key === 'PG') return (college.st_pg ?? 0) > 0;
   }
 
   return true;
