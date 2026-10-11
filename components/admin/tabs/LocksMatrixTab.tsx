@@ -20,17 +20,21 @@ import {
 import { EntryLock } from '@/lib/types/fest';
 
 export function LocksMatrixTab() {
-  const { triggerRefresh } = useFest();
+  const { refreshKey, triggerRefresh } = useFest();
 
   // Sort colleges numerically ascending by Affiliation Number (affl_no)
   const colleges = useMemo(() => {
     return [...festService.getColleges()].sort((a, b) => a.affl_no - b.affl_no);
   }, []);
 
-  // Sort items numerically by item_id
+  // Sort items letter-wise by code
   const items = useMemo(() => {
-    return [...festService.getItems()].sort((a, b) => a.item_id - b.item_id);
-  }, []);
+    return [...festService.getItems()].sort((a, b) => {
+      const codeA = a.item_code || a.code || '';
+      const codeB = b.item_code || b.code || '';
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [refreshKey]);
 
   const locks = festService.getEntryLocks();
 
@@ -127,8 +131,8 @@ export function LocksMatrixTab() {
               size="xs"
               variant="outline"
               className="text-xs font-medium border-slate-700 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-800"
-              onClick={() => {
-                festService.setAllEntryLocks(true);
+              onClick={async () => {
+                await festService.setAllEntryLocks(true);
                 startTransition(() => {
                   triggerRefresh();
                 });
@@ -140,8 +144,8 @@ export function LocksMatrixTab() {
               size="xs"
               variant="outline"
               className="text-xs font-medium border-slate-700 hover:bg-rose-950/30 hover:text-rose-400 hover:border-rose-800"
-              onClick={() => {
-                festService.setAllEntryLocks(false);
+              onClick={async () => {
+                await festService.setAllEntryLocks(false);
                 startTransition(() => {
                   triggerRefresh();
                 });
@@ -302,22 +306,23 @@ export function LocksMatrixTab() {
                     {/* Minimalist Row Toggle */}
                     <button
                       type="button"
-                      onClick={() => {
-                        festService.setEntryLockRow(item.item_id, !isAllOpen);
+                      onClick={async () => {
+                        const targetOpen = openCollegesCount === 0;
+                        await festService.setEntryLockRow(item.item_id, targetOpen);
                         startTransition(() => {
                           triggerRefresh();
                         });
                       }}
                       className={`px-2.5 py-1 rounded-md border text-xs font-medium flex items-center gap-1 transition-colors ${
-                        isAllOpen
+                        openCollegesCount > 0
                           ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-rose-950/30 hover:text-rose-400 hover:border-rose-800'
                           : 'bg-rose-950/30 text-rose-400 border-rose-800/60 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-800'
                       }`}
                     >
-                      {isAllOpen ? (
+                      {openCollegesCount > 0 ? (
                         <>
                           <Unlock className="w-3 h-3 text-emerald-400" />
-                          <span>Open</span>
+                          <span>Open ({openCollegesCount})</span>
                         </>
                       ) : (
                         <>
@@ -362,8 +367,8 @@ export function LocksMatrixTab() {
                         <button
                           type="button"
                           className="text-xs text-slate-400 hover:text-emerald-400 transition-colors"
-                          onClick={() => {
-                            festService.setEntryLockRow(item.item_id, true);
+                          onClick={async () => {
+                            await festService.setEntryLockRow(item.item_id, true);
                             startTransition(() => {
                               triggerRefresh();
                             });
@@ -375,8 +380,8 @@ export function LocksMatrixTab() {
                         <button
                           type="button"
                           className="text-xs text-slate-400 hover:text-rose-400 transition-colors"
-                          onClick={() => {
-                            festService.setEntryLockRow(item.item_id, false);
+                          onClick={async () => {
+                            await festService.setEntryLockRow(item.item_id, false);
                             startTransition(() => {
                               triggerRefresh();
                             });
@@ -414,8 +419,8 @@ export function LocksMatrixTab() {
                             {/* Minimalist College Toggle Button */}
                             <button
                               type="button"
-                              onClick={() => {
-                                festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
+                              onClick={async () => {
+                                await festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
                                 startTransition(() => {
                                   triggerRefresh();
                                 });

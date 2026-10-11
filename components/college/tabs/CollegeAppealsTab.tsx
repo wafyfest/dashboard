@@ -17,7 +17,6 @@ interface CollegeAppealsTabProps {
   registrations?: Registration[];
   onRefresh?: () => void;
   onOpenAppealModal?: () => void;
-  onOpenReplacementModal?: () => void;
 }
 
 export function CollegeAppealsTab({
@@ -26,8 +25,7 @@ export function CollegeAppealsTab({
   college,
   allItems = [],
   registrations = [],
-  onRefresh,
-  onOpenReplacementModal
+  onRefresh
 }: CollegeAppealsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<'form' | 'status'>('form');
 
@@ -43,7 +41,7 @@ export function CollegeAppealsTab({
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Auto-fill college name
-  const collegeName = college?.name || 'MAJLIS UMARIYYA ISLAMIC & ARTS COLLEGE';
+  const collegeName = college?.name;
 
   // Active registrations for this college
   const activeRegistrations = useMemo(() => {
@@ -139,7 +137,7 @@ export function CollegeAppealsTab({
     setErrorMessage('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItemId) {
       setErrorMessage('Please select an event.');
@@ -152,7 +150,7 @@ export function CollegeAppealsTab({
 
     const item = allItems.find(i => String(i.id) === selectedItemId || String(i.item_id) === selectedItemId);
 
-    festService.submitAppeal({
+    const res = await festService.submitAppeal({
       college_affl_no: college?.affl_no,
       phase: item?.phase || item?.category || 'Senior',
       item_id: item?.item_id || (item ? Number(item.id) : 1),
@@ -170,6 +168,11 @@ export function CollegeAppealsTab({
       mobile_number: college?.team_manager_phone || college?.staff_coordinator_phone || '9800000000'
     });
 
+    if (!res.success) {
+      setErrorMessage(res.error || 'Failed to submit appeal');
+      return;
+    }
+
     resetForm();
     setIsSubmitted(true);
     if (onRefresh) onRefresh();
@@ -186,22 +189,20 @@ export function CollegeAppealsTab({
         <button
           type="button"
           onClick={() => setActiveSubTab('form')}
-          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center ${
-            activeSubTab === 'form'
-              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
+          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center ${activeSubTab === 'form'
+            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
+            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
         >
           Appeal Form
         </button>
         <button
           type="button"
           onClick={() => setActiveSubTab('status')}
-          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeSubTab === 'status'
-              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
+          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeSubTab === 'status'
+            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
+            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
         >
           Appeal Status
           {appeals.length > 0 && (
@@ -222,17 +223,6 @@ export function CollegeAppealsTab({
                 Fill out the details below to submit a formal appeal for an event.
               </CardDescription>
             </div>
-            {onOpenReplacementModal && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onOpenReplacementModal}
-                className="self-start sm:self-auto text-xs border-slate-200 dark:border-slate-800"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-                Request Substitution
-              </Button>
-            )}
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -276,7 +266,7 @@ export function CollegeAppealsTab({
                             <option value="">Select a student...</option>
                             {students.map(s => (
                               <option key={s.id} value={s.id}>
-                                {s.full_name || s.name} {s.chest_no ? `(Chest: ${s.chest_no})` : ''}
+                                {s.full_name || s.name} {(s.cic_no || s.admission_no || s.cic_number || s.chest_no) ? `(CIC: ${s.cic_no || s.admission_no || s.cic_number || s.chest_no})` : ''}
                               </option>
                             ))}
                           </>
@@ -287,7 +277,7 @@ export function CollegeAppealsTab({
                             <option value="">Select a registered student...</option>
                             {availableStudents.map(s => (
                               <option key={s.id} value={s.id}>
-                                {s.full_name || s.name} {s.chest_no ? `(Chest: ${s.chest_no})` : ''}
+                                {s.full_name || s.name} {(s.cic_no || s.admission_no || s.cic_number || s.chest_no) ? `(CIC: ${s.cic_no || s.admission_no || s.cic_number || s.chest_no})` : ''}
                               </option>
                             ))}
                           </>
@@ -491,7 +481,9 @@ export function CollegeAppealsTab({
                       <TableCell className="text-xs text-slate-700 dark:text-slate-300">
                         <div className="font-medium">{a.participant_name || 'N/A'}</div>
                         {a.chest_no && (
-                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">Chest: {a.chest_no}</div>
+                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                            CIC / Chest: {a.chest_no}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-slate-600 dark:text-slate-300 max-w-xs leading-relaxed">
