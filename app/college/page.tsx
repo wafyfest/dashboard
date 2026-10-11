@@ -228,9 +228,10 @@ export default function CollegePortalPage() {
         }
       });
     } else {
-      foundationCount = college?.st_foundation ?? 0;
+      foundationCount = (college?.st_foundation ?? 0) + (college?.st_pre_foundation ?? 0);
       thamheediyyaCount = college?.st_thamheediya ?? 0;
       aliyaCount = college?.st_aliya ?? 0;
+      pgCount = college?.st_pg ?? 0;
     }
 
     const totalCount = students.length > 0
