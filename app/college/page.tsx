@@ -9,7 +9,8 @@ import {
   Calendar,
   Contact,
   ShieldAlert,
-  Trash2
+  Trash2,
+  UserPlus
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -18,6 +19,7 @@ import { Badge, CategoryBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
+import { registrationContainsStudent } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -27,6 +29,7 @@ import { CollegeRegistrationTab } from '@/components/college/tabs/CollegeRegistr
 import { CollegeParticipantsTab } from '@/components/college/tabs/CollegeParticipantsTab';
 import { CollegeScheduleTab } from '@/components/college/tabs/CollegeScheduleTab';
 import { CollegeAppealsTab } from '@/components/college/tabs/CollegeAppealsTab';
+import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplacementsTab';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
@@ -45,7 +48,8 @@ export default function CollegePortalPage() {
     { id: 'students', label: 'Students', icon: UserCheck },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     { id: 'admit_card', label: 'Admit Card', icon: Contact },
-    { id: 'appeals', label: 'Appeals', icon: ShieldAlert }
+    { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
+    { id: 'replacements', label: 'Replacements', icon: UserPlus }
   ];
 
   // Modals state
@@ -131,10 +135,16 @@ export default function CollegePortalPage() {
 
   const filteredItems = useMemo(
     () =>
-      collegeEligibleItems.filter(item => {
-        if (selectedCategory === 'All Categories') return true;
-        return isCategoryMatching(item.phase || item.category, selectedCategory);
-      }),
+      collegeEligibleItems
+        .filter(item => {
+          if (selectedCategory === 'All Categories') return true;
+          return isCategoryMatching(item.phase || item.category, selectedCategory);
+        })
+        .sort((a, b) => {
+          const codeA = a.item_code || a.code || '';
+          const codeB = b.item_code || b.code || '';
+          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        }),
     [collegeEligibleItems, selectedCategory]
   );
 
@@ -157,6 +167,42 @@ export default function CollegePortalPage() {
 
   const schedules = useMemo(() => festService.getSchedules(), [refreshKey]);
   const appeals = useMemo(() => festService.getAppeals(currentCollegeId), [currentCollegeId, refreshKey]);
+  const replacements = useMemo(() => festService.getReplacements(currentCollegeId), [currentCollegeId, refreshKey]);
+
+  // Dynamic filtering for Replacement Modal
+  const currentEventRegisteredStudents = useMemo(() => {
+    if (!replacementForm.registrationId) return [];
+    const selReg = registrations.find(r => r.id === replacementForm.registrationId);
+    if (!selReg) return [];
+    const itemRegs = registrations.filter(r => r.item_id === selReg.item_id);
+    return students.filter(s => itemRegs.some(r => registrationContainsStudent(r, s, students)));
+  }, [replacementForm.registrationId, registrations, students]);
+
+  const eligibleSubstituteStudents = useMemo(() => {
+    if (!replacementForm.registrationId) return students;
+    const selReg = registrations.find(r => r.id === replacementForm.registrationId);
+    if (!selReg) return students;
+    const selItem = selReg.item || allItems.find(i => i.item_id === selReg.item_id);
+
+    const itemRegs = registrations.filter(r => r.item_id === selReg.item_id);
+    const enrolledIds = new Set(
+      students
+        .filter(s => itemRegs.some(r => registrationContainsStudent(r, s, students)))
+        .map(s => s.id)
+    );
+
+    return students.filter(s => {
+      if (enrolledIds.has(s.id)) return false;
+      if (selItem) {
+        const itemCategory = selItem.phase || selItem.category;
+        const studentCategory = s.category || s.phase;
+        if (itemCategory && !isCategoryMatching(studentCategory, itemCategory)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [replacementForm.registrationId, registrations, allItems, students]);
 
   // Category counts calculated in a single pass (memoized)
   const categoryCards = useMemo(() => {
@@ -251,31 +297,39 @@ export default function CollegePortalPage() {
     triggerRefresh();
   };
 
-  const handleSubmitAppeal = (e: React.FormEvent) => {
+  const handleSubmitAppeal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appealForm.itemId || !appealForm.reason) {
       alert('Please select an event and describe your grievance.');
       return;
     }
-    festService.submitAppeal(currentCollegeId, appealForm.itemId, appealForm.reason, appealForm.feeReceiptUrl);
+    const res = await festService.submitAppeal(currentCollegeId, appealForm.itemId, appealForm.reason, appealForm.feeReceiptUrl);
+    if (!res.success) {
+      alert(`Appeal Submission Error: ${res.error || 'Failed to submit appeal'}`);
+      return;
+    }
     setIsAppealModalOpen(false);
     setAppealForm({ itemId: '', reason: '', feeReceiptUrl: '' });
     triggerRefresh();
     alert('Appeal submitted to the Fest Executive Committee.');
   };
 
-  const handleSubmitReplacement = (e: React.FormEvent) => {
+  const handleSubmitReplacement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replacementForm.registrationId || !replacementForm.originalStudentId || !replacementForm.replacementStudentId) {
       alert('Please complete all substitution fields.');
       return;
     }
-    festService.submitReplacement(
+    const res = await festService.submitReplacement(
       replacementForm.registrationId,
       replacementForm.originalStudentId,
       replacementForm.replacementStudentId,
       replacementForm.reason
     );
+    if (!res.success) {
+      alert(`Substitution Request Error: ${res.error || 'Failed to submit substitution request'}`);
+      return;
+    }
     setIsReplacementModalOpen(false);
     setReplacementForm({ registrationId: '', originalStudentId: '', replacementStudentId: '', reason: '' });
     triggerRefresh();
@@ -391,6 +445,18 @@ export default function CollegePortalPage() {
               registrations={registrations}
               onRefresh={triggerRefresh}
               onOpenAppealModal={() => setIsAppealModalOpen(true)}
+            />
+          )}
+
+          {/* TAB 8: REPLACEMENTS */}
+          {activeTab === 'replacements' && (
+            <CollegeReplacementsTab
+              replacements={replacements}
+              students={students}
+              college={college}
+              allItems={allItems}
+              registrations={registrations}
+              onRefresh={triggerRefresh}
               onOpenReplacementModal={() => setIsReplacementModalOpen(true)}
             />
           )}
@@ -659,7 +725,7 @@ export default function CollegePortalPage() {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Registered Event</label>
               <select
                 value={replacementForm.registrationId}
-                onChange={e => setReplacementForm({ ...replacementForm, registrationId: e.target.value })}
+                onChange={e => setReplacementForm({ ...replacementForm, registrationId: e.target.value, originalStudentId: '', replacementStudentId: '' })}
                 className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
                 required
               >
@@ -678,13 +744,16 @@ export default function CollegePortalPage() {
                 <select
                   value={replacementForm.originalStudentId}
                   onChange={e => setReplacementForm({ ...replacementForm, originalStudentId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
                   required
+                  disabled={!replacementForm.registrationId}
                 >
-                  <option value="">-- Current Student --</option>
-                  {students.map(s => (
+                  <option value="">
+                    {!replacementForm.registrationId ? '-- Select Registered Event First --' : '-- Registered Student to Replace --'}
+                  </option>
+                  {currentEventRegisteredStudents.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.full_name || s.name} ({s.chest_no})
+                      {s.full_name || s.name} (CIC: {s.cic_no || s.admission_no || s.cic_number || s.chest_no || 'N/A'})
                     </option>
                   ))}
                 </select>
@@ -695,13 +764,16 @@ export default function CollegePortalPage() {
                 <select
                   value={replacementForm.replacementStudentId}
                   onChange={e => setReplacementForm({ ...replacementForm, replacementStudentId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
                   required
+                  disabled={!replacementForm.registrationId}
                 >
-                  <option value="">-- Substitute Student --</option>
-                  {students.map(s => (
+                  <option value="">
+                    {!replacementForm.registrationId ? '-- Select Registered Event First --' : '-- Eligible Substitute Student --'}
+                  </option>
+                  {eligibleSubstituteStudents.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.full_name || s.name} ({s.chest_no})
+                      {s.full_name || s.name} ({s.category || s.phase}) - CIC: {s.cic_no || s.admission_no || s.cic_number || s.chest_no || 'N/A'}
                     </option>
                   ))}
                 </select>

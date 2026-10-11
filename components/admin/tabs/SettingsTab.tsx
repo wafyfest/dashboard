@@ -6,11 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
-import { Calendar, BookOpen, AlertTriangle, Trash2, Settings } from 'lucide-react';
+import { Calendar, BookOpen, AlertTriangle, Settings } from 'lucide-react';
 
 export function SettingsTab() {
   const { festSettings, triggerRefresh } = useFest();
-  const registrations = festService.getRegistrations();
 
   const [settingsForm, setSettingsForm] = useState({
     fest_name: festSettings.fest_name,
@@ -29,14 +28,6 @@ export function SettingsTab() {
     });
     triggerRefresh();
     alert('Fest settings and registration deadlines successfully updated!');
-  };
-
-  const handleClearAllFestivalRegistrations = () => {
-    if (window.confirm('🚨 DANGER: Are you sure you want to clear ALL registrations across ALL colleges festival-wide? All student enrollments in all events will be permanently deleted.')) {
-      const res = festService.clearAllRegistrations();
-      triggerRefresh();
-      alert(`Successfully cleared all ${res.count} registrations across the festival.`);
-    }
   };
 
   return (
@@ -128,29 +119,12 @@ export function SettingsTab() {
               <AlertTriangle className="w-3 h-3 mr-1" /> System Reset & Danger Zone
             </Badge>
           </div>
-          <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">Data Management & Registration Purge</CardTitle>
+          <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">System Reset & Cache Management</CardTitle>
           <CardDescription className="text-xs">
-            Irreversible administrative controls to wipe participant enrollments and reset cached festival records
+            Administrative controls to reset cached festival records and refresh local system state
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-            <div>
-              <h4 className="text-sm font-bold text-[var(--text-primary)]">Purge All Registrations</h4>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Wipes all {registrations.length} student registrations across all participating institutions. Resets quotas and clears database records.
-              </p>
-            </div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleClearAllFestivalRegistrations}
-              disabled={registrations.length === 0}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-              Clear All Registrations ({registrations.length})
-            </Button>
-          </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
             <div>

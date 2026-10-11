@@ -93,6 +93,7 @@ class FestService {
       stages: [],
       results: [],
       appeals: [],
+      replacements: [],
       maxParticipation: []
     };
     this.scopeSyncTimes.clear();
@@ -132,7 +133,8 @@ class FestService {
       // 2. Colleges
       const { data: colData, error: colErr } = await client
         .from('colleges')
-        .select('*');
+        .select('*')
+        .order('affl_no', { ascending: true });
       if (colErr) {
         console.warn('Supabase sync error (colleges):', colErr.message);
         hasError = true;
@@ -143,7 +145,8 @@ class FestService {
       // 3. Items catalog
       const { data: itemData, error: itemErr } = await client
         .from('items')
-        .select('*');
+        .select('*')
+        .order('item_code', { ascending: true });
       if (itemErr) {
         console.warn('Supabase sync error (items):', itemErr.message);
         hasError = true;
@@ -151,22 +154,52 @@ class FestService {
         this.setStorage('items', itemData);
       }
 
-      // 4. Students: Scoped fetch
-      let studentQuery = client.from('students').select('*');
+      // 4. Students: Scoped fetch or Deterministic Paged Global fetch
       if (collegeAfflNo) {
-        studentQuery = studentQuery.eq('college_affl_no', collegeAfflNo);
-      }
-      const { data: studentData, error: stuErr } = await studentQuery;
-      if (stuErr) {
-        console.warn('Supabase sync error (students):', stuErr.message);
-        hasError = true;
-      } else if (studentData) {
-        if (collegeAfflNo) {
+        const { data: studentData, error: stuErr } = await client
+          .from('students')
+          .select('*')
+          .eq('college_affl_no', collegeAfflNo)
+          .order('id', { ascending: true })
+          .limit(1000);
+
+        if (stuErr) {
+          console.warn('Supabase sync error (students):', stuErr.message);
+          hasError = true;
+        } else if (studentData) {
           const existing = this.getStorage<Student[]>('students', []);
           const otherColleges = existing.filter(s => s.college_affl_no !== collegeAfflNo);
           this.setStorage('students', [...otherColleges, ...studentData]);
-        } else {
-          this.setStorage('students', studentData);
+        }
+      } else {
+        let allStudents: Student[] = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data, error } = await client
+            .from('students')
+            .select('*')
+            .order('id', { ascending: true })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) {
+            console.error('Supabase student page sync error:', error.message);
+            hasError = true;
+            break; // Abort: do NOT overwrite complete cache with partial data
+          }
+          if (data && data.length > 0) {
+            allStudents = allStudents.concat(data);
+            if (data.length < pageSize) hasMore = false;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (!hasError) {
+          this.setStorage('students', allStudents);
         }
       }
 
@@ -218,17 +251,62 @@ class FestService {
         this.setStorage('results', resData);
       }
 
-      const { data: lockData, error: lockErr } = await client.from('entry_locks').select('*');
-      if (lockErr) {
-        console.warn('Supabase sync notice (entry_locks):', lockErr.message);
-      } else if (lockData) {
-        const normalizedLocks = lockData.map((l: Record<string, any>) => ({
-          ...l,
-          item_id: Number(l.item_id),
-          college_affl_no: Number(l.college_affl_no || l.affl_no || (l.college_id ? String(l.college_id).replace('col-', '') : 0)),
-          is_open: Boolean(l.is_open)
-        }));
-        this.setStorage('entryLocks', normalizedLocks);
+      if (collegeAfflNo) {
+        const { data: cLocks, error: cLockErr } = await client
+          .from('entry_locks')
+          .select('*')
+          .eq('college_affl_no', collegeAfflNo);
+        if (cLockErr) {
+          console.warn('Supabase sync notice (entry_locks):', cLockErr.message);
+        } else if (cLocks) {
+          const numAffl = Number(collegeAfflNo);
+          const existing = this.getStorage<EntryLock[]>('entryLocks', []);
+          const otherLocks = existing.filter(l => Number(l.college_affl_no) !== numAffl);
+          const normalized = cLocks.map((l: Record<string, any>) => ({
+            ...l,
+            item_id: Number(l.item_id),
+            college_affl_no: Number(l.college_affl_no || l.affl_no || 0),
+            is_open: Boolean(l.is_open)
+          }));
+          this.setStorage('entryLocks', [...otherLocks, ...normalized]);
+        }
+      } else {
+        let allLocks: any[] = [];
+        let lockPage = 0;
+        const lockPageSize = 1000;
+        let hasMoreLocks = true;
+        let lockFetchError = false;
+
+        while (hasMoreLocks) {
+          const { data, error } = await client
+            .from('entry_locks')
+            .select('*')
+            .order('item_id', { ascending: true })
+            .range(lockPage * lockPageSize, (lockPage + 1) * lockPageSize - 1);
+
+          if (error) {
+            console.warn('Supabase entry_locks page sync notice:', error.message);
+            lockFetchError = true;
+            break;
+          }
+          if (data && data.length > 0) {
+            allLocks = allLocks.concat(data);
+            if (data.length < lockPageSize) hasMoreLocks = false;
+            lockPage++;
+          } else {
+            hasMoreLocks = false;
+          }
+        }
+
+        if (!lockFetchError && allLocks.length > 0) {
+          const normalizedLocks = allLocks.map((l: Record<string, any>) => ({
+            ...l,
+            item_id: Number(l.item_id),
+            college_affl_no: Number(l.college_affl_no || l.affl_no || (l.college_id ? String(l.college_id).replace('col-', '') : 0)),
+            is_open: Boolean(l.is_open)
+          }));
+          this.setStorage('entryLocks', normalizedLocks);
+        }
       }
 
       // 8. Appeals: Scoped fetch with safe fallback
@@ -253,6 +331,41 @@ class FestService {
         } else {
           this.setStorage('appeals', appealData);
         }
+      }
+
+      // 9. Replacements: Fetch from Supabase
+      const { data: replacementData, error: replacementErr } = await client.from('replacements').select('*');
+      if (replacementErr) {
+        console.warn('Supabase sync notice (replacements):', replacementErr.message);
+      } else if (replacementData) {
+        const students = this.getStudents();
+        const registrations = this.getRegistrations();
+        const enrichedReplacements: Replacement[] = replacementData.map((r: any) => {
+          const orig = findStudentByIdentifier(students, r.original_student_id);
+          const rep = findStudentByIdentifier(students, r.replacement_student_id);
+          const reg = registrations.find(reg => reg.id === r.registration_id);
+          return {
+            id: r.id,
+            registration_id: r.registration_id,
+            original_student_id: r.original_student_id,
+            replacement_student_id: r.replacement_student_id,
+            reason: r.reason,
+            status: r.status as AppealStatus,
+            created_at: r.created_at,
+            registration: reg,
+            original_student: orig,
+            replacement_student: rep
+          };
+        });
+        this.setStorage('replacements', enrichedReplacements);
+      }
+
+      // 10. Max Participation Quotas
+      const { data: quotaData, error: quotaErr } = await client.from('max_participation').select('*');
+      if (quotaErr) {
+        console.warn('Supabase sync notice (max_participation):', quotaErr.message);
+      } else if (quotaData) {
+        this.setStorage('maxParticipation', quotaData);
       }
 
       if (!hasError) {
@@ -285,9 +398,18 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_locks' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appeals' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'replacements' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fest_settings' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, triggerDebouncedSync)
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'colleges' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'max_participation' }, triggerDebouncedSync)
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.info('⚡ Supabase Realtime channel connected: Live updates active across all tables.');
+        }
+      });
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -329,20 +451,19 @@ class FestService {
     if (!item) return { canRegister: false, reason: 'Event not found', isFinePeriod: false };
     if (!college) return { canRegister: false, reason: 'College not found', isFinePeriod: false };
 
-    // Check 2D Matrix Cell: entry_locks(item_id, college_affl_no)
-    if (cell && !cell.is_open) {
-      return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
-    }
-
-    if (item.is_locked) {
-      if (cell && cell.is_open) {
-        return { canRegister: true, isFinePeriod: false };
-      }
-      return { canRegister: false, reason: 'Event is globally locked by fest admin', isFinePeriod: false };
-    }
-
+    // Emergency college-level override takes precedence
     if (college.manual_lock_override) {
       return { canRegister: true, isFinePeriod: false };
+    }
+
+    // Event globally locked by fest admin
+    if (item.is_locked) {
+      return { canRegister: false, reason: 'Event is locked by fest admin', isFinePeriod: false };
+    }
+
+    // Event closed for this specific college in 2D Entry Locks matrix
+    if (cell && !cell.is_open) {
+      return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
     }
 
     const regDeadline = item.reg_deadline ? new Date(item.reg_deadline) : new Date(settings.reg_deadline);
@@ -417,17 +538,19 @@ class FestService {
   // --- Colleges ---
   public getColleges(): College[] {
     const cols = this.getStorage<College[]>('colleges', []);
-    return cols.map(c => ({
-      ...c,
-      code: c.short_name,
-      affiliation_no: c.affl_no.toString(),
-      coordinator_name: c.staff_coordinator_name,
-      coordinator_phone: c.staff_coordinator_phone,
-      manager_name: c.team_manager_name,
-      manager_phone: c.team_manager_phone,
-      asst_manager_name: c.asst_team_manager_name,
-      asst_manager_phone: c.asst_team_manager_phone
-    }));
+    return cols
+      .map(c => ({
+        ...c,
+        code: c.short_name,
+        affiliation_no: c.affl_no ? c.affl_no.toString() : '',
+        coordinator_name: c.staff_coordinator_name,
+        coordinator_phone: c.staff_coordinator_phone,
+        manager_name: c.team_manager_name,
+        manager_phone: c.team_manager_phone,
+        asst_manager_name: c.asst_team_manager_name,
+        asst_manager_phone: c.asst_team_manager_phone
+      }))
+      .sort((a, b) => (Number(a.affl_no) || 0) - (Number(b.affl_no) || 0));
   }
 
   public getCollege(afflNoOrId: number | string): College | undefined {
@@ -454,31 +577,56 @@ class FestService {
     throw new Error('College not found');
   }
 
-  public toggleCollegeLockOverride(afflNoOrId: number | string): boolean {
+  public async toggleCollegeLockOverride(afflNoOrId: number | string): Promise<boolean> {
     const college = this.getCollege(afflNoOrId);
     if (!college) return false;
-    const updated = this.updateCollege(college.affl_no, { manual_lock_override: !college.manual_lock_override });
-    return updated.manual_lock_override;
+    const nextVal = !college.manual_lock_override;
+    this.updateCollege(college.affl_no, { manual_lock_override: nextVal });
+    return nextVal;
   }
 
-  public toggleCollegeFine(afflNoOrId: number | string): boolean {
+  public async toggleCollegeFine(afflNoOrId: number | string): Promise<boolean> {
     const college = this.getCollege(afflNoOrId);
     if (!college) return false;
-    const updated = this.updateCollege(college.affl_no, { fine_status: !college.fine_status });
-    return updated.fine_status;
+    const nextVal = !college.fine_status;
+    this.updateCollege(college.affl_no, { fine_status: nextVal });
+    return nextVal;
+  }
+
+  public async revokeAllCollegeLockOverrides(): Promise<number> {
+    const colleges = this.getColleges();
+    const targetAffls = colleges.filter(c => c.manual_lock_override).map(c => c.affl_no);
+    if (targetAffls.length === 0) return 0;
+
+    const updated = colleges.map(c => ({
+      ...c,
+      manual_lock_override: false
+    }));
+    this.setStorage('colleges', updated);
+
+    if (supabase) {
+      await supabase.from('colleges').update({ manual_lock_override: false }).in('affl_no', targetAffls);
+    }
+    return targetAffls.length;
   }
 
   // --- Items ---
   public getItems(): Item[] {
     const items = this.getStorage<Item[]>('items', []);
-    return items.map(i => ({
-      ...i,
-      code: i.item_code,
-      name: i.name_eng,
-      item_type: (i.point_type === 'individual' ? 'Single' : 'Group') as 'Single' | 'Group',
-      min_participants: i.no_of_participants || 1,
-      max_participants: i.no_of_participants || 1
-    }));
+    return items
+      .map(i => ({
+        ...i,
+        code: i.item_code,
+        name: i.name_eng,
+        item_type: (i.point_type === 'individual' ? 'Single' : 'Group') as 'Single' | 'Group',
+        min_participants: i.no_of_participants || 1,
+        max_participants: i.no_of_participants || 1
+      }))
+      .sort((a, b) => {
+        const codeA = a.item_code || a.code || '';
+        const codeB = b.item_code || b.code || '';
+        return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+      });
   }
 
   public getItem(itemIdOrCode: number | string): Item | undefined {
@@ -488,93 +636,144 @@ class FestService {
     return items.find(i => i.item_id === num || i.item_code === str || i.id === str || i.code === str);
   }
 
-  public toggleItemLock(itemIdOrCode: number | string): boolean {
+  public async toggleItemLock(itemIdOrCode: number | string): Promise<boolean> {
     const item = this.getItem(itemIdOrCode);
     if (!item) return false;
 
     const items = this.getStorage<Item[]>('items', []);
     const idx = items.findIndex(i => i.item_id === item.item_id);
     if (idx >= 0) {
-      items[idx].is_locked = !items[idx].is_locked;
+      const nextLocked = !items[idx].is_locked;
+      items[idx].is_locked = nextLocked;
       this.setStorage('items', items);
-      if (supabase) {
-        supabase.from('items').update({ is_locked: items[idx].is_locked }).eq('item_id', item.item_id).then();
-      }
-      return items[idx].is_locked;
+
+      // Sync both items table and all entry_locks row cells for all colleges
+      await this.setEntryLockRow(item.item_id, !nextLocked);
+      return nextLocked;
     }
     return false;
   }
 
-  public saveItem(item: Partial<Item>): Item {
+  public async saveItem(item: Partial<Item>): Promise<{ success: boolean; item?: Item; error?: string }> {
     const items = this.getStorage<Item[]>('items', []);
     if (item.item_id) {
       const idx = items.findIndex(i => i.item_id === item.item_id);
       if (idx >= 0) {
+        const dbPayload = {
+          item_code: item.item_code || item.code || items[idx].item_code,
+          name_eng: item.name_eng || item.name || items[idx].name_eng,
+          name_mal: item.name_mal || items[idx].name_mal,
+          phase: item.phase || items[idx].phase,
+          mode: item.mode || items[idx].mode,
+          category: item.category || items[idx].category,
+          tabulation: item.tabulation !== undefined ? item.tabulation : items[idx].tabulation,
+          point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
+          no_of_participants: item.no_of_participants || item.max_participants || items[idx].no_of_participants,
+          is_locked: item.is_locked !== undefined ? item.is_locked : items[idx].is_locked,
+          l_star: item.l_star !== undefined ? item.l_star : items[idx].l_star,
+          em_star: item.em_star !== undefined ? item.em_star : items[idx].em_star
+        };
+
+        if (supabase) {
+          const { data, error } = await supabase
+            .from('items')
+            .update(dbPayload)
+            .eq('item_id', item.item_id)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Failed to update item in database:', error.message);
+            return { success: false, error: error.message };
+          }
+          if (data) {
+            items[idx] = {
+              ...items[idx],
+              ...data,
+              item_type: data.point_type === 'group' ? 'Group' : 'Single',
+              min_participants: data.no_of_participants,
+              max_participants: data.no_of_participants
+            };
+            this.setStorage('items', items);
+            return { success: true, item: items[idx] };
+          }
+        }
         items[idx] = { ...items[idx], ...item } as Item;
         this.setStorage('items', items);
-        if (supabase) {
-          const dbRow = {
-            item_id: Number(items[idx].item_id),
-            item_code: items[idx].item_code,
-            name_eng: items[idx].name_eng,
-            name_mal: items[idx].name_mal,
-            phase: items[idx].phase,
-            mode: items[idx].mode,
-            category: items[idx].category,
-            tabulation: items[idx].tabulation,
-            point_type: items[idx].point_type,
-            no_of_participants: items[idx].no_of_participants,
-            l_star: items[idx].l_star,
-            em_star: items[idx].em_star
-          };
-          supabase.from('items').upsert(dbRow, { onConflict: 'item_id' }).then();
-        }
-        return items[idx];
+        return { success: true, item: items[idx] };
       }
     }
-    const nextItemId = items.length > 0 ? Math.max(...items.map(i => i.item_id)) + 1 : 1;
-    const newItem: Item = {
-      id: `itm-${nextItemId}`,
-      item_id: item.item_id || nextItemId,
-      item_code: item.item_code || item.code || `ITM-${nextItemId.toString().padStart(2, '0')}`,
-      code: item.item_code || item.code || `ITM-${nextItemId.toString().padStart(2, '0')}`,
+
+    // Insert new item: omit item_id so sequence nextval('items_item_id_seq') assigns monotonic ID
+    const dbPayload = {
+      item_code: item.item_code || item.code || `ITM-${Date.now().toString().slice(-4)}`,
       name_eng: item.name_eng || item.name || 'New Item',
       name_mal: item.name_mal || 'പുതിയ ഇനം',
-      name: item.name_eng || item.name || 'New Item',
       phase: item.phase || 'Senior',
       mode: item.mode || 'onstage',
       category: item.category || 'A',
       tabulation: item.tabulation !== undefined ? item.tabulation : true,
       point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
-      item_type: (item.item_type || (item.point_type === 'group' ? 'Group' : 'Single')) as 'Single' | 'Group',
       no_of_participants: item.no_of_participants || item.max_participants || 1,
-      min_participants: item.min_participants || item.no_of_participants || 1,
-      max_participants: item.max_participants || item.no_of_participants || 1,
+      is_locked: false,
       l_star: item.l_star || false,
-      em_star: item.em_star || false,
+      em_star: item.em_star || false
+    };
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('items')
+        .insert(dbPayload)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to create item in database:', error.message);
+        return { success: false, error: error.message };
+      }
+
+      if (data) {
+        const fullItem: Item = {
+          ...data,
+          id: `itm-${data.item_id}`,
+          code: data.item_code,
+          name: data.name_eng,
+          item_type: data.point_type === 'group' ? 'Group' : 'Single',
+          min_participants: data.no_of_participants,
+          max_participants: data.no_of_participants
+        };
+        items.push(fullItem);
+        this.setStorage('items', items);
+        return { success: true, item: fullItem };
+      }
+    }
+
+    const nextItemId = items.length > 0 ? Math.max(...items.map(i => i.item_id)) + 1 : 1;
+    const fallbackItem: Item = {
+      id: `itm-${nextItemId}`,
+      item_id: nextItemId,
+      code: dbPayload.item_code,
+      item_code: dbPayload.item_code,
+      name: dbPayload.name_eng,
+      name_eng: dbPayload.name_eng,
+      name_mal: dbPayload.name_mal,
+      phase: dbPayload.phase,
+      mode: dbPayload.mode as any,
+      category: dbPayload.category as any,
+      tabulation: dbPayload.tabulation,
+      point_type: dbPayload.point_type as any,
+      item_type: dbPayload.point_type === 'group' ? 'Group' : 'Single',
+      no_of_participants: dbPayload.no_of_participants,
+      min_participants: dbPayload.no_of_participants,
+      max_participants: dbPayload.no_of_participants,
+      l_star: dbPayload.l_star,
+      em_star: dbPayload.em_star,
       is_locked: false,
       created_at: new Date().toISOString()
     };
-    items.push(newItem);
+    items.push(fallbackItem);
     this.setStorage('items', items);
-    if (supabase) {
-      const dbRow = {
-        item_id: Number(newItem.item_id),
-        item_code: newItem.item_code,
-        name_eng: newItem.name_eng,
-        name_mal: newItem.name_mal,
-        phase: newItem.phase,
-        mode: newItem.mode,
-        category: newItem.category,
-        tabulation: newItem.tabulation,
-        point_type: newItem.point_type,
-        no_of_participants: newItem.no_of_participants,
-        l_star: newItem.l_star,
-        em_star: newItem.em_star
-      };
-      supabase.from('items').insert(dbRow).then();
-    }
-    return newItem;
+    return { success: true, item: fallbackItem };
   }
 
   // --- Entry Locks Matrix ---
@@ -612,7 +811,7 @@ class FestService {
     return this.getEntryLocks();
   }
 
-  public setEntryLockCell(itemId: number, collegeAfflNo: number, isOpen: boolean): EntryLock {
+  public async setEntryLockCell(itemId: number, collegeAfflNo: number, isOpen: boolean): Promise<EntryLock> {
     const locks = this.getEntryLocks();
     const idx = locks.findIndex(l => l.item_id === itemId && l.college_affl_no === collegeAfflNo);
     const now = new Date().toISOString();
@@ -635,20 +834,22 @@ class FestService {
 
     const client = supabase;
     if (client) {
-      Promise.resolve(
-        client.from('entry_locks').upsert({
+      try {
+        await client.from('entry_locks').upsert({
           item_id: itemId,
           college_affl_no: collegeAfflNo,
           is_open: isOpen,
           updated_at: now
-        })
-      ).catch(err => console.warn('Supabase entry_locks upsert error:', err));
+        }, { onConflict: 'item_id,college_affl_no' });
+      } catch (err) {
+        console.warn('Supabase entry_locks upsert error:', err);
+      }
     }
 
     return resultLock;
   }
 
-  public setEntryLockRow(itemId: number, isOpen: boolean): void {
+  public async setEntryLockRow(itemId: number, isOpen: boolean): Promise<void> {
     const colleges = this.getColleges();
     const locks = this.getEntryLocks();
     const now = new Date().toISOString();
@@ -686,8 +887,8 @@ class FestService {
       });
     });
 
-    // Also update item.is_locked flag to keep consistency
-    const items = this.getItems();
+    // Also update item.is_locked flag in raw items storage to keep consistency
+    const items = this.getStorage<Item[]>('items', []);
     const itm = items.find(i => i.item_id === itemId);
     if (itm) {
       itm.is_locked = !isOpen;
@@ -698,29 +899,19 @@ class FestService {
 
     const client = supabase;
     if (client && dbRows.length > 0) {
-      client.from('entry_locks')
-        .upsert(dbRows, { onConflict: 'item_id,college_affl_no' })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            console.error('❌ Supabase entry_locks row upsert error:', error.message);
-          }
-        })
-        .catch((err: any) => console.warn('Supabase network error (setEntryLockRow):', err));
-
-      client.from('items')
-        .update({ is_locked: !isOpen })
-        .eq('item_id', itemId)
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            console.error('❌ Supabase item lock update error:', error.message);
-          }
-        })
-        .catch(() => {});
+      try {
+        await Promise.all([
+          client.from('entry_locks').upsert(dbRows, { onConflict: 'item_id,college_affl_no' }),
+          client.from('items').update({ is_locked: !isOpen }).eq('item_id', itemId)
+        ]);
+      } catch (err) {
+        console.warn('Supabase entry_locks/items row upsert notice:', err);
+      }
     }
   }
 
-  public setAllEntryLocks(isOpen: boolean): void {
-    const items = this.getItems();
+  public async setAllEntryLocks(isOpen: boolean): Promise<void> {
+    const items = this.getStorage<Item[]>('items', []);
     const colleges = this.getColleges();
     const locks = this.getEntryLocks();
     const now = new Date().toISOString();
@@ -767,30 +958,19 @@ class FestService {
 
     const client = supabase;
     if (client && bulkRows.length > 0) {
-      // Single batched bulk upsert instead of launching N individual requests!
-      client.from('entry_locks')
-        .upsert(bulkRows, { onConflict: 'item_id,college_affl_no' })
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            console.error('❌ Supabase bulk entry_locks upsert error:', error.message);
-          }
-        })
-        .catch((err: any) => console.warn('Supabase network error (setAllEntryLocks):', err));
-
-      client.from('items')
-        .update({ is_locked: !isOpen })
-        .gte('item_id', 0)
-        .then(({ error }: { error: any }) => {
-          if (error) {
-            console.error('❌ Supabase items bulk lock update error:', error.message);
-          }
-        })
-        .catch(() => {});
+      try {
+        await Promise.all([
+          client.from('entry_locks').upsert(bulkRows, { onConflict: 'item_id,college_affl_no' }),
+          client.from('items').update({ is_locked: !isOpen }).gte('item_id', 0)
+        ]);
+      } catch (err) {
+        console.warn('Supabase bulk entry_locks upsert notice:', err);
+      }
     }
   }
 
   // Backward compatibility helper
-  public setCollegeItemLock(collegeAfflNoOrId: number | string, itemIdOrCode: number | string, isUnlocked: boolean): EntryLock {
+  public async setCollegeItemLock(collegeAfflNoOrId: number | string, itemIdOrCode: number | string, isUnlocked: boolean): Promise<EntryLock> {
     const college = this.getCollege(collegeAfflNoOrId);
     const item = this.getItem(itemIdOrCode);
     const affl = college ? college.affl_no : Number(collegeAfflNoOrId) || 11;
@@ -913,7 +1093,18 @@ class FestService {
     students.push(newStudent);
     this.setStorage('students', students);
     if (supabase) {
-      const { id, college_id, category, cic_no, ...dbPayload } = newStudent as any;
+      const dbPayload: any = {
+        name: newStudent.name || newStudent.full_name || 'Participant Name',
+        college_affl_no: affl,
+        class: newStudent.class || 'Aliya 1',
+        phase: newStudent.phase || 'Senior',
+        phone: newStudent.phone || null,
+        photo_url: newStudent.photo_url || null,
+        password: (newStudent as any).password || 'welcome123'
+      };
+      if (typeof cicVal === 'number' || (typeof cicVal === 'string' && /^\d+$/.test(cicVal))) {
+        dbPayload.cic_no = Number(cicVal);
+      }
       supabase.from('students').insert(dbPayload).then();
     }
     return newStudent;
@@ -998,7 +1189,12 @@ class FestService {
     }
 
     // Convert any student IDs or admission numbers to canonical chest numbers for this college
-    const collegeStudents = this.getStudents(college.affl_no);
+    // Ensure college student roster is loaded into memory, falling back to network fetch if cache is unpopulated
+    let collegeStudents = this.getStudents(college.affl_no);
+    if (collegeStudents.length === 0 && supabase) {
+      collegeStudents = await this.fetchStudentsForCollege(college.affl_no);
+    }
+
     const resolvedStudents: Student[] = [];
     const chestNos: string[] = [];
 
@@ -1012,10 +1208,20 @@ class FestService {
       }
     }
 
-    if (chestNos.length < item.no_of_participants) {
+    const minRequired = item.min_participants ?? (item.point_type === 'individual' || item.item_type === 'Single' ? 1 : 1);
+    const maxAllowed = item.max_participants ?? (item.no_of_participants || 1);
+
+    if (chestNos.length < minRequired) {
       return {
         success: false,
-        error: `Requires ${item.no_of_participants} valid participant(s). Resolved ${chestNos.length}.`
+        error: `Requires at least ${minRequired} valid participant(s). Resolved ${chestNos.length}.`
+      };
+    }
+
+    if (chestNos.length > maxAllowed) {
+      return {
+        success: false,
+        error: `Exceeds maximum limit of ${maxAllowed} participant(s). Resolved ${chestNos.length}.`
       };
     }
 
@@ -1038,86 +1244,63 @@ class FestService {
       }
     }
 
+    if (supabase) {
+      try {
+        const { data: dbRows, error: rpcError } = await supabase.rpc('register_college_for_item_tx', {
+          p_item_id: item.item_id,
+          p_college_affl_no: college.affl_no,
+          p_chest_nos: chestNos
+        });
+
+        if (rpcError) {
+          console.error('❌ Supabase register_college_for_item_tx error:', rpcError);
+          return {
+            success: false,
+            error: `Database Transaction Error (${rpcError.code || 'FAIL'}): ${rpcError.message}`
+          };
+        }
+
+        const regs = this.getStorage<Registration[]>('registrations', []);
+        const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
+        const remaining = regs.filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+
+        if (dbRows && dbRows.length > 0) {
+          remaining.push(...dbRows);
+        }
+        chestNos.forEach(cNo => {
+          logs.push({
+            id: `log-${Date.now()}-${cNo}`,
+            item_id: item.item_id,
+            college_affl_no: college.affl_no,
+            chest_no: cNo,
+            process: 'ADD',
+            timestamp: new Date().toISOString()
+          });
+        });
+
+        this.setStorage('registrations', remaining);
+        this.setStorage('registration_logs', logs);
+        return { success: true };
+      } catch (err: any) {
+        console.error('Unexpected registration error:', err);
+        return { success: false, error: err.message || 'Unexpected registration error' };
+      }
+    }
+
+    // Fallback if supabase client not connected
     const regs = this.getStorage<Registration[]>('registrations', []);
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
-
-    // 1. Remove existing entries for this college and item (logging delete)
-    const existing = regs.filter(r => r.item_id === item.item_id && r.college_affl_no === college.affl_no);
-    existing.forEach(oldReg => {
-      logs.push({
-        id: `log-${Date.now()}-${Math.random()}`,
-        item_id: item.item_id,
-        college_affl_no: college.affl_no,
-        chest_no: oldReg.chest_no,
-        process: 'DELETE',
-        timestamp: new Date().toISOString()
-      });
-    });
-
     const remaining = regs.filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
-
-    // 2. Add individual row per chest number (logging add)
     chestNos.forEach(cNo => {
-      const newRow: Registration = {
+      remaining.push({
         id: `reg-${Date.now()}-${cNo}`,
         item_id: item.item_id,
         college_affl_no: college.affl_no,
         college_id: `col-${college.affl_no}`,
         chest_no: cNo,
-        code_letter: existing[0]?.code_letter || null,
         created_at: new Date().toISOString()
-      };
-      remaining.push(newRow);
-
-      logs.push({
-        id: `log-${Date.now()}-${cNo}`,
-        item_id: item.item_id,
-        college_affl_no: college.affl_no,
-        chest_no: cNo,
-        process: 'ADD',
-        timestamp: new Date().toISOString()
       });
     });
-
     this.setStorage('registrations', remaining);
-    this.setStorage('registration_logs', logs);
-
-    if (supabase) {
-      try {
-        // Delete old rows
-        const { error: delError } = await supabase
-          .from('registrations')
-          .delete()
-          .match({ item_id: item.item_id, college_affl_no: college.affl_no });
-        if (delError) {
-          console.warn('Supabase registration delete notice:', delError.message);
-        }
-
-        // Insert new rows
-        if (chestNos.length > 0) {
-          const dbRows = chestNos.map(cNo => ({
-            item_id: item.item_id,
-            college_affl_no: college.affl_no,
-            chest_no: cNo
-          }));
-
-          const { error: insError } = await supabase
-            .from('registrations')
-            .insert(dbRows);
-
-          if (insError) {
-            console.error('❌ Supabase registrations insert error:', insError);
-            return {
-              success: false,
-              error: `Database Sync Error (${insError.code}): ${insError.message}`
-            };
-          }
-        }
-      } catch (err: any) {
-        console.error('Unexpected Supabase registration error:', err);
-      }
-    }
-
     return { success: true };
   }
 
@@ -1129,43 +1312,30 @@ class FestService {
     const item = this.getItem(itemIdOrCode);
     if (!college || !item) return { success: false, error: 'College or event not found' };
 
-    const regs = this.getStorage<Registration[]>('registrations', []);
-    const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
-
-    const existing = regs.filter(r => Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no));
-    existing.forEach(oldReg => {
-      logs.push({
-        id: `log-${Date.now()}-${Math.random()}`,
-        item_id: item.item_id,
-        college_affl_no: college.affl_no,
-        chest_no: oldReg.chest_no,
-        process: 'DELETE',
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    const remaining = regs.filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
-    this.setStorage('registrations', remaining);
-    this.setStorage('registration_logs', logs);
-
     if (supabase) {
       try {
-        const { error: delError } = await supabase
-          .from('registrations')
-          .delete()
-          .match({ item_id: item.item_id, college_affl_no: college.affl_no });
-        if (delError) {
-          console.error('❌ Supabase registration unregister error:', delError);
+        const { error: rpcError } = await supabase.rpc('register_college_for_item_tx', {
+          p_item_id: item.item_id,
+          p_college_affl_no: college.affl_no,
+          p_chest_nos: []
+        });
+
+        if (rpcError) {
+          console.error('❌ Supabase unregister error:', rpcError);
           return {
             success: false,
-            error: `Database Sync Error: ${delError.message}`
+            error: `Database Transaction Error: ${rpcError.message}`
           };
         }
       } catch (err: any) {
-        console.error('Unexpected Supabase unregister error:', err);
+        console.error('Unexpected unregister error:', err);
+        return { success: false, error: err.message || 'Unexpected unregister error' };
       }
     }
 
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const remaining = regs.filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
+    this.setStorage('registrations', remaining);
     return { success: true };
   }
 
@@ -1277,13 +1447,16 @@ class FestService {
     const items = this.getItems();
     const stages = this.getStages();
 
-    return schedules.map(s => ({
-      ...s,
-      scheduled_start: s.starting,
-      stage_id: `stg-${s.stage_number}`,
-      item: items.find(i => i.item_id === s.item_id),
-      stage: stages.find(st => st.stage_number === s.stage_number)
-    }));
+    return schedules.map(s => {
+      const matchedStage = stages.find(st => st.stage_number === s.stage_number);
+      return {
+        ...s,
+        scheduled_start: s.starting,
+        stage_id: matchedStage?.id || `stg-${s.stage_number}`,
+        item: items.find(i => i.item_id === s.item_id),
+        stage: matchedStage
+      };
+    });
   }
 
   public updateScheduleStatus(itemIdOrScheduleId: number | string, status: StageStatus): void {
@@ -1389,9 +1562,22 @@ class FestService {
     }
   }
 
-  public publishResult(itemIdOrCode: number | string, publish: boolean = true): void {
+  public async publishResult(itemIdOrCode: number | string, publish: boolean = true): Promise<boolean> {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
+    if (!itemId || isNaN(itemId)) return false;
+
+    if (supabase) {
+      const { error } = await supabase
+        .from('results')
+        .update({ published: publish })
+        .eq('item_id', itemId);
+
+      if (error) {
+        console.error('Database publishResult error:', error.message);
+        return false;
+      }
+    }
 
     const results = this.getStorage<Result[]>('results', []);
     results.forEach(r => {
@@ -1400,9 +1586,7 @@ class FestService {
       }
     });
     this.setStorage('results', results);
-    if (supabase) {
-      supabase.from('results').update({ published: publish }).eq('item_id', itemId).then();
-    }
+    return true;
   }
 
   // --- Appeals ---
@@ -1437,14 +1621,17 @@ class FestService {
     return col ? enriched.filter(a => a.college?.affl_no === col.affl_no || a.college_affl_no === col.affl_no) : enriched;
   }
 
-  public submitAppeal(
+  public async submitAppeal(
     collegeAfflNoOrObj: number | string | Partial<Appeal>,
     itemId?: number | string,
     reason?: string,
     feeReceiptUrl?: string
-  ): Appeal {
+  ): Promise<{ success: boolean; appeal?: Appeal; error?: string }> {
     const appeals = this.getStorage<Appeal[]>('appeals', []);
     const colleges = this.getColleges();
+
+    let newAppeal: Appeal;
+    let dbPayload: any;
 
     // Overload 1: passed as object
     if (typeof collegeAfflNoOrObj === 'object') {
@@ -1453,7 +1640,7 @@ class FestService {
         ? this.getCollege(obj.college_affl_no) 
         : colleges.find(c => c.team_manager_phone === obj.mobile_number || c.staff_coordinator_phone === obj.mobile_number);
       
-      const newAppeal: Appeal = {
+      newAppeal = {
         id: `app-${Date.now()}`,
         college_affl_no: obj.college_affl_no ? Number(obj.college_affl_no) : (col?.affl_no || null),
         phase: obj.phase || 'Senior',
@@ -1476,45 +1663,51 @@ class FestService {
         admin_remarks: null,
         created_at: new Date().toISOString()
       };
-      appeals.push(newAppeal);
-      this.setStorage('appeals', appeals);
-      if (supabase) {
-        const { id, reason, status, payment_mode, paid_to, participant_name, ...dbPayload } = newAppeal as any;
-        supabase.from('appeals').insert(dbPayload).then();
-      }
-      return newAppeal;
+      const { id, reason: _r, status: _s, payment_mode: _pm, paid_to: _pt, participant_name: _pn, ...cleanPayload } = newAppeal as any;
+      dbPayload = cleanPayload;
+    } else {
+      // Overload 2: passed as arguments
+      const itm = this.getItem(itemId || 1);
+      const col = this.getCollege(collegeAfflNoOrObj);
+      newAppeal = {
+        id: `app-${Date.now()}`,
+        college_affl_no: col ? col.affl_no : Number(collegeAfflNoOrObj) || null,
+        phase: itm ? itm.phase : 'Senior',
+        item_id: itm ? itm.item_id : 1,
+        chest_no: null,
+        code_letter: null,
+        appeal_description: reason || '',
+        reason_for_appeal: reason || 'Dispute',
+        reason: reason || 'Dispute',
+        transaction_number: 'UPI-TXN-' + Date.now().toString().slice(-6),
+        fee_receipt_url: feeReceiptUrl || null,
+        team_manager_name: col?.team_manager_name || 'Team Manager',
+        mobile_number: col?.team_manager_phone || '9800000000',
+        acknowledgment: true,
+        current_status: 'Pending',
+        status: 'Pending',
+        admin_remarks: null,
+        created_at: new Date().toISOString()
+      };
+      const { id, reason: _r, status: _s, payment_mode: _pm, paid_to: _pt, participant_name: _pn, ...cleanPayload } = newAppeal as any;
+      dbPayload = cleanPayload;
     }
 
-    // Overload 2: passed as arguments
-    const itm = this.getItem(itemId || 1);
-    const col = this.getCollege(collegeAfflNoOrObj);
-    const newAppeal: Appeal = {
-      id: `app-${Date.now()}`,
-      college_affl_no: col ? col.affl_no : Number(collegeAfflNoOrObj) || null,
-      phase: itm ? itm.phase : 'Senior',
-      item_id: itm ? itm.item_id : 1,
-      chest_no: null,
-      code_letter: null,
-      appeal_description: reason || '',
-      reason_for_appeal: reason || 'Dispute',
-      reason: reason || 'Dispute',
-      transaction_number: 'UPI-TXN-' + Date.now().toString().slice(-6),
-      fee_receipt_url: feeReceiptUrl || null,
-      team_manager_name: col?.team_manager_name || 'Team Manager',
-      mobile_number: col?.team_manager_phone || '9800000000',
-      acknowledgment: true,
-      current_status: 'Pending',
-      status: 'Pending',
-      admin_remarks: null,
-      created_at: new Date().toISOString()
-    };
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('appeals').insert(dbPayload);
+        if (error) {
+          console.error('Database submitAppeal error:', error.message);
+          return { success: false, error: `Failed to submit appeal: ${error.message}` };
+        }
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Network error submitting appeal' };
+      }
+    }
+
     appeals.push(newAppeal);
     this.setStorage('appeals', appeals);
-    if (supabase) {
-      const { id, reason, status, payment_mode, paid_to, participant_name, ...dbPayload } = newAppeal as any;
-      supabase.from('appeals').insert(dbPayload).then();
-    }
-    return newAppeal;
+    return { success: true, appeal: newAppeal };
   }
 
   public reviewAppeal(appealId: string, status: AppealStatus, remarks: string): void {
@@ -1545,37 +1738,104 @@ class FestService {
       : list;
   }
 
-  public submitReplacement(registrationId: string, origStudentId: string, newStudentId: string, reason: string): Replacement {
+  public async submitReplacement(
+    registrationId: string,
+    origStudentId: string,
+    newStudentId: string,
+    reason: string
+  ): Promise<{ success: boolean; replacement?: Replacement; error?: string }> {
     const list = this.getStorage<Replacement[]>('replacements', []);
     const students = this.getStudents();
+    const registrations = this.getRegistrations();
     const orig = findStudentByIdentifier(students, origStudentId);
     const rep = findStudentByIdentifier(students, newStudentId);
 
-    const newRep: Replacement = {
-      id: `rep-${Date.now()}`,
-      registration_id: registrationId,
-      original_student_id: origStudentId,
-      replacement_student_id: newStudentId,
+    // Resolve valid UUID registration ID
+    let targetRegId = registrationId;
+    if (!isUuid(targetRegId)) {
+      const matched = registrations.find(r => r.id === registrationId || (orig && r.chest_no === getCanonicalChestNo(orig)));
+      if (matched && isUuid(matched.id)) {
+        targetRegId = matched.id;
+      }
+    }
+
+    if (!supabase) {
+      const newRep: Replacement = {
+        id: `rep-${Date.now()}`,
+        registration_id: targetRegId,
+        original_student_id: origStudentId,
+        replacement_student_id: newStudentId,
+        original_student: orig,
+        replacement_student: rep,
+        reason,
+        status: 'Pending',
+        created_at: new Date().toISOString()
+      };
+      list.unshift(newRep);
+      this.setStorage('replacements', list);
+      return { success: true, replacement: newRep };
+    }
+
+    const origUuid = orig?.id && isUuid(orig.id) ? orig.id : (isUuid(origStudentId) ? origStudentId : null);
+    const repUuid = rep?.id && isUuid(rep.id) ? rep.id : (isUuid(newStudentId) ? newStudentId : null);
+
+    const { data, error } = await supabase
+      .from('replacements')
+      .insert({
+        registration_id: isUuid(targetRegId) ? targetRegId : null,
+        original_student_id: origUuid,
+        replacement_student_id: repUuid,
+        reason,
+        status: 'Pending'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase submitReplacement error:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    const fullRep: Replacement = {
+      ...data,
       original_student: orig,
       replacement_student: rep,
-      reason,
-      status: 'Pending',
-      created_at: new Date().toISOString()
+      registration: registrations.find(r => r.id === data.registration_id)
     };
-    list.push(newRep);
+    list.unshift(fullRep);
     this.setStorage('replacements', list);
-    return newRep;
+    return { success: true, replacement: fullRep };
   }
 
-  public reviewReplacement(repId: string, status: AppealStatus): Replacement | undefined {
+  public async reviewReplacement(repId: string, status: AppealStatus): Promise<{ success: boolean; error?: string }> {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('review_replacement_tx', {
+        p_replacement_id: repId,
+        p_status: status
+      });
+
+      if (error) {
+        console.error('❌ Supabase review_replacement_tx error:', error.message);
+        return { success: false, error: error.message };
+      }
+
+      // Re-fetch registrations & replacements to sync live state
+      await Promise.all([
+        this.syncWithSupabase(undefined, true),
+        this.fetchRegistrationsForCollege()
+      ]);
+      return { success: true };
+    }
+
+    // Fallback if client not connected
     const list = this.getStorage<Replacement[]>('replacements', []);
     const idx = list.findIndex(r => r.id === repId);
     if (idx >= 0) {
       list[idx].status = status;
       this.setStorage('replacements', list);
-      return list[idx];
+      return { success: true };
     }
-    return undefined;
+    return { success: false, error: 'Replacement not found' };
   }
 
   // --- Submissions ---

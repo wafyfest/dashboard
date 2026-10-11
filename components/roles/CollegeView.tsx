@@ -23,6 +23,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
+import { registrationContainsStudent } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
 
@@ -66,6 +67,39 @@ export function CollegeView() {
   const schedules = festService.getSchedules();
   const appeals = festService.getAppeals(currentCollegeId);
   const replacements = festService.getReplacements(currentCollegeId);
+
+  // Dynamic filtering for Replacement Modal
+  const currentEventRegisteredStudents = students.filter(s => {
+    if (!replacementForm.registrationId) return false;
+    const selReg = registrations.find(r => r.id === replacementForm.registrationId);
+    if (!selReg) return false;
+    const itemRegs = registrations.filter(r => r.item_id === selReg.item_id);
+    return itemRegs.some(r => registrationContainsStudent(r, s, students));
+  });
+
+  const eligibleSubstituteStudents = students.filter(s => {
+    if (!replacementForm.registrationId) return true;
+    const selReg = registrations.find(r => r.id === replacementForm.registrationId);
+    if (!selReg) return true;
+    const selItem = selReg.item || allItems.find(i => i.item_id === selReg.item_id);
+
+    const itemRegs = registrations.filter(r => r.item_id === selReg.item_id);
+    const enrolledIds = new Set(
+      students
+        .filter(st => itemRegs.some(r => registrationContainsStudent(r, st, students)))
+        .map(st => st.id)
+    );
+
+    if (enrolledIds.has(s.id)) return false;
+    if (selItem) {
+      const itemCategory = selItem.phase || selItem.category;
+      const studentCategory = s.category || s.phase;
+      if (itemCategory && !isCategoryMatching(studentCategory, itemCategory)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   // Registered item IDs for this college
   const registeredItemIds = new Set(registrations.map(r => r.item_id));
@@ -136,36 +170,44 @@ export function CollegeView() {
     triggerRefresh();
   };
 
-  const handleSubmitAppeal = (e: React.FormEvent) => {
+  const handleSubmitAppeal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appealForm.itemId || !appealForm.reason) {
       alert('Please select an event and describe your grievance.');
       return;
     }
-    festService.submitAppeal(
+    const res = await festService.submitAppeal(
       currentCollegeId,
       appealForm.itemId,
       appealForm.reason,
       appealForm.feeReceiptUrl
     );
+    if (!res.success) {
+      alert(`Appeal Submission Error: ${res.error || 'Failed to submit appeal'}`);
+      return;
+    }
     setIsAppealModalOpen(false);
     setAppealForm({ itemId: '', reason: '', feeReceiptUrl: '' });
     triggerRefresh();
     alert('Appeal submitted to the Fest Executive Committee.');
   };
 
-  const handleSubmitReplacement = (e: React.FormEvent) => {
+  const handleSubmitReplacement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replacementForm.registrationId || !replacementForm.originalStudentId || !replacementForm.replacementStudentId) {
       alert('Please complete all substitution fields.');
       return;
     }
-    festService.submitReplacement(
+    const res = await festService.submitReplacement(
       replacementForm.registrationId,
       replacementForm.originalStudentId,
       replacementForm.replacementStudentId,
       replacementForm.reason
     );
+    if (!res.success) {
+      alert(`Failed to submit substitution: ${res.error}`);
+      return;
+    }
     setIsReplacementModalOpen(false);
     setReplacementForm({ registrationId: '', originalStudentId: '', replacementStudentId: '', reason: '' });
     triggerRefresh();
@@ -233,7 +275,8 @@ export function CollegeView() {
           { id: 'students', label: `Student Directory (${students.length})` },
           { id: 'schedules', label: 'College Stage Schedule' },
           { id: 'admit_cards', label: 'Admit Cards (Printable)' },
-          { id: 'appeals', label: `Appeals & Replacements (${appeals.length + replacements.length})` }
+          { id: 'appeals', label: `Appeals (${appeals.length})` },
+          { id: 'replacements', label: `Replacements (${replacements.length})` }
         ].map(tab => (
           <button
             key={tab.id}
@@ -328,18 +371,27 @@ export function CollegeView() {
                           <Button
                             size="xs"
                             variant={reg ? 'outline' : lockCheck.canRegister ? 'primary' : 'secondary'}
-                            disabled={!lockCheck.canRegister && !reg}
-                            onClick={() => handleOpenRegistrationModal(item)}
+                            disabled={!lockCheck.canRegister}
+                            onClick={() => lockCheck.canRegister && handleOpenRegistrationModal(item)}
+                            title={!lockCheck.canRegister ? lockCheck.reason || 'Registration Closed (Locked)' : (reg ? 'Modify Roster' : 'Register Entry')}
+                            className={!lockCheck.canRegister ? 'opacity-75 cursor-not-allowed' : ''}
                           >
+                            {!lockCheck.canRegister ? (
+                              <Lock className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                            ) : null}
                             {reg ? 'Modify Roster' : 'Register Entry'}
                           </Button>
                           {reg && (
                             <Button
                               size="xs"
                               variant="outline"
-                              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                              title="Remove Registration"
-                              onClick={() => handleUnregisterRegistration(item)}
+                              disabled={!lockCheck.canRegister}
+                              className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={!lockCheck.canRegister ? 'Registration Closed (Locked)' : 'Remove Registration'}
+                              onClick={() => {
+                                if (!lockCheck.canRegister) return;
+                                handleUnregisterRegistration(item);
+                              }}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -431,22 +483,17 @@ export function CollegeView() {
         />
       )}
 
-      {/* 5. APPEALS & REPLACEMENTS TAB */}
+      {/* 5. APPEALS TAB */}
       {activeTab === 'appeals' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200/80">
             <div>
-              <h3 className="text-sm font-semibold text-[#132238]">Formal Grievances & Emergency Substitutions</h3>
-              <p className="text-xs text-slate-500">File an event result appeal or request participant medical substitution</p>
+              <h3 className="text-sm font-semibold text-[#132238]">Formal Grievances</h3>
+              <p className="text-xs text-slate-500">File an event result appeal for official admin review</p>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setIsReplacementModalOpen(true)}>
-                Request Substitution
-              </Button>
-              <Button size="sm" onClick={() => setIsAppealModalOpen(true)}>
-                Submit New Appeal
-              </Button>
-            </div>
+            <Button size="sm" onClick={() => setIsAppealModalOpen(true)}>
+              Submit New Appeal
+            </Button>
           </div>
 
           <Card>
@@ -494,6 +541,67 @@ export function CollegeView() {
                           <AppealStatusBadge status={a.status || a.current_status || 'Pending'} />
                         </TableCell>
                         <TableCell className="text-xs text-slate-600">{a.admin_remarks || 'Pending'}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 6. REPLACEMENTS TAB */}
+      {(activeTab as string) === 'replacements' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200/80">
+            <div>
+              <h3 className="text-sm font-semibold text-[#132238]">Emergency Substitutions</h3>
+              <p className="text-xs text-slate-500">Request participant medical substitution or emergency replacement</p>
+            </div>
+            <Button size="sm" onClick={() => setIsReplacementModalOpen(true)}>
+              Request Substitution
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Submitted Replacement Requests</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Original Participant</TableHead>
+                    <TableHead>Replacement Participant</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {replacements.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-slate-400">
+                        No replacement requests submitted
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    replacements.map(r => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-semibold text-[#132238]">
+                          {r.original_student?.name || r.original_student?.full_name || r.original_student_id}
+                        </TableCell>
+                        <TableCell className="font-semibold text-emerald-700">
+                          {r.replacement_student?.name || r.replacement_student?.full_name || r.replacement_student_id}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600 max-w-sm">{r.reason}</TableCell>
+                        <TableCell>
+                          <AppealStatusBadge status={r.status || 'Pending'} />
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-400">
+                          {r.created_at ? new Date(r.created_at).toLocaleDateString() : 'N/A'}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -773,14 +881,14 @@ export function CollegeView() {
             <label className="block text-xs font-semibold text-slate-700 mb-1">Registered Event</label>
             <select
               value={replacementForm.registrationId}
-              onChange={e => setReplacementForm({ ...replacementForm, registrationId: e.target.value })}
+              onChange={e => setReplacementForm({ ...replacementForm, registrationId: e.target.value, originalStudentId: '', replacementStudentId: '' })}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
               required
             >
               <option value="">-- Select Registered Event --</option>
               {Array.from(new Map(registrations.map(r => [r.item_id, r])).values()).map(r => (
                 <option key={r.id} value={r.id}>
-                  {r.item?.name} ({r.item?.code})
+                  {r.item?.name || r.item?.name_eng} ({r.item?.code || r.item?.item_code})
                 </option>
               ))}
             </select>
@@ -792,13 +900,16 @@ export function CollegeView() {
               <select
                 value={replacementForm.originalStudentId}
                 onChange={e => setReplacementForm({ ...replacementForm, originalStudentId: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 disabled:opacity-50"
                 required
+                disabled={!replacementForm.registrationId}
               >
-                <option value="">-- Current Student --</option>
-                {students.map(s => (
+                <option value="">
+                  {!replacementForm.registrationId ? '-- Select Event First --' : '-- Registered Student --'}
+                </option>
+                {currentEventRegisteredStudents.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.full_name} ({s.chest_no})
+                    {s.full_name || s.name} (CIC: {s.cic_no || s.admission_no || s.cic_number || s.chest_no || 'N/A'})
                   </option>
                 ))}
               </select>
@@ -809,13 +920,16 @@ export function CollegeView() {
               <select
                 value={replacementForm.replacementStudentId}
                 onChange={e => setReplacementForm({ ...replacementForm, replacementStudentId: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 disabled:opacity-50"
                 required
+                disabled={!replacementForm.registrationId}
               >
-                <option value="">-- Substitute Student --</option>
-                {students.map(s => (
+                <option value="">
+                  {!replacementForm.registrationId ? '-- Select Event First --' : '-- Eligible Substitute --'}
+                </option>
+                {eligibleSubstituteStudents.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.full_name} ({s.chest_no})
+                    {s.full_name || s.name} ({s.category || s.phase}) - CIC: {s.cic_no || s.admission_no || s.cic_number || s.chest_no || 'N/A'}
                   </option>
                 ))}
               </select>

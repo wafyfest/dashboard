@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Item, Registration } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { ChevronDown, Plus, SquarePen, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Lock, SquarePen, Trash2 } from 'lucide-react';
 
 interface CollegeRegistrationTabProps {
   filteredItems: Item[];
@@ -96,6 +96,7 @@ export function CollegeRegistrationTab({
               const reg = registrationByItemId.get(item.item_id);
               const lockCheck = registrationStatusByItem?.get(item.item_id)
                 || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
+              const isLocked = !lockCheck.canRegister || Boolean(item.is_locked);
               const itemCategory = item.phase || item.category;
               const itemType = item.point_type
                 ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
@@ -138,8 +139,8 @@ export function CollegeRegistrationTab({
                       </span>
                     ) : (
                       <span
-                        className={`font-mono font-bold text-sm ${!lockCheck.canRegister ? 'text-rose-500' : 'text-blue-600'}`}
-                        title={!lockCheck.canRegister ? lockCheck.reason : undefined}
+                        className={`font-mono font-bold text-sm ${isLocked ? 'text-rose-500' : 'text-blue-600'}`}
+                        title={isLocked ? lockCheck.reason || 'Registration Locked' : undefined}
                       >
                         0/{maxCount}
                       </span>
@@ -153,17 +154,24 @@ export function CollegeRegistrationTab({
                             size="xs"
                             variant="outline"
                             className="h-8 w-8 p-0 rounded-lg border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
-                            title="Edit Roster"
-                            onClick={() => onOpenRegistrationModal(item)}
+                            title={isLocked ? 'Registration Closed (Locked)' : 'Edit Roster'}
+                            disabled={isLocked}
+                            onClick={() => !isLocked && onOpenRegistrationModal(item)}
                           >
-                            <SquarePen className="w-4 h-4" />
+                            {isLocked ? (
+                              <Lock className="w-4 h-4 text-slate-400" />
+                            ) : (
+                              <SquarePen className="w-4 h-4" />
+                            )}
                           </Button>
                           <Button
                             size="xs"
                             variant="outline"
                             className="h-8 w-8 p-0 rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                            title="Remove / Unregister Event"
+                            title={isLocked ? 'Registration Closed (Locked)' : 'Remove / Unregister Event'}
+                            disabled={isLocked}
                             onClick={() => {
+                              if (isLocked) return;
                               if (confirm(`Are you sure you want to unregister from "${item.name_eng || item.name}"?`)) {
                                 onUnregisterRegistration?.(item);
                               }
@@ -175,13 +183,21 @@ export function CollegeRegistrationTab({
                       ) : (
                         <Button
                           size="xs"
-                          variant="primary"
-                          disabled={!lockCheck.canRegister}
-                          className="h-8 w-8 p-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                          title={lockCheck.canRegister ? 'Register Entry' : lockCheck.reason}
-                          onClick={() => onOpenRegistrationModal(item)}
+                          variant={isLocked ? 'secondary' : 'primary'}
+                          disabled={isLocked}
+                          className={`h-8 w-8 p-0 rounded-lg transition-colors ${
+                            isLocked
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                          title={!isLocked ? 'Register Entry' : lockCheck.reason || 'Registration Locked'}
+                          onClick={() => !isLocked && onOpenRegistrationModal(item)}
                         >
-                          <Plus className="w-4 h-4" />
+                          {isLocked ? (
+                            <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
                         </Button>
                       )}
                     </div>

@@ -44,8 +44,11 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
   };
 
   const allSchedules = festService.getSchedules();
-  const currentStage = stages.find(s => s.id === selectedStageId);
-  const stageSchedules = allSchedules.filter(s => s.stage_id === selectedStageId);
+  const currentStage = stages.find(s => s.id === selectedStageId || s.stage_number === Number(selectedStageId));
+  const stageSchedules = allSchedules.filter(s => 
+    s.stage_id === selectedStageId || 
+    (currentStage && s.stage_number === currentStage.stage_number)
+  );
 
   // Active schedule selected for management
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>(
@@ -459,8 +462,8 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
                 </TableHeader>
                 <TableBody>
                   {allSchedules.map(sch => {
-                    const stage = stages.find(s => s.id === sch.stage_id);
-                    const isCurrentStage = sch.stage_id === selectedStageId;
+                    const stage = stages.find(s => s.id === sch.stage_id || s.stage_number === sch.stage_number);
+                    const isCurrentStage = sch.stage_id === selectedStageId || sch.stage_number === currentStage?.stage_number;
 
                     return (
                       <TableRow key={sch.id} className={isCurrentStage ? 'bg-slate-50/50' : ''}>
