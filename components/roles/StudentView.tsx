@@ -31,7 +31,8 @@ interface StudentViewProps {
 }
 
 export function StudentView({ activeTab: controlledTab, onTabChange }: StudentViewProps = {}) {
-  const [searchQuery, setSearchQuery] = useState('CH-101');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loggedInStudent, setLoggedInStudent] = useState<any>(null);
   const [internalTab, setInternalTab] = useState<StudentTab>('schedule');
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = (tab: StudentTab) => {
@@ -41,6 +42,25 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       setInternalTab(tab);
     }
   };
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('arts_fest_student_session');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setLoggedInStudent(parsed);
+          if (parsed.cic_no) {
+            setSearchQuery(String(parsed.cic_no));
+          } else if (parsed.chest_no) {
+            setSearchQuery(String(parsed.chest_no));
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+    }
+  }, []);
 
   const students = festService.getStudents();
   const colleges = festService.getColleges();
@@ -55,7 +75,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const currentStudent: Student | undefined = queryStr
     ? findStudentByIdentifier(students, queryStr) ||
       students.find(s => (s.full_name || s.name || '').toLowerCase().includes(queryStr.toLowerCase()))
-    : students[0];
+    : (loggedInStudent ? (students.find(s => s.id === loggedInStudent.id || String(s.cic_no) === String(loggedInStudent.cic_no)) || loggedInStudent) : students[0]);
 
   const targetStu = currentStudent || students[0];
   const studentCollege = colleges.find(c => c.affl_no === targetStu?.college_affl_no || c.id === targetStu?.college_id);
@@ -68,6 +88,32 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
 
   return (
     <div className="space-y-6">
+      {/* Logged-in Student Status Banner */}
+      {loggedInStudent && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              Logged in as <strong>{loggedInStudent.name}</strong> (CIC: <code className="font-mono font-bold">{loggedInStudent.cic_no}</code>)
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('arts_fest_student_session');
+                document.cookie = 'arts_fest_student_id=; path=/; max-age=0; SameSite=Lax';
+                document.cookie = 'arts_fest_student_cic=; path=/; max-age=0; SameSite=Lax';
+              }
+              setLoggedInStudent(null);
+              setSearchQuery('');
+            }}
+            className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline cursor-pointer"
+          >
+            Sign Out Student
+          </button>
+        </div>
+      )}
+
       {/* Student Search & Quick Header */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Paths that require NO authentication at all
-const PUBLIC_PATHS = ['/login', '/student', '/_next', '/favicon'];
+const PUBLIC_PATHS = ['/', '/login', '/student', '/student-login', '/_next', '/favicon'];
 
 // Route → allowed roles mapping (admin can access everything)
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Allow public paths without checking auth
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+  if (pathname === '/' || PUBLIC_PATHS.filter(p => p !== '/').some(p => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
