@@ -71,8 +71,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
         const role = profile?.role as UserRole | undefined;
         const afflNo = profile?.college_affl_no;
 
-        if (role === 'admin') {
-          setCurrentRoleState('admin');
+        if (role === 'admin' || role === 'convenor' || role === 'stage_controller' || role === 'result_entry') {
+          setCurrentRoleState(role);
           const connected = await festService.syncWithSupabase(undefined, true);
           setIsSupabaseConnected(connected);
           if (connected) {
@@ -130,8 +130,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
         const role = profile?.role as UserRole | undefined;
         const afflNo = profile?.college_affl_no;
 
-        if (role === 'admin') {
-          setCurrentRoleState('admin');
+        if (role === 'admin' || role === 'convenor' || role === 'stage_controller' || role === 'result_entry') {
+          setCurrentRoleState(role);
           const connected = await festService.syncWithSupabase(undefined, isFreshLogin);
           setIsSupabaseConnected(connected);
           if (connected) {

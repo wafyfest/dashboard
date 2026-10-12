@@ -10,6 +10,7 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   '/college': ['college', 'admin'],
   '/stage-controller': ['stage_controller', 'admin'],
   '/result-entry': ['result_entry', 'admin'],
+  '/convenor': ['convenor', 'admin'],
 };
 
 export async function middleware(request: NextRequest) {
@@ -86,6 +87,7 @@ export async function middleware(request: NextRequest) {
         student: '/student',
         stage_controller: '/stage-controller',
         result_entry: '/result-entry',
+        convenor: '/convenor',
       };
       const redirectPath = roleRouteMap[userRole] || '/login';
 

@@ -30,7 +30,8 @@ export default function LoginPage() {
     admin: '/admin',
     student: '/student',
     stage_controller: '/stage-controller',
-    result_entry: '/result-entry'
+    result_entry: '/result-entry',
+    convenor: '/convenor'
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
