@@ -23,7 +23,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
-import { registrationContainsStudent } from '@/lib/utils/studentIdentity';
+import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
 
@@ -67,6 +67,7 @@ export function CollegeView() {
   const schedules = festService.getSchedules();
   const appeals = festService.getAppeals(currentCollegeId);
   const replacements = festService.getReplacements(currentCollegeId);
+  const quotaLimits = festService.getMaxParticipation();
 
   // Dynamic filtering for Replacement Modal
   const currentEventRegisteredStudents = students.filter(s => {
@@ -730,18 +731,26 @@ export function CollegeView() {
                     const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                     const isCategoryMatch = isCategoryMatching(sCat, itemCat);
 
+                    const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits);
+                    const isQuotaComplete = !quotaCheck.allowed;
+                    const isFaded = !isCategoryMatch || (!isSelected && isQuotaComplete);
+                    const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && isQuotaComplete);
+
                     return (
                       <label
                         key={s.id}
-                        className={`flex items-center justify-between p-2.5 text-xs hover:bg-slate-50 cursor-pointer transition-colors ${
-                          !isCategoryMatch ? 'opacity-40 bg-slate-50' : ''
+                        className={`flex items-center justify-between p-2.5 text-xs transition-colors ${
+                          isFaded
+                            ? 'opacity-40 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed select-none'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
                         }`}
+                        title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            disabled={!isCategoryMatch && !isSelected}
+                            disabled={isDisabled}
                             onChange={e => {
                               if (e.target.checked) {
                                 if (selectedStudentIds.length >= maxPart) {
@@ -753,16 +762,33 @@ export function CollegeView() {
                                 setSelectedStudentIds(selectedStudentIds.filter(id => id !== s.id));
                               }
                             }}
-                            className="rounded border-slate-300 text-[#132238] focus:ring-[#132238]"
+                            className="rounded border-slate-300 text-[#132238] focus:ring-[#132238] shrink-0"
                           />
-                          <div>
-                            <div className="font-semibold text-[#132238]">{s.full_name || s.name}</div>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              Chest: {s.chest_no} | Adm: {s.admission_no}
-                            </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-[#132238] dark:text-slate-100 truncate">
+                                {s.full_name || s.name}
+                              </span>
+                              {isQuotaComplete && !isSelected && (
+                                <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
+                                  {quotaCheck.reason}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5 flex-wrap">
+                              <span>Chest: {getCanonicalChestNo(s)}</span>
+                              <span>•</span>
+                              <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
+                              <span>•</span>
+                              <span className="text-slate-500 dark:text-slate-400 font-sans">
+                                On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <CategoryBadge category={sCat || 'Senior'} />
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <CategoryBadge category={sCat || 'Senior'} />
+                        </div>
                       </label>
                     );
                   })}
