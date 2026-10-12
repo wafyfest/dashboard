@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'college' | 'student' | 'stage_controller' | 'result_entry';
+export type UserRole = 'admin' | 'college' | 'student' | 'stage_controller' | 'result_entry' | 'convenor';
 
 export type CollegeType = 'wafy' | 'prof';
 

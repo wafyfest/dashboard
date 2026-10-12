@@ -30,7 +30,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
           admin: '/admin',
           student: '/student',
           stage_controller: '/stage-controller',
-          result_entry: '/result-entry'
+          result_entry: '/result-entry',
+          convenor: '/convenor'
         };
         router.replace(routeMap[currentRole] || '/login');
       }
