@@ -1,4 +1,4 @@
-import { Student, Registration, Item, College } from '../types/fest';
+import { Student, Registration, Item, College, MaxParticipation, normalizeCategoryKey } from '../types/fest';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -323,5 +323,106 @@ export function calculateStudentEvents(
     individualCount,
     groupCount,
     events
+  };
+}
+
+export interface QuotaCheckResult {
+  allowed: boolean;
+  reason?: string;
+  stats: {
+    registeredEventsCount: number;
+    onstageCount: number;
+    offstageCount: number;
+    individualCount: number;
+    groupCount: number;
+  };
+  quota?: MaxParticipation;
+}
+
+const DEFAULT_FALLBACK_QUOTAS: MaxParticipation[] = [
+  { phase: 'Foundation', off_max: 3, on_max: 2, total_max: 4, group_max: 2 },
+  { phase: 'Thamheediyya', off_max: 4, on_max: 3, total_max: 5, group_max: 3 },
+  { phase: 'Aliya', off_max: 5, on_max: 4, total_max: 6, group_max: 4 },
+  { phase: 'PG', off_max: 5, on_max: 4, total_max: 6, group_max: 4 },
+  { phase: 'General', off_max: 3, on_max: 3, total_max: 5, group_max: 3 }
+];
+
+/**
+ * Validates a student's participation quota against max_participation quotas.
+ * Accurately checks onstage (on_max), offstage (off_max), group (group_max), and total (total_max).
+ */
+export function checkStudentQuota(
+  student: Student,
+  targetItem: Item,
+  collegeRegistrations: Registration[],
+  allItems: Item[],
+  quotaLimits?: MaxParticipation[]
+): QuotaCheckResult {
+  // Exclude current item in case we are modifying an existing roster for this item
+  const targetItemId = Number(targetItem.item_id || targetItem.id);
+  const otherRegs = collegeRegistrations.filter(r => Number(r.item_id) !== targetItemId);
+  const stats = calculateStudentEvents(student, otherRegs, allItems);
+
+  const quotas = (quotaLimits && quotaLimits.length > 0) ? quotaLimits : DEFAULT_FALLBACK_QUOTAS;
+  const studentCatKey = normalizeCategoryKey(student.category || student.phase);
+  const quota = quotas.find(q => normalizeCategoryKey(q.phase) === studentCatKey)
+    || quotas.find(q => normalizeCategoryKey(q.phase) === 'GENERAL')
+    || quotas[0];
+
+  if (!quota) {
+    return {
+      allowed: true,
+      stats
+    };
+  }
+
+  const isGroup = targetItem.point_type === 'group' || targetItem.item_type === 'Group';
+  const isOnstage = targetItem.mode === 'onstage';
+  const isOffstage = targetItem.mode === 'offstage' || targetItem.mode === 'submission' || !isOnstage;
+
+  // 1. Check Onstage Limit
+  if (isOnstage && stats.onstageCount >= quota.on_max) {
+    return {
+      allowed: false,
+      reason: `Exceeds max onstage limit (${stats.onstageCount}/${quota.on_max})`,
+      stats,
+      quota
+    };
+  }
+
+  // 2. Check Offstage Limit
+  if (isOffstage && stats.offstageCount >= quota.off_max) {
+    return {
+      allowed: false,
+      reason: `Exceeds max offstage limit (${stats.offstageCount}/${quota.off_max})`,
+      stats,
+      quota
+    };
+  }
+
+  // 3. Check Group Limit
+  if (isGroup && stats.groupCount >= quota.group_max) {
+    return {
+      allowed: false,
+      reason: `Exceeds max group limit (${stats.groupCount}/${quota.group_max})`,
+      stats,
+      quota
+    };
+  }
+
+  // 4. Check Total Events Limit
+  if (stats.registeredEventsCount >= quota.total_max) {
+    return {
+      allowed: false,
+      reason: `Exceeds max total events (${stats.registeredEventsCount}/${quota.total_max})`,
+      stats,
+      quota
+    };
+  }
+
+  return {
+    allowed: true,
+    stats,
+    quota
   };
 }

@@ -244,24 +244,16 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Public Student Results Link & Student Login */}
-        <div className="border-t border-[var(--border-subtle)] pt-4 text-center space-y-2">
-          <p className="text-[10px] text-[var(--text-muted)]">Looking for student admit cards or competition schedules?</p>
-          <div className="flex items-center justify-center gap-3 text-xs">
+        {/* Student Participant Login Link */}
+        <div className="border-t border-[var(--border-subtle)] pt-4 text-center space-y-1">
+          <p className="text-[10px] text-[var(--text-muted)]">Are you an enrolled student participant?</p>
+          <div>
             <a
               href="/student-login"
-              className="font-semibold text-emerald-500 hover:underline cursor-pointer"
+              className="text-xs font-semibold text-emerald-500 hover:underline cursor-pointer"
             >
-              Student CIC Login →
+              Sign In with CIC Number & Password →
             </a>
-            <span className="text-[var(--text-muted)]">•</span>
-            <button
-              onClick={handlePublicAccess}
-              id="public-access-btn"
-              className="font-medium text-sky-400 hover:underline cursor-pointer"
-            >
-              Public Schedule View
-            </button>
           </div>
         </div>
       </div>

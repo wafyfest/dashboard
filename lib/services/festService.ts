@@ -28,6 +28,7 @@ import {
   normalizeRegistration,
   registrationContainsStudent,
   calculateStudentEvents,
+  checkStudentQuota,
   isUuid
 } from '../utils/studentIdentity';
 
@@ -1227,20 +1228,16 @@ class FestService {
 
     const quotaLimits = this.getMaxParticipation();
     const collegeRegs = this.getRegistrations(college.affl_no);
+    const allItems = this.getItems();
 
     // Validate each student's participation quota strictly for this college
     for (const student of resolvedStudents) {
-      const stats = calculateStudentEvents(student, collegeRegs.filter(r => r.item_id !== item.item_id), this.getItems());
-      const quota = quotaLimits.find(q => normalizeCategoryKey(q.phase) === normalizeCategoryKey(student.phase)) || quotaLimits[0];
-
-      if (quota) {
-        const currentTotal = stats.registeredEventsCount + 1;
-        if (currentTotal > quota.total_max) {
-          return {
-            success: false,
-            error: `Student ${student.name} (${getCanonicalChestNo(student)}) exceeds max total events limit of ${quota.total_max}.`
-          };
-        }
+      const quotaCheck = checkStudentQuota(student, item, collegeRegs, allItems, quotaLimits);
+      if (!quotaCheck.allowed) {
+        return {
+          success: false,
+          error: `Student ${student.name || student.full_name} (${getCanonicalChestNo(student)}): ${quotaCheck.reason}`
+        };
       }
     }
 

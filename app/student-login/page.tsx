@@ -256,14 +256,11 @@ export default function StudentLoginPage() {
 
         <div className="border-t border-[var(--border-subtle)] pt-4 text-center">
           <p className="text-[11px] text-[var(--text-muted)]">
-            Don't have your credentials handy?
+            Need login assistance or credentials recovery?
           </p>
-          <a
-            href="/student"
-            className="inline-block mt-1 text-xs font-semibold text-sky-500 hover:underline"
-          >
-            Browse Public Schedule & Live Results →
-          </a>
+          <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] font-medium">
+            Contact your college team manager or staff coordinator.
+          </p>
         </div>
       </div>
 
