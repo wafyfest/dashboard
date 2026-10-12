@@ -330,7 +330,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       </div>
 
       {/* ─── Navigation Pills ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 bg-[var(--bg-surface)] p-1 rounded-xl border border-[var(--border-subtle)] shadow-2xs overflow-x-auto">
+      {/* <div className="flex items-center gap-1 bg-[var(--bg-surface)] p-1 rounded-xl border border-[var(--border-subtle)] shadow-2xs overflow-x-auto">
         {[
           { id: 'dashboard', label: 'Fest Highlights & Overview' },
           { id: 'schedule', label: `My Schedule (${studentSchedules.length})` },
@@ -350,7 +350,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
             {tab.label}
           </button>
         ))}
-      </div>
+      </div> */}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 1. OVERVIEW & HIGHLIGHTS DASHBOARD (NEW STUDENT PORTAL HOME)       */}
