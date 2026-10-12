@@ -91,6 +91,7 @@ export interface Student {
   chest_no?: string; // fest display chest number (derived from cic_no)
   phone?: string | null;
   photo_url?: string | null;
+  password?: string | null;
   created_at?: string;
   college?: College;
 }

@@ -118,20 +118,35 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col justify-center items-center p-4 sm:p-6 transition-colors relative">
-      {/* Top Right Theme Toggle */}
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shadow-2xs cursor-pointer"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      {/* Top Bar Navigation */}
+      <div className="absolute top-4 left-4 right-4 sm:top-6 sm:left-6 sm:right-6 flex items-center justify-between">
+        <a
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-500 bg-[var(--bg-surface)] px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] shadow-2xs transition-colors"
         >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Moon className="w-4 h-4 text-slate-700" />
-          )}
-        </button>
+          ← Back to Fest Home
+        </a>
+
+        <div className="flex items-center gap-2">
+          <a
+            href="/student-login"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline bg-[var(--bg-surface)] px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] shadow-2xs transition-colors"
+          >
+            Student Login →
+          </a>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shadow-2xs cursor-pointer"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-700" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Brand Header */}
@@ -229,16 +244,25 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Public Student Results Link */}
-        <div className="border-t border-[var(--border-subtle)] pt-4 text-center">
-          <p className="text-[10px] text-[var(--text-muted)] mb-2">Looking for public results or admit cards?</p>
-          <button
-            onClick={handlePublicAccess}
-            id="public-access-btn"
-            className="text-xs font-semibold text-sky-400 hover:underline cursor-pointer"
-          >
-            Continue to Public Student View →
-          </button>
+        {/* Public Student Results Link & Student Login */}
+        <div className="border-t border-[var(--border-subtle)] pt-4 text-center space-y-2">
+          <p className="text-[10px] text-[var(--text-muted)]">Looking for student admit cards or competition schedules?</p>
+          <div className="flex items-center justify-center gap-3 text-xs">
+            <a
+              href="/student-login"
+              className="font-semibold text-emerald-500 hover:underline cursor-pointer"
+            >
+              Student CIC Login →
+            </a>
+            <span className="text-[var(--text-muted)]">•</span>
+            <button
+              onClick={handlePublicAccess}
+              id="public-access-btn"
+              className="font-medium text-sky-400 hover:underline cursor-pointer"
+            >
+              Public Schedule View
+            </button>
+          </div>
         </div>
       </div>
 
