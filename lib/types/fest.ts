@@ -349,10 +349,90 @@ export interface EntryLock {
 // Backwards-compatibility alias
 export type CollegeItemLock = EntryLock;
 
+export interface Volunteer {
+  id: string;
+  college_affl_no: number;
+  student_id: string;
+  student?: Student;
+  duty_preference?: string;
+  phone?: string | null;
+  tshirt_size?: string;
+  status: 'Registered' | 'Approved' | 'Standby';
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export function isAliyaOrPgPhase(phaseOrCategory?: string | null, studentClass?: string | null): boolean {
+  if (phaseOrCategory) {
+    const p = phaseOrCategory.trim().toLowerCase();
+    if (
+      p === 'aliya' ||
+      p === 'al' ||
+      p.includes('aliya') ||
+      p === 'senior' ||
+      p === 'pg' ||
+      p.includes('post graduate') ||
+      p.includes('postgraduate')
+    ) {
+      return true;
+    }
+  }
+  if (studentClass) {
+    const c = studentClass.trim().toLowerCase();
+    if (
+      c.startsWith('al-') ||
+      c.startsWith('al ') ||
+      c.includes('aliya') ||
+      c.startsWith('pg-') ||
+      c.startsWith('pg ') ||
+      c === 'pg' ||
+      c.includes('post graduate')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Backward-compatible alias
+export const isAliyaPhase = isAliyaOrPgPhase;
+
+export function getStudentVolunteerPhase(phaseOrCategory?: string | null, studentClass?: string | null): 'PG' | 'Aliya' {
+  const p = (phaseOrCategory || '').trim().toLowerCase();
+  const c = (studentClass || '').trim().toLowerCase();
+  if (p === 'pg' || c.startsWith('pg') || p.includes('post graduate')) {
+    return 'PG';
+  }
+  return 'Aliya';
+}
+
 export interface FestSettings {
   id: number;
   fest_name: string;
   reg_deadline: string;
   fine_deadline: string;
   rulebook_url?: string | null;
+}
+
+export type NoticePriority = 'urgent' | 'warning' | 'info' | 'success';
+export type NoticeTargetType = 'global' | 'role' | 'college' | 'student' | 'stage';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  priority: NoticePriority;
+  target_type: NoticeTargetType;
+  target_role?: string | null;
+  target_college_affl_no?: number | null;
+  target_chest_no?: string | null;
+  target_stage_id?: number | null;
+  action_url?: string | null;
+  action_label?: string | null;
+  is_active: boolean;
+  require_ack: boolean;
+  expires_at?: string | null;
+  created_at: string;
+  updated_at?: string;
 }

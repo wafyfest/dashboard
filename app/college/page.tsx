@@ -10,7 +10,8 @@ import {
   Contact,
   ShieldAlert,
   Trash2,
-  UserPlus
+  UserPlus,
+  HeartHandshake
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -30,6 +31,7 @@ import { CollegeParticipantsTab } from '@/components/college/tabs/CollegePartici
 import { CollegeScheduleTab } from '@/components/college/tabs/CollegeScheduleTab';
 import { CollegeAppealsTab } from '@/components/college/tabs/CollegeAppealsTab';
 import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplacementsTab';
+import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
@@ -46,6 +48,7 @@ export default function CollegePortalPage() {
     { id: 'registration', label: 'Registration', icon: ClipboardPen },
     { id: 'participants', label: 'Participants', icon: Users },
     { id: 'students', label: 'Students', icon: UserCheck },
+    { id: 'volunteers', label: 'Volunteer', icon: HeartHandshake },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     { id: 'admit_card', label: 'Admit Card', icon: Contact },
     { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
@@ -156,9 +159,9 @@ export default function CollegePortalPage() {
     () =>
       activeTab === 'registration'
         ? festService.getRegistrationStatuses(
-            currentCollegeAfflNo || currentCollegeId,
-            filteredItems
-          )
+          currentCollegeAfflNo || currentCollegeId,
+          filteredItems
+        )
         : new Map<number, RegistrationStatus>(),
     [
       activeTab,
@@ -421,6 +424,16 @@ export default function CollegePortalPage() {
             />
           )}
 
+          {/* TAB: VOLUNTEER REGISTRATION (ALIYA PHASE ONLY) */}
+          {activeTab === 'volunteers' && (
+            <CollegeVolunteersTab
+              college={college}
+              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+              students={students}
+              onRefresh={triggerRefresh}
+            />
+          )}
+
           {/* TAB 5: SCHEDULE */}
           {activeTab === 'schedule' && (
             <CollegeScheduleTab
@@ -582,11 +595,10 @@ export default function CollegePortalPage() {
                       return (
                         <label
                           key={s.id}
-                          className={`flex items-center justify-between p-2.5 text-xs transition-colors ${
-                            isFaded
+                          className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
                               ? 'opacity-40 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed select-none'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
-                          }`}
+                            }`}
                           title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">

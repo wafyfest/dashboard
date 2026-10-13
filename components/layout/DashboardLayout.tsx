@@ -13,6 +13,7 @@ import {
   Award
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
+import { ImportantNoticeModal } from '@/components/common/ImportantNoticeModal';
 
 export interface NavItem {
   id: string;
@@ -59,6 +60,9 @@ export function DashboardLayout({
 
   return (
     <div className="min-h-screen flex bg-[var(--bg-page)] text-[var(--text-primary)] font-sans antialiased">
+      {/* Realtime Important News & Targeted Emergency Bulletins Modal */}
+      <ImportantNoticeModal />
+
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
