@@ -221,7 +221,7 @@ export function ImportantNoticeModal() {
           >
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
             <BellRing className="w-3.5 h-3.5 text-rose-500" />
-            <span>Active Bulletin ({allEligibleNotices.length})</span>
+            <span>Notifications ({allEligibleNotices.length})</span>
           </button>
         </div>
       );

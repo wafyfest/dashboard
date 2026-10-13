@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Item, Registration } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
@@ -37,6 +37,8 @@ export function CollegeRegistrationTab({
   allItemsCount,
   registrationStatusByItem
 }: CollegeRegistrationTabProps) {
+  const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+
   const registrationByItemId = React.useMemo(() => {
     const byItem = new Map<number, Registration>();
     for (const reg of registrations) {
@@ -47,6 +49,17 @@ export function CollegeRegistrationTab({
     return byItem;
   }, [registrations]);
 
+  const displayedItems = React.useMemo(() => {
+    if (selectedMode === 'All') return filteredItems;
+    return filteredItems.filter(item => {
+      const m = (item.mode || 'onstage').toLowerCase().trim();
+      if (selectedMode === 'onstage') return m === 'onstage';
+      if (selectedMode === 'offstage') return m === 'offstage' || (m !== 'onstage' && m !== 'submission');
+      if (selectedMode === 'submission') return m === 'submission';
+      return true;
+    });
+  }, [filteredItems, selectedMode]);
+
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
@@ -56,10 +69,27 @@ export function CollegeRegistrationTab({
             Enroll student participants in Single and Group events according to quotas
           </CardDescription>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <div className="text-xs text-slate-500 hidden sm:block">
             Enrolled: <strong className="text-emerald-700">{registrations.length}</strong> / {allItemsCount} Events
           </div>
+
+          {/* Stage Mode Filter */}
+          <div className="relative">
+            <select
+              value={selectedMode}
+              onChange={(e) => setSelectedMode(e.target.value as any)}
+              className="appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 cursor-pointer"
+            >
+              <option value="All">All Stage Modes</option>
+              <option value="onstage">On Stage</option>
+              <option value="offstage">Off Stage</option>
+              <option value="submission">Submission</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* Category Filter */}
           <div className="relative">
             <select
               value={selectedCategory}
@@ -85,14 +115,14 @@ export function CollegeRegistrationTab({
               <TableHead>Item (Malayalam)</TableHead>
               <TableHead>Name (English)</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead className="text-center">Type / Mode</TableHead>
               <TableHead>Code</TableHead>
               <TableHead className="text-center">Registered</TableHead>
               <TableHead className="text-center w-28">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredItems.map((item, index) => {
+            {displayedItems.map((item, index) => {
               const reg = registrationByItemId.get(item.item_id);
               const lockCheck = registrationStatusByItem?.get(item.item_id)
                 || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId, item.item_id || item.id);
@@ -124,10 +154,8 @@ export function CollegeRegistrationTab({
                   <TableCell>
                     <CategoryBadge category={itemCategory} />
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={itemType === 'Group' ? 'purple' : 'secondary'}>
-                      {itemType}
-                    </Badge>
+                  <TableCell className="text-center">
+                    <ItemTypeBadge type={itemType} mode={item.mode} />
                   </TableCell>
                   <TableCell className="font-mono font-bold text-slate-700 dark:text-slate-300">
                     {item.item_code || item.code}

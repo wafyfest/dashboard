@@ -116,3 +116,108 @@ export function AppealStatusBadge({ status }: { status: string }) {
       return <Badge variant="warning">Pending Review</Badge>;
   }
 }
+
+export function ItemModeBadge({
+  mode,
+  size = 'sm',
+  className
+}: {
+  mode?: string | null;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const norm = (mode || '').toLowerCase().trim();
+  if (norm === 'onstage' || norm === 'on_stage' || norm === 'on stage') {
+    return (
+      <Badge
+        variant="navy"
+        size={size}
+        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+        On Stage
+      </Badge>
+    );
+  }
+  if (norm === 'offstage' || norm === 'off_stage' || norm === 'off stage') {
+    return (
+      <Badge
+        variant="secondary"
+        size={size}
+        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+        Off Stage
+      </Badge>
+    );
+  }
+  if (norm === 'submission') {
+    return (
+      <Badge
+        variant="purple"
+        size={size}
+        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+        Submission
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      size={size}
+      className={twMerge(clsx('capitalize', className))}
+    >
+      {mode || 'Off Stage'}
+    </Badge>
+  );
+}
+
+export function ItemTypeBadge({
+  type,
+  mode,
+  size = 'sm',
+  className
+}: {
+  type?: string | null;
+  mode?: string | null;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const normType = (type || '').toLowerCase().trim();
+  const isGroup = normType === 'group';
+  const typeLabel = isGroup ? 'Group' : 'Individual';
+
+  const normMode = (mode || '').toLowerCase().trim();
+  let modeLabel = 'Offstage';
+  let dotColor = 'bg-sky-400';
+  let variant: 'navy' | 'purple' | 'secondary' = 'secondary';
+
+  if (normMode === 'onstage' || normMode === 'on_stage' || normMode === 'on stage') {
+    modeLabel = 'Onstage';
+    dotColor = 'bg-emerald-400';
+    variant = isGroup ? 'purple' : 'navy';
+  } else if (normMode === 'submission') {
+    modeLabel = 'Submission';
+    dotColor = 'bg-indigo-400';
+    variant = 'purple';
+  } else {
+    modeLabel = 'Offstage';
+    dotColor = 'bg-sky-400';
+    variant = isGroup ? 'purple' : 'secondary';
+  }
+
+  return (
+    <Badge
+      variant={variant}
+      size={size}
+      className={twMerge(clsx('gap-1.5 font-semibold tracking-wide whitespace-nowrap', className))}
+    >
+      <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', dotColor)} />
+      {typeLabel} / {modeLabel}
+    </Badge>
+  );
+}
+
+

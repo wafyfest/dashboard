@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Registration, Item, isCategoryMatching } from '@/lib/types/fest';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
@@ -64,6 +64,7 @@ export function CollegeParticipantsTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedItemCode, setSelectedItemCode] = useState('All Item Codes');
+  const [selectedMode, setSelectedMode] = useState('All Modes');
   const [sortAsc, setSortAsc] = useState(true);
 
   // Extract flat participant rows with all details (Student Name, CIC No, Category, Item Name, Item Code, Type, Blind Code, etc.)
@@ -155,7 +156,14 @@ export function CollegeParticipantsTab({
           return false;
         }
       }
-      // 3. Search Query
+      // 3. Stage Mode Filter
+      if (selectedMode !== 'All Modes') {
+        const m = (p.itemMode || 'onstage').toLowerCase().trim();
+        if (selectedMode === 'onstage' && m !== 'onstage') return false;
+        if (selectedMode === 'offstage' && (m === 'onstage' || m === 'submission')) return false;
+        if (selectedMode === 'submission' && m !== 'submission') return false;
+      }
+      // 4. Search Query
       const q = searchQuery.trim().toLowerCase();
       if (q) {
         const matches =
@@ -169,13 +177,14 @@ export function CollegeParticipantsTab({
       }
       return true;
     });
-  }, [participantRows, selectedCategory, selectedItemCode, searchQuery]);
+  }, [participantRows, selectedCategory, selectedItemCode, selectedMode, searchQuery]);
 
-  const hasActiveFilters = selectedCategory !== 'All Categories' || selectedItemCode !== 'All Item Codes' || searchQuery !== '';
+  const hasActiveFilters = selectedCategory !== 'All Categories' || selectedItemCode !== 'All Item Codes' || selectedMode !== 'All Modes' || searchQuery !== '';
 
   const handleResetFilters = () => {
     setSelectedCategory('All Categories');
     setSelectedItemCode('All Item Codes');
+    setSelectedMode('All Modes');
     setSearchQuery('');
   };
 
@@ -260,6 +269,21 @@ export function CollegeParticipantsTab({
             <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
+          {/* Stage Mode Filter Dropdown */}
+          <div className="relative min-w-[130px]">
+            <select
+              value={selectedMode}
+              onChange={e => setSelectedMode(e.target.value)}
+              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--border-strong)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value="All Modes">All Stage Modes</option>
+              <option value="onstage">On Stage</option>
+              <option value="offstage">Off Stage</option>
+              <option value="submission">Submission</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
           {/* Search Input */}
           <div className="relative w-full sm:w-48">
             <Search className="w-4 h-4 absolute left-3 top-2 text-[var(--text-muted)]" />
@@ -319,7 +343,7 @@ export function CollegeParticipantsTab({
               <TableHead>Category</TableHead>
               <TableHead>Item Name</TableHead>
               <TableHead>Item Code</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead className="text-center">Type / Mode</TableHead>
               <TableHead className="text-center">Blind Code</TableHead>
             </TableRow>
           </TableHeader>
@@ -362,10 +386,8 @@ export function CollegeParticipantsTab({
                   <TableCell className="font-mono font-bold text-xs text-sky-600 dark:text-sky-400">
                     {p.itemCode}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={p.itemType === 'Group' ? 'purple' : 'secondary'}>
-                      {p.itemType}
-                    </Badge>
+                  <TableCell className="text-center">
+                    <ItemTypeBadge type={p.itemType} mode={p.itemMode} />
                   </TableCell>
                   <TableCell className="text-center">
                     {p.blindCode !== 'Unassigned' ? (
