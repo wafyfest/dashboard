@@ -39,6 +39,8 @@ import { SettingsTab } from '../admin/tabs/SettingsTab';
 import { EventsCatalogTab } from '../admin/tabs/EventsCatalogTab';
 import { CollegesTab } from '../admin/tabs/CollegesTab';
 import { CollegeRegistrationsTab } from '../admin/tabs/CollegeRegistrationsTab';
+import { ManageVolunteersTab } from '../admin/tabs/ManageVolunteersTab';
+import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
 
 
 export type AdminTab =
@@ -48,6 +50,8 @@ export type AdminTab =
   | 'items'
   | 'colleges'
   | 'college_registrations'
+  | 'volunteers'
+  | 'announcements'
   | 'appeals'
   | 'results';
 
@@ -263,6 +267,26 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
       {/* 4.1. COLLEGE-WISE EVENT REGISTRATIONS TAB */}
       {activeTab === 'college_registrations' && renderCollegeRegistrationsTab()}
+
+      {/* 4.2. MANAGE VOLUNTEERS TAB */}
+      {activeTab === 'volunteers' && (
+        <ManageVolunteersTab
+          colleges={colleges}
+          students={students}
+          refreshKey={refreshKey}
+          onRefresh={triggerRefresh}
+        />
+      )}
+
+      {/* 4.3. BROADCAST ALERTS & BULLETINS TAB */}
+      {activeTab === 'announcements' && (
+        <BroadcastAlertsTab
+          colleges={colleges}
+          students={students}
+          refreshKey={refreshKey}
+          onRefresh={triggerRefresh}
+        />
+      )}
 
       {/* 5. APPEALS & REPLACEMENTS TAB */}
       {activeTab === 'appeals' && (

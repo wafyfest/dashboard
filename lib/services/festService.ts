@@ -12,6 +12,8 @@ import {
   Result,
   Appeal,
   Replacement,
+  Volunteer,
+  Announcement,
   MaxParticipation,
   SubmissionEntry,
   UserRole,
@@ -57,6 +59,8 @@ class FestService {
     stages: [],
     results: [],
     appeals: [],
+    volunteers: [],
+    announcements: [],
     maxParticipation: []
   };
 
@@ -369,6 +373,60 @@ class FestService {
         this.setStorage('maxParticipation', quotaData);
       }
 
+      // 11. Volunteers
+      try {
+        let volQuery = client
+          .from('volunteers')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (collegeAfflNo) {
+          volQuery = volQuery.eq('college_affl_no', collegeAfflNo);
+        }
+        const { data: volData, error: volErr } = await volQuery;
+        if (!volErr && volData) {
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existing = this.getStorage<Volunteer[]>('volunteers', []);
+            const otherVols = existing.filter(v => Number(v.college_affl_no) !== numAffl);
+            const merged = [...otherVols, ...volData];
+            this.setStorage('volunteers', merged);
+            if (this.isClient) {
+              try {
+                window.localStorage.setItem('wsf_volunteers', JSON.stringify(merged));
+              } catch (e) {}
+            }
+          } else {
+            this.setStorage('volunteers', volData);
+            if (this.isClient) {
+              try {
+                window.localStorage.setItem('wsf_volunteers', JSON.stringify(volData));
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (err) {
+        // Table sync deferred
+      }
+
+      // 12. Announcements
+      try {
+        const { data: annData, error: annErr } = await client
+          .from('announcements')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (!annErr && annData) {
+          this.setStorage('announcements', annData);
+          if (this.isClient) {
+            try {
+              window.localStorage.setItem('wsf_announcements', JSON.stringify(annData));
+            } catch (e) {}
+          }
+        }
+      } catch (err) {
+        // Deferred
+      }
+
       if (!hasError) {
         this.scopeSyncTimes.set(scopeKey, Date.now());
       }
@@ -406,6 +464,10 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'colleges' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'max_participation' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'volunteer_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'announcement_change' }, triggerDebouncedSync)
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.info('⚡ Supabase Realtime channel connected: Live updates active across all tables.');
@@ -1883,6 +1945,431 @@ class FestService {
         ...(standingsMap.get(c.affl_no) || { gold: 0, silver: 0, bronze: 0, points: 0 })
       }))
       .sort((a, b) => b.points - a.points || b.gold - a.gold);
+  }
+
+  // --- Volunteers (Aliya & PG Phases) ---
+  public notifyVolunteerChange(): void {
+    if (this.isClient) {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_volunteers_sync');
+          bc.postMessage({ type: 'volunteer_change', timestamp: Date.now() });
+          bc.close();
+        }
+        window.dispatchEvent(new CustomEvent('wsf_volunteers_change', { detail: { timestamp: Date.now() } }));
+        // Update local storage timestamp to wake storage event listeners in sibling tabs
+        window.localStorage.setItem('wsf_volunteers_updated', Date.now().toString());
+      } catch (e) {}
+    }
+
+    if (supabase) {
+      try {
+        const bcChannel = supabase.channel('fest_realtime_sync');
+        bcChannel.send({
+          type: 'broadcast',
+          event: 'volunteer_change',
+          payload: { timestamp: Date.now() }
+        }).catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  public getVolunteers(collegeAfflNoOrId?: number | string): Volunteer[] {
+    let list = this.getStorage<Volunteer[]>('volunteers', []);
+    if ((!list || list.length === 0) && this.isClient) {
+      try {
+        const local = window.localStorage.getItem('wsf_volunteers');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            list = parsed;
+            this.setStorage('volunteers', list);
+          }
+        }
+      } catch (e) {}
+    }
+
+    const students = this.getStudents();
+
+    const enriched = list.map(v => {
+      const student = v.student || findStudentByIdentifier(students, v.student_id);
+      return {
+        ...v,
+        student: student || v.student
+      };
+    });
+
+    if (!collegeAfflNoOrId) return enriched;
+    const col = this.getCollege(collegeAfflNoOrId);
+    const afflNo = col ? col.affl_no : Number(collegeAfflNoOrId);
+    return afflNo ? enriched.filter(v => v.college_affl_no === afflNo) : enriched;
+  }
+
+  public async fetchAllVolunteers(): Promise<Volunteer[]> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('volunteers')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          this.setStorage('volunteers', data);
+          if (this.isClient) {
+            try {
+              window.localStorage.setItem('wsf_volunteers', JSON.stringify(data));
+            } catch (e) {}
+          }
+          return this.getVolunteers();
+        }
+      } catch (err) {
+        console.warn('Error fetching all volunteers from Supabase:', err);
+      }
+    }
+    return this.getVolunteers();
+  }
+
+  public async fetchVolunteersForCollege(afflNo: number): Promise<Volunteer[]> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('volunteers')
+          .select('*')
+          .eq('college_affl_no', afflNo)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          const allStored = this.getStorage<Volunteer[]>('volunteers', []);
+          const otherVols = allStored.filter(v => v.college_affl_no !== afflNo);
+          const combined = [...otherVols, ...data];
+          this.setStorage('volunteers', combined);
+          if (this.isClient) {
+            try {
+              window.localStorage.setItem('wsf_volunteers', JSON.stringify(combined));
+            } catch (e) {}
+          }
+          return this.getVolunteers(afflNo);
+        }
+      } catch (err) {
+        console.warn('Error fetching volunteers from Supabase:', err);
+      }
+    }
+    return this.getVolunteers(afflNo);
+  }
+
+  public async registerVolunteer(data: {
+    college_affl_no: number;
+    student_id: string;
+    duty_preference?: string;
+    phone?: string | null;
+    tshirt_size?: string;
+    status?: 'Registered' | 'Approved' | 'Standby';
+    notes?: string | null;
+  }): Promise<{ success: boolean; volunteer?: Volunteer; error?: string }> {
+    const students = this.getStudents();
+    const student = findStudentByIdentifier(students, data.student_id);
+    const existing = this.getVolunteers(data.college_affl_no).find(v => v.student_id === data.student_id);
+    if (existing) {
+      return { success: false, error: 'This student is already registered as a volunteer.' };
+    }
+
+    const newVol: Volunteer = {
+      id: `vol-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      college_affl_no: data.college_affl_no,
+      student_id: data.student_id,
+      student: student,
+      duty_preference: data.duty_preference || 'General Volunteer',
+      phone: data.phone || student?.phone || null,
+      tshirt_size: data.tshirt_size || 'L',
+      status: data.status || 'Registered',
+      notes: data.notes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        const payload: any = {
+          college_affl_no: data.college_affl_no,
+          student_id: student?.id && isUuid(student.id) ? student.id : (isUuid(data.student_id) ? data.student_id : null),
+          duty_preference: newVol.duty_preference,
+          phone: newVol.phone,
+          tshirt_size: newVol.tshirt_size,
+          status: newVol.status,
+          notes: newVol.notes
+        };
+
+        if (payload.student_id) {
+          const { data: dbData, error } = await supabase
+            .from('volunteers')
+            .insert(payload)
+            .select()
+            .single();
+
+          if (!error && dbData) {
+            newVol.id = dbData.id;
+          } else if (error) {
+            console.warn('Supabase volunteer insert notice (cached fallback used):', error.message);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase volunteer register notice:', err);
+      }
+    }
+
+    const allStored = this.getStorage<Volunteer[]>('volunteers', []);
+    const updated = [newVol, ...allStored.filter(v => v.student_id !== data.student_id)];
+    this.setStorage('volunteers', updated);
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_volunteers', JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    this.notifyVolunteerChange();
+    return { success: true, volunteer: newVol };
+  }
+
+  public async updateVolunteer(
+    volunteerId: string,
+    updates: Partial<Volunteer>
+  ): Promise<{ success: boolean; volunteer?: Volunteer; error?: string }> {
+    const allStored = this.getStorage<Volunteer[]>('volunteers', []);
+    const idx = allStored.findIndex(v => v.id === volunteerId || v.student_id === volunteerId);
+    if (idx === -1) {
+      return { success: false, error: 'Volunteer record not found.' };
+    }
+
+    const updatedVol: Volunteer = {
+      ...allStored[idx],
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    allStored[idx] = updatedVol;
+    this.setStorage('volunteers', allStored);
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_volunteers', JSON.stringify(allStored));
+      } catch (e) {}
+    }
+
+    if (supabase && isUuid(volunteerId)) {
+      try {
+        await supabase
+          .from('volunteers')
+          .update({
+            duty_preference: updatedVol.duty_preference,
+            phone: updatedVol.phone,
+            tshirt_size: updatedVol.tshirt_size,
+            status: updatedVol.status,
+            notes: updatedVol.notes,
+            updated_at: updatedVol.updated_at
+          })
+          .eq('id', volunteerId);
+      } catch (err) {
+        console.warn('Supabase volunteer update notice:', err);
+      }
+    }
+
+    this.notifyVolunteerChange();
+    return { success: true, volunteer: updatedVol };
+  }
+
+  public async unregisterVolunteer(volunteerIdOrStudentId: string): Promise<{ success: boolean; error?: string }> {
+    const allStored = this.getStorage<Volunteer[]>('volunteers', []);
+    const filtered = allStored.filter(v => v.id !== volunteerIdOrStudentId && v.student_id !== volunteerIdOrStudentId);
+    this.setStorage('volunteers', filtered);
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_volunteers', JSON.stringify(filtered));
+      } catch (e) {}
+    }
+
+    if (supabase) {
+      try {
+        if (isUuid(volunteerIdOrStudentId)) {
+          await supabase.from('volunteers').delete().or(`id.eq.${volunteerIdOrStudentId},student_id.eq.${volunteerIdOrStudentId}`);
+        }
+      } catch (err) {
+        console.warn('Supabase volunteer delete notice:', err);
+      }
+    }
+
+    this.notifyVolunteerChange();
+    return { success: true };
+  }
+
+  // --- Announcements & Bulletins ---
+  public notifyAnnouncementChange(): void {
+    if (this.isClient) {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_announcements_sync');
+          bc.postMessage({ type: 'announcement_change', timestamp: Date.now() });
+          bc.close();
+        }
+        window.dispatchEvent(new CustomEvent('wsf_announcements_change', { detail: { timestamp: Date.now() } }));
+        window.localStorage.setItem('wsf_announcements_updated', Date.now().toString());
+      } catch (e) {}
+    }
+
+    if (supabase) {
+      try {
+        const bcChannel = supabase.channel('fest_realtime_sync');
+        bcChannel.send({
+          type: 'broadcast',
+          event: 'announcement_change',
+          payload: { timestamp: Date.now() }
+        }).catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  public getAnnouncements(): Announcement[] {
+    let list = this.getStorage<Announcement[]>('announcements', []);
+    if ((!list || list.length === 0) && this.isClient) {
+      try {
+        const local = window.localStorage.getItem('wsf_announcements');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            list = parsed;
+            this.setStorage('announcements', list);
+          }
+        }
+      } catch (e) {}
+    }
+    const now = Date.now();
+    return list.filter(a => {
+      if (!a.is_active) return false;
+      if (a.expires_at && new Date(a.expires_at).getTime() < now) return false;
+      return true;
+    });
+  }
+
+  public async fetchAllAnnouncements(): Promise<Announcement[]> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          this.setStorage('announcements', data);
+          if (this.isClient) {
+            try {
+              window.localStorage.setItem('wsf_announcements', JSON.stringify(data));
+            } catch (e) {}
+          }
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error fetching announcements from Supabase:', err);
+      }
+    }
+    return this.getAnnouncements();
+  }
+
+  public async createAnnouncement(data: {
+    title: string;
+    message: string;
+    priority?: 'urgent' | 'warning' | 'info' | 'success';
+    target_type?: 'global' | 'role' | 'college' | 'student' | 'stage';
+    target_role?: string | null;
+    target_college_affl_no?: number | null;
+    target_chest_no?: string | null;
+    target_stage_id?: number | null;
+    action_url?: string | null;
+    action_label?: string | null;
+    require_ack?: boolean;
+    expires_at?: string | null;
+  }): Promise<{ success: boolean; announcement?: Announcement; error?: string }> {
+    const newNotice: Announcement = {
+      id: `ann-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      title: data.title.trim(),
+      message: data.message.trim(),
+      priority: data.priority || 'urgent',
+      target_type: data.target_type || 'global',
+      target_role: data.target_role || null,
+      target_college_affl_no: data.target_college_affl_no ? Number(data.target_college_affl_no) : null,
+      target_chest_no: data.target_chest_no ? data.target_chest_no.trim().toUpperCase() : null,
+      target_stage_id: data.target_stage_id ? Number(data.target_stage_id) : null,
+      action_url: data.action_url || null,
+      action_label: data.action_label || 'View Details',
+      is_active: true,
+      require_ack: Boolean(data.require_ack),
+      expires_at: data.expires_at || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        const payload: any = {
+          title: newNotice.title,
+          message: newNotice.message,
+          priority: newNotice.priority,
+          target_type: newNotice.target_type,
+          target_role: newNotice.target_role,
+          target_college_affl_no: newNotice.target_college_affl_no,
+          target_chest_no: newNotice.target_chest_no,
+          target_stage_id: newNotice.target_stage_id,
+          action_url: newNotice.action_url,
+          action_label: newNotice.action_label,
+          is_active: newNotice.is_active,
+          require_ack: newNotice.require_ack,
+          expires_at: newNotice.expires_at
+        };
+
+        const { data: dbData, error } = await supabase
+          .from('announcements')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (!error && dbData) {
+          newNotice.id = dbData.id;
+        }
+      } catch (err) {
+        console.warn('Supabase create announcement notice:', err);
+      }
+    }
+
+    const allStored = this.getStorage<Announcement[]>('announcements', []);
+    const updated = [newNotice, ...allStored.filter(a => a.id !== newNotice.id)];
+    this.setStorage('announcements', updated);
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_announcements', JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    this.notifyAnnouncementChange();
+    return { success: true, announcement: newNotice };
+  }
+
+  public async deleteAnnouncement(id: string): Promise<{ success: boolean; error?: string }> {
+    const allStored = this.getStorage<Announcement[]>('announcements', []);
+    const filtered = allStored.filter(a => a.id !== id);
+    this.setStorage('announcements', filtered);
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_announcements', JSON.stringify(filtered));
+      } catch (e) {}
+    }
+
+    if (supabase && isUuid(id)) {
+      try {
+        await supabase.from('announcements').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase announcement delete notice:', err);
+      }
+    }
+
+    this.notifyAnnouncementChange();
+    return { success: true };
   }
 }
 

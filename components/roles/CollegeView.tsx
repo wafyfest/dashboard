@@ -26,10 +26,11 @@ import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCo
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
+import { CollegeVolunteersTab } from '../college/tabs/CollegeVolunteersTab';
 
 export function CollegeView() {
-  const { currentCollegeId, currentCollegeAfflNo, festSettings, triggerRefresh } = useFest();
-  const [activeTab, setActiveTab] = useState<'students' | 'registration' | 'admit_cards' | 'schedules' | 'appeals'>('registration');
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
+  const [activeTab, setActiveTab] = useState<'students' | 'registration' | 'admit_cards' | 'schedules' | 'appeals' | 'replacements' | 'volunteers'>('registration');
 
   // Modal states
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -274,6 +275,7 @@ export function CollegeView() {
         {[
           { id: 'registration', label: `Event Registration (${registrations.length} Enrolled)` },
           { id: 'students', label: `Student Directory (${students.length})` },
+          { id: 'volunteers', label: 'Volunteer Registration (Aliya & PG)' },
           { id: 'schedules', label: 'College Stage Schedule' },
           { id: 'admit_cards', label: 'Admit Cards (Printable)' },
           { id: 'appeals', label: `Appeals (${appeals.length})` },
@@ -471,6 +473,17 @@ export function CollegeView() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* VOLUNTEER REGISTRATION TAB */}
+      {activeTab === 'volunteers' && (
+        <CollegeVolunteersTab
+          college={college}
+          collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+          students={students}
+          refreshKey={refreshKey}
+          onRefresh={triggerRefresh}
+        />
       )}
 
       {/* 4. BATCH ADMIT CARDS TAB */}

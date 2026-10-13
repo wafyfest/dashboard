@@ -9,7 +9,9 @@ import {
   AlertTriangle,
   Trophy,
   Lock,
-  UserCheck
+  UserCheck,
+  HeartHandshake,
+  BellRing
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -30,6 +32,8 @@ export default function AdminPage() {
     { id: 'items', label: 'Events Catalog', icon: Award },
     { id: 'colleges', label: 'Colleges & Overrides', icon: Building2 },
     { id: 'college_registrations', label: 'College Registrations', icon: UserCheck },
+    { id: 'volunteers', label: 'Manage Volunteers', icon: HeartHandshake },
+    { id: 'announcements', label: 'Broadcast Alerts', icon: BellRing },
     { id: 'appeals', label: 'Appeals & Replacements', icon: AlertTriangle },
     { id: 'results', label: 'Results & Points', icon: Trophy }
   ];
