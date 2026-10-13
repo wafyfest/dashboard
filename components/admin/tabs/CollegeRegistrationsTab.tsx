@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import {
@@ -607,9 +607,7 @@ export function CollegeRegistrationsTab({
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <CategoryBadge category={item.category} />
-                                  <span className="text-[10px] text-[var(--text-muted)]">
-                                    Mode: <span className="capitalize">{item.mode || 'onstage'}</span>
-                                  </span>
+                                  <ItemModeBadge mode={item.mode} size="sm" />
                                 </div>
                               </TableCell>
 
@@ -1318,8 +1316,7 @@ export function CollegeRegistrationsTab({
                           <TableRow>
                             <TableHead className="w-20 font-bold py-2">Code</TableHead>
                             <TableHead className="font-bold py-2">Event Name</TableHead>
-                            <TableHead className="w-20 font-bold py-2">Type</TableHead>
-                            <TableHead className="w-20 font-bold py-2">Mode</TableHead>
+                            <TableHead className="font-bold py-2">Type / Mode</TableHead>
                             <TableHead className="font-bold py-2">Stage / Schedule</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1333,14 +1330,7 @@ export function CollegeRegistrationsTab({
                                   {item.name}
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  <Badge variant={item.item_type === 'Single' ? 'default' : 'purple'} size="sm">
-                                    {item.item_type}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="py-2">
-                                  <span className="text-xs capitalize text-[var(--text-secondary)] font-medium">
-                                    {item.mode}
-                                  </span>
+                                  <ItemTypeBadge type={item.item_type} mode={item.mode} size="sm" />
                                 </TableCell>
                                 <TableCell className="text-xs text-[var(--text-muted)] py-2">
                                   {sched ? (

@@ -5,7 +5,7 @@ import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
-import { Badge, CategoryBadge, AppealStatusBadge, StageStatusBadge } from '../ui/badge';
+import { Badge, CategoryBadge, AppealStatusBadge, StageStatusBadge, ItemModeBadge, ItemTypeBadge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Modal } from '../ui/modal';
 import {
@@ -316,7 +316,7 @@ export function CollegeView() {
                   <TableHead>Code</TableHead>
                   <TableHead>Event Title</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead className="text-center">Type / Mode</TableHead>
                   <TableHead>Required Participants</TableHead>
                   <TableHead>Enrollment Status</TableHead>
                   <TableHead className="text-right">Action</TableHead>
@@ -341,10 +341,8 @@ export function CollegeView() {
                       <TableCell>
                         <CategoryBadge category={item.category} />
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={item.item_type === 'Single' ? 'default' : 'purple'}>
-                          {item.item_type}
-                        </Badge>
+                      <TableCell className="text-center">
+                        <ItemTypeBadge type={item.item_type} mode={item.mode} />
                       </TableCell>
                       <TableCell className="font-mono text-slate-600">
                         {item.min_participants === item.max_participants
@@ -721,14 +719,17 @@ export function CollegeView() {
 
           return (
             <form onSubmit={handleConfirmRegistration} className="space-y-4">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div>
-                  <span className="font-semibold text-slate-700">Category Requirement: </span>
+                  <span className="font-semibold text-slate-700">Category: </span>
                   <CategoryBadge category={selectedItemForReg.phase || selectedItemForReg.category || 'General'} />
                 </div>
                 <div>
-                  <span className="font-semibold text-slate-700">Type: </span>
-                  <Badge variant="navy">{selectedItemForReg.point_type === 'group' ? 'Group' : 'Single'}</Badge>
+                  <span className="font-semibold text-slate-700">Type / Mode: </span>
+                  <ItemTypeBadge
+                    type={selectedItemForReg.point_type === 'group' ? 'Group' : 'Individual'}
+                    mode={selectedItemForReg.mode}
+                  />
                 </div>
               </div>
 

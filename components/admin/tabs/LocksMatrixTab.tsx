@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, startTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge, ItemModeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
@@ -280,8 +280,7 @@ export function LocksMatrixTab() {
                         <span className="px-1.5 py-0.2 rounded bg-slate-800/60 text-slate-400 text-[11px]">
                           {item.phase || item.category}
                         </span>
-                        <span>•</span>
-                        <span className="font-mono text-[11px]">{item.mode}</span>
+                        <ItemModeBadge mode={item.mode} size="sm" />
                         <span>•</span>
                         <span className="text-[11px]">
                           {item.point_type === 'group' || item.item_type === 'Group' ? 'Group' : 'Single'}

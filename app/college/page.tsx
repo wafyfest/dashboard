@@ -16,7 +16,7 @@ import {
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
@@ -564,14 +564,17 @@ export default function CollegePortalPage() {
 
             return (
               <form onSubmit={handleConfirmRegistration} className="space-y-4">
-                <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Category Requirement: </span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Category: </span>
                     <CategoryBadge category={selectedItemForReg.phase || selectedItemForReg.category || 'General'} />
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Type: </span>
-                    <Badge variant="navy">{selectedItemForReg.point_type === 'group' ? 'Group' : 'Single'}</Badge>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Type / Mode: </span>
+                    <ItemTypeBadge
+                      type={selectedItemForReg.point_type === 'group' ? 'Group' : 'Individual'}
+                      mode={selectedItemForReg.mode}
+                    />
                   </div>
                 </div>
 

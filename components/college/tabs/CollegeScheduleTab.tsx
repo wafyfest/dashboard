@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { StageStatusBadge } from '@/components/ui/badge';
+import { StageStatusBadge, ItemModeBadge } from '@/components/ui/badge';
 import { Schedule, Registration } from '@/lib/types/fest';
 import { Calendar } from 'lucide-react';
 
@@ -50,7 +50,10 @@ export function CollegeScheduleTab({ schedules, registrations }: CollegeSchedule
                   <TableRow key={sch.id}>
                     <TableCell>
                       <div className="font-bold text-[var(--text-primary)]">{sch.item?.name || sch.item?.name_eng}</div>
-                      <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code || sch.item?.item_code}</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code || sch.item?.item_code}</span>
+                        {sch.item?.mode && <ItemModeBadge mode={sch.item.mode} size="sm" />}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-[var(--text-primary)]">{sch.stage?.name}</div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useFest } from '@/lib/context/FestContext';
@@ -35,6 +35,7 @@ export function EventsCatalogTab() {
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<'All' | 'Single' | 'Group'>('All');
+  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
   const [selectedLockStatus, setSelectedLockStatus] = useState<'All' | 'Open' | 'Locked'>('All');
 
   // Modal State
@@ -80,7 +81,13 @@ export function EventsCatalogTab() {
     const group = items.filter(i => (i.point_type === 'group' || i.item_type === 'Group')).length;
     const locked = items.filter(i => i.is_locked).length;
     const open = total - locked;
-    return { total, single, group, locked, open };
+    const onstage = items.filter(i => (i.mode || '').toLowerCase().trim() === 'onstage').length;
+    const offstage = items.filter(i => {
+      const m = (i.mode || '').toLowerCase().trim();
+      return m === 'offstage' || (m !== 'onstage' && m !== 'submission');
+    }).length;
+    const submission = items.filter(i => (i.mode || '').toLowerCase().trim() === 'submission').length;
+    return { total, single, group, locked, open, onstage, offstage, submission };
   }, [items]);
 
   // Filtered and sorted items
@@ -113,20 +120,28 @@ export function EventsCatalogTab() {
           (selectedType === 'Group' && isGroup) ||
           (selectedType === 'Single' && !isGroup);
 
+        // Stage Mode filter (On Stage, Off Stage, Submission)
+        const itemNormMode = (item.mode || 'onstage').toLowerCase().trim();
+        const matchMode =
+          selectedMode === 'All' ||
+          (selectedMode === 'onstage' && itemNormMode === 'onstage') ||
+          (selectedMode === 'offstage' && (itemNormMode === 'offstage' || (itemNormMode !== 'onstage' && itemNormMode !== 'submission'))) ||
+          (selectedMode === 'submission' && itemNormMode === 'submission');
+
         // Lock status filter
         const matchLock =
           selectedLockStatus === 'All' ||
           (selectedLockStatus === 'Locked' && item.is_locked) ||
           (selectedLockStatus === 'Open' && !item.is_locked);
 
-        return matchSearch && matchPhase && matchCategory && matchType && matchLock;
+        return matchSearch && matchPhase && matchCategory && matchType && matchMode && matchLock;
       })
       .sort((a, b) => {
         const codeA = a.item_code || a.code || '';
         const codeB = b.item_code || b.code || '';
         return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
       });
-  }, [items, searchQuery, selectedPhase, selectedCategory, selectedType, selectedLockStatus]);
+  }, [items, searchQuery, selectedPhase, selectedCategory, selectedType, selectedMode, selectedLockStatus]);
 
   const handleOpenAddModal = () => {
     setEditingItem({
@@ -211,7 +226,7 @@ export function EventsCatalogTab() {
   return (
     <div className="space-y-6">
       {/* 1. Metrics Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)] p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">Total Events</span>
@@ -225,27 +240,38 @@ export function EventsCatalogTab() {
 
         <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)] p-4 rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Single Events</span>
-            <Users className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-medium text-slate-500">On Stage</span>
+            <Mic className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
-            {metrics.single}
+            {metrics.onstage}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Solo competitor items</div>
+          <div className="text-[11px] text-slate-500 mt-1">Live stage performances</div>
         </Card>
 
         <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)] p-4 rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Group Ensembles</span>
-            <Layers className="w-4 h-4 text-purple-500" />
+            <span className="text-xs font-medium text-slate-500">Off Stage</span>
+            <PenTool className="w-4 h-4 text-sky-500" />
           </div>
-          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1 font-mono">
-            {metrics.group}
+          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1 font-mono">
+            {metrics.offstage}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Team &amp; choir events</div>
+          <div className="text-[11px] text-slate-500 mt-1">Written / hall exams</div>
         </Card>
 
         <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)] p-4 rounded-xl">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500">Format Types</span>
+            <Layers className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="text-lg font-bold text-[var(--text-primary)] mt-1 font-mono">
+            {metrics.single} <span className="text-xs font-normal text-slate-500">Solo</span> • {metrics.group} <span className="text-xs font-normal text-slate-500">Group</span>
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">Single vs Ensembles</div>
+        </Card>
+
+        <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)] p-4 rounded-xl col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">Global Lock State</span>
             <Lock className="w-4 h-4 text-rose-500" />
@@ -266,7 +292,7 @@ export function EventsCatalogTab() {
               Arts Fest Events Directory
             </CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-0.5">
-              Manage event codes, academic phase levels, categories (A, B, C, D), and participant quotas per college
+              Manage event codes, stage modes (On Stage / Off Stage), categories, and participant quotas per college
             </CardDescription>
           </div>
 
@@ -277,7 +303,7 @@ export function EventsCatalogTab() {
 
         {/* 3. Search & Filter Toolbar */}
         <div className="p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2.5">
             {/* Search Input */}
             <div className="relative md:col-span-2">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -288,6 +314,20 @@ export function EventsCatalogTab() {
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 rounded-lg text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Stage Mode Filter (On Stage vs Off Stage) */}
+            <div>
+              <select
+                value={selectedMode}
+                onChange={e => setSelectedMode(e.target.value as any)}
+                className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              >
+                <option value="All">All Stage Modes</option>
+                <option value="onstage">On Stage Only</option>
+                <option value="offstage">Off Stage Only</option>
+                <option value="submission">Submission Only</option>
+              </select>
             </div>
 
             {/* Phase Filter */}
@@ -338,7 +378,7 @@ export function EventsCatalogTab() {
               Showing <strong className="text-[var(--text-primary)] font-mono">{filteredItems.length}</strong> of{' '}
               <strong className="text-[var(--text-primary)] font-mono">{items.length}</strong> events
             </span>
-            {(searchQuery || selectedPhase !== 'All' || selectedCategory !== 'All' || selectedType !== 'All' || selectedLockStatus !== 'All') && (
+            {(searchQuery || selectedPhase !== 'All' || selectedCategory !== 'All' || selectedType !== 'All' || selectedMode !== 'All' || selectedLockStatus !== 'All') && (
               <button
                 type="button"
                 onClick={() => {
@@ -346,6 +386,7 @@ export function EventsCatalogTab() {
                   setSelectedPhase('All');
                   setSelectedCategory('All');
                   setSelectedType('All');
+                  setSelectedMode('All');
                   setSelectedLockStatus('All');
                 }}
                 className="text-blue-500 hover:underline cursor-pointer"
@@ -366,8 +407,7 @@ export function EventsCatalogTab() {
                 <th className="py-2.5 px-3 min-w-[220px]">Event Title</th>
                 <th className="py-2.5 px-3">Phase</th>
                 <th className="py-2.5 px-3 text-center">Category</th>
-                <th className="py-2.5 px-3 text-center">Type</th>
-                <th className="py-2.5 px-3 text-center">Mode</th>
+                <th className="py-2.5 px-3 text-center">Type / Mode</th>
                 <th className="py-2.5 px-3 text-center min-w-[140px]">Participants / College</th>
                 <th className="py-2.5 px-3 text-center">Lock Status</th>
                 <th className="py-2.5 px-3 text-right w-36">Actions</th>
@@ -415,18 +455,9 @@ export function EventsCatalogTab() {
                       </span>
                     </td>
 
-                    {/* Type */}
+                    {/* Type / Mode */}
                     <td className="py-3 px-3 text-center">
-                      <Badge variant={isGroup ? 'purple' : 'secondary'}>
-                        {isGroup ? 'Group' : 'Single'}
-                      </Badge>
-                    </td>
-
-                    {/* Mode */}
-                    <td className="py-3 px-3 text-center">
-                      <span className="capitalize font-mono text-[11px] text-slate-400">
-                        {item.mode || 'onstage'}
-                      </span>
+                      <ItemTypeBadge type={isGroup ? 'Group' : 'Individual'} mode={item.mode} />
                     </td>
 
                     {/* Participants from a College */}
@@ -607,10 +638,11 @@ export function EventsCatalogTab() {
               <select
                 value={editingItem.mode}
                 onChange={e => setEditingItem({ ...editingItem, mode: e.target.value as ItemMode })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-blue-500 capitalize"
+                className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
-                <option value="onstage">Onstage</option>
-                <option value="offstage">Offstage</option>
+                <option value="onstage">On Stage (Live Stage Performance)</option>
+                <option value="offstage">Off Stage (Written / Hall)</option>
+                <option value="submission">Submission (Pre-event File/Artwork)</option>
               </select>
             </div>
           </div>
