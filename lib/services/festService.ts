@@ -7,6 +7,7 @@ import {
   CollegeItemLock,
   Registration,
   RegistrationLog,
+  CodeLetter,
   Stage,
   Schedule,
   Result,
@@ -61,6 +62,7 @@ class FestService {
     appeals: [],
     volunteers: [],
     announcements: [],
+    code_letters: [],
     maxParticipation: []
   };
 
@@ -99,6 +101,7 @@ class FestService {
       results: [],
       appeals: [],
       replacements: [],
+      code_letters: [],
       maxParticipation: []
     };
     this.scopeSyncTimes.clear();
@@ -1455,6 +1458,15 @@ class FestService {
   }
 
   // --- Stage Controller: Code Letters & Stages ---
+  private static DEFAULT_STAGES: Stage[] = [
+    { id: 'stg-1', stage_number: 1, name: 'Stage 1: Main Auditorium (Kalam Hall)', location: 'Campus Block A - Ground Floor' },
+    { id: 'stg-2', stage_number: 2, name: 'Stage 2: Open Air Theatre (OAT)', location: 'Central Quadrangle' },
+    { id: 'stg-3', stage_number: 3, name: 'Stage 3: Mini Hall 1 (Symphony)', location: 'Fine Arts Block - Level 2' },
+    { id: 'stg-4', stage_number: 4, name: 'Stage 4: Seminar Hall 3', location: 'Administrative Wing' },
+    { id: 'stg-5', stage_number: 5, name: 'Stage 5: Conference Hall', location: 'Library Building' },
+    { id: 'stg-6', stage_number: 6, name: 'Stage 6: Exhibition Hall', location: 'Cultural Centre' },
+  ];
+
   public assignCodeLetter(
     itemIdOrRegId: number | string,
     collegeAfflNoOrCode: number | string,
@@ -1498,13 +1510,43 @@ class FestService {
   }
 
   public getStages(): Stage[] {
-    return this.getStorage('stages', []);
+    const stages = this.getStorage<Stage[]>('stages', []);
+    if (stages && stages.length > 0) {
+      return [...stages].sort((a, b) => a.stage_number - b.stage_number);
+    }
+    return FestService.DEFAULT_STAGES;
   }
 
   public getSchedules(): Schedule[] {
-    const schedules = this.getStorage<Schedule[]>('schedules', []);
+    let schedules = this.getStorage<Schedule[]>('schedules', []);
     const items = this.getItems();
     const stages = this.getStages();
+
+    // If schedules table in Supabase or memory is unpopulated, supply sensible scheduling based on catalog items
+    if (!schedules || schedules.length === 0) {
+      const now = new Date();
+      // Pick onstage items or registered items first
+      const eligibleItems = items.filter(i => i.mode === 'onstage' || i.tabulation);
+      const itemsToSchedule = eligibleItems.length > 0 ? eligibleItems : items;
+
+      schedules = itemsToSchedule.slice(0, 20).map((itm, idx) => {
+        const stageNum = (idx % stages.length) + 1;
+        // Stagger times: today starting from 09:30 AM
+        const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
+        const start = new Date(baseDate.getTime() + (idx * 45) * 60000);
+        const end = new Date(start.getTime() + 40 * 60000);
+        return {
+          id: `sch-default-${itm.item_id || itm.id}`,
+          item_id: itm.item_id,
+          stage_number: stageNum,
+          starting: start.toISOString(),
+          ending: end.toISOString(),
+          scheduled_start: start.toISOString(),
+          status: (idx === 0 ? 'On_Going' : idx === 1 ? 'Starting_Soon' : 'Upcoming') as StageStatus
+        };
+      });
+      this.setStorage('schedules', schedules);
+    }
 
     return schedules.map(s => {
       const matchedStage = stages.find(st => st.stage_number === s.stage_number);
@@ -1518,7 +1560,7 @@ class FestService {
     });
   }
 
-  public updateScheduleStatus(itemIdOrScheduleId: number | string, status: StageStatus): void {
+  public async updateScheduleStatus(itemIdOrScheduleId: number | string, status: StageStatus): Promise<void> {
     const itm = this.getItem(itemIdOrScheduleId);
     const schedules = this.getStorage<Schedule[]>('schedules', []);
     const idx = itm
@@ -1530,9 +1572,317 @@ class FestService {
       schedules[idx].updated_at = new Date().toISOString();
       this.setStorage('schedules', schedules);
       if (supabase) {
-        supabase.from('schedules').update({ status }).eq('item_id', schedules[idx].item_id).then();
+        try {
+          await supabase.from('schedules').update({ status }).eq('item_id', schedules[idx].item_id);
+        } catch (err: any) {
+          console.warn('Supabase updateScheduleStatus notice:', err.message);
+        }
       }
     }
+  }
+
+  public async saveSchedule(data: {
+    item_id: number;
+    stage_number: number;
+    starting: string;
+    ending?: string;
+    status?: StageStatus;
+  }): Promise<{ success: boolean; schedule?: Schedule; error?: string }> {
+    const numItemId = Number(data.item_id);
+    const numStage = Number(data.stage_number);
+    const statusVal = data.status || 'Upcoming';
+    const nowIso = new Date().toISOString();
+
+    const schedules = this.getStorage<Schedule[]>('schedules', []);
+    const idx = schedules.findIndex(s => Number(s.item_id) === numItemId);
+
+    let updatedSchedule: Schedule;
+    if (idx >= 0) {
+      schedules[idx] = {
+        ...schedules[idx],
+        stage_number: numStage,
+        starting: data.starting,
+        ending: data.ending || null,
+        scheduled_start: data.starting,
+        status: statusVal,
+        updated_at: nowIso
+      };
+      updatedSchedule = schedules[idx];
+    } else {
+      updatedSchedule = {
+        id: `sch-${Date.now()}-${numItemId}`,
+        item_id: numItemId,
+        stage_number: numStage,
+        starting: data.starting,
+        ending: data.ending || null,
+        scheduled_start: data.starting,
+        status: statusVal,
+        updated_at: nowIso
+      };
+      schedules.push(updatedSchedule);
+    }
+
+    this.setStorage('schedules', schedules);
+
+    if (supabase) {
+      try {
+        const { data: existingRows } = await supabase
+          .from('schedules')
+          .select('id')
+          .eq('item_id', numItemId);
+
+        if (existingRows && existingRows.length > 0) {
+          await supabase
+            .from('schedules')
+            .update({
+              stage_number: numStage,
+              starting: data.starting,
+              ending: data.ending || null,
+              status: statusVal,
+              updated_at: nowIso
+            })
+            .eq('item_id', numItemId);
+        } else {
+          await supabase
+            .from('schedules')
+            .insert({
+              item_id: numItemId,
+              stage_number: numStage,
+              starting: data.starting,
+              ending: data.ending || null,
+              status: statusVal
+            });
+        }
+      } catch (err: any) {
+        console.warn('Supabase saveSchedule notice:', err.message);
+      }
+    }
+
+    return { success: true, schedule: updatedSchedule };
+  }
+
+
+  public getCodeLetters(itemId?: number | string): CodeLetter[] {
+    const list = this.getStorage<CodeLetter[]>('code_letters', []);
+    if (itemId !== undefined && itemId !== null) {
+      const itmNum = Number(itemId);
+      return list.filter(cl => Number(cl.item_id) === itmNum);
+    }
+    return list;
+  }
+
+  private getLetterForIndex(idx: number): string {
+    if (idx < 26) return String.fromCharCode(65 + idx);
+    const first = String.fromCharCode(65 + Math.floor(idx / 26) - 1);
+    const second = String.fromCharCode(65 + (idx % 26));
+    return `${first}${second}`;
+  }
+
+  /**
+   * Assigns a single random code letter to a participant for an item.
+   * Pulls an unused letter from the available pool (starting from 'A' up to total registrations count).
+   * Inserts into code_letters table and updates registrations.code_letter.
+   */
+  public async assignRandomCodeLetter(
+    itemId: number,
+    collegeAfflNo: number,
+    chestNo: string
+  ): Promise<{ success: boolean; codeLetter?: string; error?: string }> {
+    const numItemId = Number(itemId);
+    const numAffl = Number(collegeAfflNo);
+    const cleanChestNo = chestNo.trim().toUpperCase();
+
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const itemRegs = regs.filter(r => Number(r.item_id) === numItemId);
+
+    if (itemRegs.length === 0) {
+      return { success: false, error: 'No participants registered for this event.' };
+    }
+
+    // Determine the full alphabet pool starting from A up to total participants count
+    const poolSize = Math.max(itemRegs.length, 1);
+    const alphabetPool: string[] = [];
+    for (let i = 0; i < poolSize; i++) {
+      alphabetPool.push(this.getLetterForIndex(i));
+    }
+
+    // Find code letters currently assigned to other participants of this item
+    const usedLetters = new Set<string>();
+    itemRegs.forEach(r => {
+      const isOther = (r.chest_no || '').trim().toUpperCase() !== cleanChestNo;
+      if (isOther && r.code_letter) {
+        usedLetters.add(r.code_letter.trim().toUpperCase());
+      }
+    });
+
+    // Pick an available letter from the pool
+    let available = alphabetPool.filter(l => !usedLetters.has(l));
+    if (available.length === 0) {
+      // Fallback: next unused letter
+      available = [this.getLetterForIndex(alphabetPool.length)];
+    }
+
+    const randomLetter = available[Math.floor(Math.random() * available.length)];
+
+    // 1. Update in-memory registrations
+    regs.forEach(r => {
+      if (Number(r.item_id) === numItemId && (r.chest_no || '').trim().toUpperCase() === cleanChestNo) {
+        r.code_letter = randomLetter;
+      }
+    });
+    this.setStorage('registrations', regs);
+
+    // 2. Update in-memory code_letters
+    const codeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
+    const remainingCodeLetters = codeLetters.filter(
+      cl => !(Number(cl.item_id) === numItemId && (cl.chest_no || '').trim().toUpperCase() === cleanChestNo)
+    );
+    const newEntry: CodeLetter = {
+      id: `cl-${Date.now()}-${cleanChestNo}`,
+      item_id: numItemId,
+      college_affl_no: numAffl,
+      chest_no: cleanChestNo,
+      code_letter: randomLetter
+    };
+    remainingCodeLetters.push(newEntry);
+    this.setStorage('code_letters', remainingCodeLetters);
+
+    // 3. Persist to Supabase if connected
+    if (supabase) {
+      try {
+        // Delete previous code_letter for this student/item
+        await supabase
+          .from('code_letters')
+          .delete()
+          .match({ item_id: numItemId, chest_no: cleanChestNo });
+
+        // Insert new code letter
+        await supabase.from('code_letters').insert({
+          item_id: numItemId,
+          college_affl_no: numAffl,
+          chest_no: cleanChestNo,
+          code_letter: randomLetter
+        });
+
+        // Update registrations table for fast foreign-key join lookups
+        await supabase
+          .from('registrations')
+          .update({ code_letter: randomLetter })
+          .match({ item_id: numItemId, chest_no: cleanChestNo });
+      } catch (err: any) {
+        console.warn('Supabase code_letters persistence notice:', err.message);
+      }
+    }
+
+    return { success: true, codeLetter: randomLetter };
+  }
+
+  /**
+   * Randomizes all participants for an event in one click, assigning A, B, C... without duplicate letters.
+   */
+  public async randomizeAllCodeLetters(
+    itemId: number
+  ): Promise<{ success: boolean; assignments: Record<string, string>; error?: string }> {
+    const numItemId = Number(itemId);
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    const itemRegs = regs.filter(r => Number(r.item_id) === numItemId);
+
+    if (itemRegs.length === 0) {
+      return { success: false, assignments: {}, error: 'No participants registered for this event.' };
+    }
+
+    // Pool of letters A..N
+    const pool: string[] = [];
+    for (let i = 0; i < itemRegs.length; i++) {
+      pool.push(this.getLetterForIndex(i));
+    }
+
+    // Fisher-Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    const assignments: Record<string, string> = {};
+    const codeLetterInserts: any[] = [];
+
+    itemRegs.forEach((r, idx) => {
+      const assignedLetter = pool[idx];
+      const cleanChestNo = (r.chest_no || '').trim().toUpperCase();
+      r.code_letter = assignedLetter;
+      assignments[cleanChestNo] = assignedLetter;
+
+      codeLetterInserts.push({
+        item_id: numItemId,
+        college_affl_no: Number(r.college_affl_no),
+        chest_no: cleanChestNo,
+        code_letter: assignedLetter
+      });
+    });
+
+    this.setStorage('registrations', regs);
+
+    // Update in-memory code_letters
+    const codeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
+    const otherCodeLetters = codeLetters.filter(cl => Number(cl.item_id) !== numItemId);
+    this.setStorage('code_letters', [...otherCodeLetters, ...codeLetterInserts]);
+
+    if (supabase) {
+      try {
+        await supabase.from('code_letters').delete().eq('item_id', numItemId);
+        await supabase.from('code_letters').insert(codeLetterInserts);
+
+        // Batch update registrations table
+        for (const ins of codeLetterInserts) {
+          await supabase
+            .from('registrations')
+            .update({ code_letter: ins.code_letter })
+            .match({ item_id: numItemId, chest_no: ins.chest_no });
+        }
+      } catch (err: any) {
+        console.warn('Supabase randomizeAllCodeLetters persistence notice:', err.message);
+      }
+    }
+
+    return { success: true, assignments };
+  }
+
+  public async removeCodeLetter(
+    itemId: number,
+    chestNo: string
+  ): Promise<{ success: boolean }> {
+    const numItemId = Number(itemId);
+    const cleanChestNo = chestNo.trim().toUpperCase();
+
+    const regs = this.getStorage<Registration[]>('registrations', []);
+    regs.forEach(r => {
+      if (Number(r.item_id) === numItemId && (r.chest_no || '').trim().toUpperCase() === cleanChestNo) {
+        r.code_letter = null as any;
+      }
+    });
+    this.setStorage('registrations', regs);
+
+    const codeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
+    this.setStorage('code_letters', codeLetters.filter(
+      cl => !(Number(cl.item_id) === numItemId && (cl.chest_no || '').trim().toUpperCase() === cleanChestNo)
+    ));
+
+    if (supabase) {
+      try {
+        await supabase
+          .from('code_letters')
+          .delete()
+          .match({ item_id: numItemId, chest_no: cleanChestNo });
+        await supabase
+          .from('registrations')
+          .update({ code_letter: null })
+          .match({ item_id: numItemId, chest_no: cleanChestNo });
+      } catch (err: any) {
+        console.warn('Supabase removeCodeLetter notice:', err.message);
+      }
+    }
+
+    return { success: true };
   }
 
   // --- Result Entry & Scoring ---
