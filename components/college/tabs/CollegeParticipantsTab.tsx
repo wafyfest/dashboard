@@ -7,7 +7,8 @@ import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Registration, Item, isCategoryMatching } from '@/lib/types/fest';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { Download, Search, Users, ArrowUpDown, ChevronDown, RotateCcw } from 'lucide-react';
+import { Download, Search, Users, ArrowUpDown, ChevronDown, RotateCcw, FileText } from 'lucide-react';
+import { generateParticipantsListPdf } from '@/lib/utils/participantsListPdf';
 
 interface CollegeParticipantsTabProps {
   registrations: Registration[];
@@ -188,36 +189,38 @@ export function CollegeParticipantsTab({
     setSearchQuery('');
   };
 
-  const handleExportCSV = () => {
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleDownloadPDF = () => {
     if (filteredRows.length === 0) {
       alert('No participant records available to export.');
       return;
     }
 
-    const rows: string[] = [];
-    rows.push('Student Name,CIC No,Chest No,Category,Item Name,Item Code,Item Type,Blind Code,Mode');
+    setIsExportingPdf(true);
+    try {
+      const doc = generateParticipantsListPdf({
+        collegeName,
+        collegeAfflNo,
+        participants: filteredRows,
+        filterSummary: hasActiveFilters
+          ? [
+              selectedCategory !== 'All Categories' ? `Category: ${selectedCategory}` : null,
+              selectedItemCode !== 'All Item Codes' ? `Item: ${selectedItemCode}` : null,
+              selectedMode !== 'All Modes' ? `Mode: ${selectedMode}` : null,
+              searchQuery ? `Search: "${searchQuery}"` : null
+            ].filter(Boolean).join(' | ')
+          : undefined
+      });
 
-    filteredRows.forEach(p => {
-      const studentName = `"${p.studentName.replace(/"/g, '""')}"`;
-      const cicNo = `"${p.cicNo.replace(/"/g, '""')}"`;
-      const chestNo = `"${p.chestNo.replace(/"/g, '""')}"`;
-      const category = `"${p.category.replace(/"/g, '""')}"`;
-      const itemName = `"${p.itemName.replace(/"/g, '""')}"`;
-      const itemCode = `"${p.itemCode.replace(/"/g, '""')}"`;
-      const itemType = `"${p.itemType.replace(/"/g, '""')}"`;
-      const blindCode = `"${p.blindCode.replace(/"/g, '""')}"`;
-      const mode = `"${(p.itemMode || '').replace(/"/g, '""')}"`;
-
-      rows.push(`${studentName},${cicNo},${chestNo},${category},${itemName},${itemCode},${itemType},${blindCode},${mode}`);
-    });
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(rows.join('\n'));
-    const link = document.createElement('a');
-    link.setAttribute('href', csvContent);
-    link.setAttribute('download', `${collegeName.replace(/[^a-z0-9]/gi, '_')}_Affl${collegeAfflNo}_Participants.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const cleanCollege = (collegeName || 'College').replace(/[^a-z0-9]/gi, '_');
+      doc.save(`${cleanCollege}_Affl${collegeAfflNo}_Participants.pdf`);
+    } catch (err: any) {
+      console.error('Failed to generate participants PDF:', err);
+      alert('Failed to generate participants PDF: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   return (
@@ -310,15 +313,18 @@ export function CollegeParticipantsTab({
             </Button>
           )}
 
-          {/* Export CSV Button */}
+          {/* Download Participants PDF Button */}
           <Button
             size="sm"
-            variant="outline"
-            onClick={handleExportCSV}
-            className="border-[var(--border-medium)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center gap-1.5 font-semibold shrink-0"
+            variant="primary"
+            onClick={handleDownloadPDF}
+            disabled={isExportingPdf || filteredRows.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 font-semibold shrink-0 shadow-2xs"
+            title="Download Official Participants Directory as PDF"
           >
-            <Download className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <FileText className="w-4 h-4 text-emerald-100" />
+            <span className="hidden sm:inline">{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
+            <span className="sm:hidden">PDF</span>
           </Button>
         </div>
       </CardHeader>
