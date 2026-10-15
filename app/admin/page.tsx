@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
+  Calendar,
   Clock,
   Award,
   Building2,
@@ -27,6 +28,7 @@ export default function AdminPage() {
 
   const navItems: NavItem[] = [
     { id: 'overview', label: 'Fest Overview', icon: ShieldAlert },
+    { id: 'schedule', label: 'Events Schedule', icon: Calendar },
     { id: 'locks_matrix', label: 'Entry Locks Matrix', icon: Lock },
     { id: 'settings', label: 'Deadlines & Branding', icon: Clock },
     { id: 'items', label: 'Events Catalog', icon: Award },

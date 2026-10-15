@@ -41,10 +41,12 @@ import { CollegesTab } from '../admin/tabs/CollegesTab';
 import { CollegeRegistrationsTab } from '../admin/tabs/CollegeRegistrationsTab';
 import { ManageVolunteersTab } from '../admin/tabs/ManageVolunteersTab';
 import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
+import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
 
 
 export type AdminTab =
   | 'overview'
+  | 'schedule'
   | 'locks_matrix'
   | 'settings'
   | 'items'
@@ -251,6 +253,15 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
             {renderCollegesCard(true)}
           </div>
         </div>
+      )}
+
+      {/* 1.1. EVENTS SCHEDULE TAB */}
+      {activeTab === 'schedule' && (
+        <EventsScheduleTab
+          items={items}
+          stages={festService.getStages()}
+          schedules={schedules}
+        />
       )}
 
       {/* 2. ENTRY LOCKS MATRIX TAB */}

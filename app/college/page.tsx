@@ -11,7 +11,11 @@ import {
   ShieldAlert,
   Trash2,
   UserPlus,
-  HeartHandshake
+  HeartHandshake,
+  Search,
+  Filter,
+  X,
+  ChevronDown
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -68,6 +72,8 @@ export default function CollegePortalPage() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedItemForReg, setSelectedItemForReg] = useState<Item | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
+  const [regModalSearch, setRegModalSearch] = useState<string>('');
+  const [regModalPhaseFilter, setRegModalPhaseFilter] = useState<string>('All');
 
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [appealForm, setAppealForm] = useState({ itemId: '', reason: '', feeReceiptUrl: '' });
@@ -255,6 +261,52 @@ export default function CollegePortalPage() {
     ].filter(card => card.count > 0);
   }, [students, college]);
 
+  // Phase options derived from enrolled students
+  const availableStudentPhases = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach(s => {
+      const p = s.category || s.phase;
+      if (p) set.add(p);
+    });
+    return Array.from(set).sort();
+  }, [students]);
+
+  // Dynamic filter for participant selection inside Registration Modal
+  const filteredModalStudents = useMemo(() => {
+    return students.filter(s => {
+      // Phase filter
+      if (regModalPhaseFilter !== 'All') {
+        const sCat = s.category || s.phase;
+        if (!isCategoryMatching(sCat, regModalPhaseFilter)) {
+          return false;
+        }
+      }
+
+      // Search query (name, chest no, admission/CIC no)
+      if (regModalSearch.trim()) {
+        const q = regModalSearch.toLowerCase().trim();
+        const name = (s.full_name || s.name || '').toLowerCase();
+        const chest = (getCanonicalChestNo(s) || s.chest_no || '').toLowerCase();
+        const adm = String(s.admission_no || s.cic_no || '').toLowerCase();
+        if (!name.includes(q) && !chest.includes(q) && !adm.includes(q)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [students, regModalSearch, regModalPhaseFilter]);
+
+  // Count of selected students currently hidden by active filter
+  const hiddenSelectedCount = useMemo(() => {
+    const visibleIds = new Set(filteredModalStudents.map(s => s.id));
+    let count = 0;
+    selectedStudentIds.forEach(id => {
+      if (!visibleIds.has(id)) count++;
+    });
+    return count;
+  }, [filteredModalStudents, selectedStudentIds]);
+
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
     festService.saveStudent({ ...newStudent, college_id: currentCollegeId });
@@ -268,6 +320,8 @@ export default function CollegePortalPage() {
     const preselected = existingReg?.participants?.map(p => p.id) || [];
     setSelectedItemForReg(item);
     setSelectedStudentIds(new Set(preselected));
+    setRegModalSearch('');
+    setRegModalPhaseFilter('All');
     setIsRegisterModalOpen(true);
   };
 
@@ -578,83 +632,168 @@ export default function CollegePortalPage() {
                   </div>
                 </div>
 
+                {/* Participant Search and Phase Filter */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  {/* Search Input */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search student name, chest no, admission/CIC no..."
+                      value={regModalSearch}
+                      onChange={e => setRegModalSearch(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 transition-all shadow-2xs"
+                    />
+                    {regModalSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setRegModalSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Student Phase Filter */}
+                  <div className="relative shrink-0 sm:w-44">
+                    <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      value={regModalPhaseFilter}
+                      onChange={e => setRegModalPhaseFilter(e.target.value)}
+                      className="w-full appearance-none pl-8 pr-7 py-2 text-xs font-semibold border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 cursor-pointer shadow-2xs"
+                    >
+                      <option value="All">All Phases</option>
+                      {availableStudentPhases.map(ph => (
+                        <option key={ph} value={ph}>
+                          {ph.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Hidden Selected Alert */}
+                {hiddenSelectedCount > 0 && (
+                  <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 px-3 py-1.5 rounded-xl flex items-center justify-between">
+                    <span>{hiddenSelectedCount} selected student(s) currently hidden by active filter.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegModalSearch('');
+                        setRegModalPhaseFilter('All');
+                      }}
+                      className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-200 ml-2"
+                    >
+                      Clear filter
+                    </button>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Select Participants ({selectedStudentIds.size} / {maxPart} selected)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Select Participants ({selectedStudentIds.size} / {maxPart} selected)
+                    </label>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Showing {filteredModalStudents.length} of {students.length}
+                    </span>
+                  </div>
 
                   <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
-                    {students.map(s => {
-                      const isSelected = selectedStudentIds.has(s.id);
-                      const sCat = s.category || s.phase;
-                      const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
-                      const isCategoryMatch = isCategoryMatching(sCat, itemCat);
+                    {filteredModalStudents.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-500">
+                        <p className="font-semibold text-slate-600 dark:text-slate-400">No participants match your criteria</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Try clearing the search query or phase filter</p>
+                        {(regModalSearch || regModalPhaseFilter !== 'All') && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            className="mt-3 text-xs"
+                            onClick={() => {
+                              setRegModalSearch('');
+                              setRegModalPhaseFilter('All');
+                            }}
+                          >
+                            Reset Search & Filters
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      filteredModalStudents.map(s => {
+                        const isSelected = selectedStudentIds.has(s.id);
+                        const sCat = s.category || s.phase;
+                        const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
+                        const isCategoryMatch = isCategoryMatching(sCat, itemCat);
 
-                      const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits);
-                      const isQuotaComplete = !quotaCheck.allowed;
-                      const isFaded = !isCategoryMatch || (!isSelected && isQuotaComplete);
-                      const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && isQuotaComplete);
+                        const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits);
+                        const isQuotaComplete = !quotaCheck.allowed;
+                        const isFaded = !isCategoryMatch || (!isSelected && isQuotaComplete);
+                        const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && isQuotaComplete);
 
-                      return (
-                        <label
-                          key={s.id}
-                          className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
-                              ? 'opacity-40 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed select-none'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
-                            }`}
-                          title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              disabled={isDisabled}
-                              onChange={e => {
-                                const checked = e.target.checked;
-                                if (checked) {
-                                  if (selectedStudentIds.size >= maxPart) {
-                                    alert(`Maximum participant limit (${maxPart}) reached for this event.`);
-                                    return;
+                        return (
+                          <label
+                            key={s.id}
+                            className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
+                                ? 'opacity-40 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed select-none'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
+                              }`}
+                            title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                disabled={isDisabled}
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  if (checked) {
+                                    if (selectedStudentIds.size >= maxPart) {
+                                      alert(`Maximum participant limit (${maxPart}) reached for this event.`);
+                                      return;
+                                    }
+                                    setSelectedStudentIds(prev => new Set(prev).add(s.id));
+                                  } else {
+                                    setSelectedStudentIds(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(s.id);
+                                      return next;
+                                    });
                                   }
-                                  setSelectedStudentIds(prev => new Set(prev).add(s.id));
-                                } else {
-                                  setSelectedStudentIds(prev => {
-                                    const next = new Set(prev);
-                                    next.delete(s.id);
-                                    return next;
-                                  });
-                                }
-                              }}
-                              className="rounded border-slate-300 dark:border-slate-700 text-[#132238] focus:ring-[#132238] shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-semibold text-[#132238] dark:text-slate-100 truncate">
-                                  {s.full_name || s.name}
-                                </span>
-                                {isQuotaComplete && !isSelected && (
-                                  <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
-                                    {quotaCheck.reason}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5 flex-wrap">
-                                <span>Chest: {getCanonicalChestNo(s)}</span>
-                                <span>•</span>
-                                <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
-                                <span>•</span>
-                                <span className="text-slate-500 dark:text-slate-400 font-sans">
-                                  On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
-                                </span>
+                                }}
+                                className="rounded border-slate-300 dark:border-slate-700 text-[#132238] focus:ring-[#132238] shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-[#132238] dark:text-slate-100 truncate">
+                                    {s.full_name || s.name}
+                                  </span>
+                                  {isQuotaComplete && !isSelected && (
+                                    <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
+                                      {quotaCheck.reason}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5 flex-wrap">
+                                  <span>Chest: {getCanonicalChestNo(s)}</span>
+                                  <span>•</span>
+                                  <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
+                                  <span>•</span>
+                                  <span className="text-slate-500 dark:text-slate-400 font-sans">
+                                    On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="shrink-0 flex items-center gap-1.5">
-                            <CategoryBadge category={sCat || 'Senior'} />
-                          </div>
-                        </label>
-                      );
-                    })}
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              <CategoryBadge category={sCat || 'Senior'} />
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
