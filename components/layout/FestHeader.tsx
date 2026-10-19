@@ -48,7 +48,7 @@ export function FestHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--bg-surface)]/95 backdrop-blur-xs border-b border-[var(--border-subtle)] transition-colors">
+    <header className="sticky top-0 z-40 bg-[var(--bg-surface)]/95 backdrop-blur-xs border-b border-[var(--border-subtle)] transition-colors font-heading">
       {/* Top Banner: Role Switcher & System Status */}
       <div className="bg-[var(--bg-subtle)] text-[var(--text-secondary)] px-4 lg:px-8 py-2 text-xs flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">

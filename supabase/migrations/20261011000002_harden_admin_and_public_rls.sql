@@ -197,6 +197,10 @@ DROP POLICY IF EXISTS "Allow insert on registrations" ON public.registrations;
 DROP POLICY IF EXISTS "Allow update on registrations" ON public.registrations;
 DROP POLICY IF EXISTS "Registrations managed by admin or owning college" ON public.registrations;
 DROP POLICY IF EXISTS "Registrations readable by all authenticated" ON public.registrations;
+DROP POLICY IF EXISTS "registrations_select_authenticated" ON public.registrations;
+DROP POLICY IF EXISTS "registrations_insert_scoped" ON public.registrations;
+DROP POLICY IF EXISTS "registrations_update_scoped" ON public.registrations;
+DROP POLICY IF EXISTS "registrations_delete_scoped" ON public.registrations;
 
 CREATE POLICY "registrations_select_authenticated"
   ON public.registrations FOR SELECT
@@ -252,6 +256,10 @@ DROP POLICY IF EXISTS "Replacements insertable by authenticated" ON public.repla
 DROP POLICY IF EXISTS "Replacements readable by authenticated" ON public.replacements;
 DROP POLICY IF EXISTS "Replacements updatable by admin" ON public.replacements;
 
+DROP POLICY IF EXISTS "replacements_select_scoped" ON public.replacements;
+DROP POLICY IF EXISTS "replacements_insert_scoped" ON public.replacements;
+DROP POLICY IF EXISTS "replacements_update_admin" ON public.replacements;
+
 CREATE POLICY "replacements_select_scoped"
   ON public.replacements FOR SELECT
   TO authenticated
@@ -293,6 +301,9 @@ DROP POLICY IF EXISTS "Appeals insertable by college or admin" ON public.appeals
 DROP POLICY IF EXISTS "Appeals readable by author college or admin" ON public.appeals;
 DROP POLICY IF EXISTS "Appeals updatable by admin" ON public.appeals;
 DROP POLICY IF EXISTS "College users can read own appeals" ON public.appeals;
+DROP POLICY IF EXISTS "appeals_select_scoped" ON public.appeals;
+DROP POLICY IF EXISTS "appeals_insert_scoped" ON public.appeals;
+DROP POLICY IF EXISTS "appeals_update_admin" ON public.appeals;
 
 CREATE POLICY "appeals_select_scoped"
   ON public.appeals FOR SELECT

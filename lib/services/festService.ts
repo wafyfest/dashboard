@@ -17,6 +17,7 @@ import {
   Announcement,
   MaxParticipation,
   SubmissionEntry,
+  LateRegistration,
   UserRole,
   Profile,
   StageStatus,
@@ -63,6 +64,7 @@ class FestService {
     volunteers: [],
     announcements: [],
     code_letters: [],
+    late_registrations: [],
     maxParticipation: []
   };
 
@@ -249,6 +251,32 @@ class FestService {
         }
         // Run self-healing repair for legacy UUID chest numbers
         this.repairLegacyRegistrations();
+      }
+
+      // 6.1. Late Registrations: Scoped fetch from new late_registrations table
+      try {
+        let lateRegQuery = client.from('late_registrations').select('*');
+        if (collegeAfflNo) {
+          lateRegQuery = lateRegQuery.eq('college_affl_no', collegeAfflNo);
+        }
+        const { data: lateData, error: lateErr } = await lateRegQuery;
+        if (!lateErr && lateData) {
+          const normalizedLate = lateData.map((r: Record<string, any>) => ({
+            ...r,
+            college_affl_no: Number(r.college_affl_no),
+            item_id: Number(r.item_id)
+          }));
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existingLate = this.getStorage<LateRegistration[]>('late_registrations', []);
+            const otherLate = existingLate.filter(r => Number(r.college_affl_no) !== numAffl);
+            this.setStorage('late_registrations', [...otherLate, ...normalizedLate]);
+          } else {
+            this.setStorage('late_registrations', normalizedLate);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase sync notice (late_registrations):', err);
       }
 
       // 7. Results & Locks: Safe fetch
@@ -497,12 +525,16 @@ class FestService {
     return this.getStorage('festSettings', defaultSettings);
   }
 
-  public updateFestSettings(settings: Partial<FestSettings>): FestSettings {
+  public async updateFestSettings(settings: Partial<FestSettings>): Promise<FestSettings> {
     const current = this.getFestSettings();
     const updated = { ...current, ...settings };
     this.setStorage('festSettings', updated);
     if (supabase) {
-      supabase.from('fest_settings').upsert(updated).then();
+      const { error } = await supabase.from('fest_settings').upsert(updated);
+      if (error) {
+        console.error('Failed to update fest settings in Supabase:', error.message);
+        throw error;
+      }
     }
     return updated;
   }
@@ -519,7 +551,13 @@ class FestService {
 
     // Emergency college-level override takes precedence
     if (college.manual_lock_override) {
-      return { canRegister: true, isFinePeriod: false };
+      const regDeadline = item.reg_deadline ? new Date(item.reg_deadline) : new Date(settings.reg_deadline);
+      const isPastReg = now > regDeadline;
+      return {
+        canRegister: true,
+        isFinePeriod: isPastReg,
+        reason: isPastReg ? 'Admin Override Active (Late Fine Applies)' : 'Admin Override Active'
+      };
     }
 
     // Event globally locked by fest admin
@@ -647,7 +685,16 @@ class FestService {
     const college = this.getCollege(afflNoOrId);
     if (!college) return false;
     const nextVal = !college.manual_lock_override;
-    this.updateCollege(college.affl_no, { manual_lock_override: nextVal });
+    const settings = this.getFestSettings();
+    const isPastReg = new Date() > new Date(settings.reg_deadline);
+
+    const updates: Partial<College> = { manual_lock_override: nextVal };
+    // If enabling lock override past registration deadline, automatically enforce late fine across server
+    if (nextVal && isPastReg) {
+      updates.fine_status = true;
+    }
+
+    this.updateCollege(college.affl_no, updates);
     return nextVal;
   }
 
@@ -735,6 +782,8 @@ class FestService {
           tabulation: item.tabulation !== undefined ? item.tabulation : items[idx].tabulation,
           point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
           no_of_participants: item.no_of_participants || item.max_participants || items[idx].no_of_participants,
+          reg_deadline: item.reg_deadline !== undefined ? item.reg_deadline : items[idx].reg_deadline,
+          fine_deadline: item.fine_deadline !== undefined ? item.fine_deadline : items[idx].fine_deadline,
           is_locked: item.is_locked !== undefined ? item.is_locked : items[idx].is_locked,
           l_star: item.l_star !== undefined ? item.l_star : items[idx].l_star,
           em_star: item.em_star !== undefined ? item.em_star : items[idx].em_star
@@ -840,6 +889,93 @@ class FestService {
     items.push(fallbackItem);
     this.setStorage('items', items);
     return { success: true, item: fallbackItem };
+  }
+
+  public async updateItemDeadlines(
+    itemId: number,
+    regDeadline: string | null,
+    fineDeadline: string | null
+  ): Promise<{ success: boolean; item?: Item; error?: string }> {
+    const items = this.getStorage<Item[]>('items', []);
+    const idx = items.findIndex(i => i.item_id === itemId);
+    if (idx === -1) {
+      return { success: false, error: 'Event not found' };
+    }
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('items')
+        .update({
+          reg_deadline: regDeadline,
+          fine_deadline: fineDeadline
+        })
+        .eq('item_id', itemId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to update event deadline in Supabase:', error.message);
+        return { success: false, error: error.message };
+      }
+
+      if (data) {
+        items[idx] = {
+          ...items[idx],
+          reg_deadline: data.reg_deadline,
+          fine_deadline: data.fine_deadline
+        };
+        this.setStorage('items', items);
+        return { success: true, item: items[idx] };
+      }
+    }
+
+    items[idx] = {
+      ...items[idx],
+      reg_deadline: regDeadline,
+      fine_deadline: fineDeadline
+    };
+    this.setStorage('items', items);
+    return { success: true, item: items[idx] };
+  }
+
+  public async batchUpdateItemDeadlines(
+    itemIds: number[],
+    regDeadline: string | null,
+    fineDeadline: string | null
+  ): Promise<{ success: boolean; count: number; error?: string }> {
+    if (itemIds.length === 0) return { success: true, count: 0 };
+    const items = this.getStorage<Item[]>('items', []);
+
+    if (supabase) {
+      const { error } = await supabase
+        .from('items')
+        .update({
+          reg_deadline: regDeadline,
+          fine_deadline: fineDeadline
+        })
+        .in('item_id', itemIds);
+
+      if (error) {
+        console.error('Failed to batch update event deadlines in Supabase:', error.message);
+        return { success: false, count: 0, error: error.message };
+      }
+    }
+
+    itemIds.forEach(id => {
+      const idx = items.findIndex(i => i.item_id === id);
+      if (idx >= 0) {
+        items[idx].reg_deadline = regDeadline;
+        items[idx].fine_deadline = fineDeadline;
+      }
+    });
+    this.setStorage('items', items);
+    return { success: true, count: itemIds.length };
+  }
+
+  public async resetItemDeadlines(
+    itemIds: number[]
+  ): Promise<{ success: boolean; count: number; error?: string }> {
+    return this.batchUpdateItemDeadlines(itemIds, null, null);
   }
 
   // --- Entry Locks Matrix ---
@@ -1115,6 +1251,101 @@ class FestService {
     return this.getRegistrations(afflNo);
   }
 
+  // --- Dedicated Late Registrations Methods ---
+  public getLateRegistrations(collegeAfflNoOrId?: number | string): LateRegistration[] {
+    const list = this.getStorage<LateRegistration[]>('late_registrations', []);
+    if (!collegeAfflNoOrId) return list;
+    const col = this.getCollege(collegeAfflNoOrId);
+    const affl = col ? col.affl_no : Number(collegeAfflNoOrId);
+    return list.filter(l => Number(l.college_affl_no) === affl);
+  }
+
+  public async fetchLateRegistrationsForCollege(afflNo?: number): Promise<LateRegistration[]> {
+    if (supabase) {
+      try {
+        let query = supabase.from('late_registrations').select('*');
+        if (afflNo) {
+          query = query.eq('college_affl_no', afflNo);
+        }
+        const { data, error } = await query;
+        if (!error && data) {
+          const allStored = this.getStorage<LateRegistration[]>('late_registrations', []);
+          const numAffl = Number(afflNo);
+          const otherLate = afflNo ? allStored.filter(r => Number(r.college_affl_no) !== numAffl) : [];
+          const normalizedData = data.map((r: Record<string, any>) => ({
+            ...r,
+            college_affl_no: Number(r.college_affl_no),
+            item_id: Number(r.item_id)
+          }));
+          this.setStorage('late_registrations', afflNo ? [...otherLate, ...normalizedData] : normalizedData);
+          return this.getLateRegistrations(afflNo);
+        }
+      } catch (err) {
+        console.warn('Notice: late_registrations table sync fallback:', err);
+      }
+    }
+    return this.getLateRegistrations(afflNo);
+  }
+
+  public async clearLateRegistrations(collegeAfflNo?: number): Promise<{ success: boolean; count: number }> {
+    const allStored = this.getStorage<LateRegistration[]>('late_registrations', []);
+    let removedCount = 0;
+    let remaining: LateRegistration[] = [];
+
+    if (collegeAfflNo !== undefined) {
+      const numAffl = Number(collegeAfflNo);
+      const toRemove = allStored.filter(r => Number(r.college_affl_no) === numAffl);
+      removedCount = toRemove.length;
+      remaining = allStored.filter(r => Number(r.college_affl_no) !== numAffl);
+      this.setStorage('late_registrations', remaining);
+
+      // Reset fine_status on this college
+      const cols = this.getColleges();
+      const col = cols.find(c => c.affl_no === numAffl);
+      if (col && col.fine_status) {
+        col.fine_status = false;
+        this.setStorage('colleges', cols);
+      }
+
+      if (supabase) {
+        try {
+          await supabase.from('late_registrations').delete().eq('college_affl_no', numAffl);
+          await supabase.from('colleges').update({ fine_status: false }).eq('affl_no', numAffl);
+        } catch (err) {
+          console.warn('Supabase clearLateRegistrations notice:', err);
+        }
+      }
+    } else {
+      removedCount = allStored.length;
+      remaining = [];
+      this.setStorage('late_registrations', remaining);
+
+      // Reset fine_status on all colleges
+      const cols = this.getColleges();
+      cols.forEach(c => {
+        c.fine_status = false;
+      });
+      this.setStorage('colleges', cols);
+
+      if (supabase) {
+        try {
+          await supabase.from('late_registrations').delete().gte('college_affl_no', 0);
+          await supabase.from('colleges').update({ fine_status: false }).gte('affl_no', 0);
+        } catch (err) {
+          console.warn('Supabase clearLateRegistrations notice:', err);
+        }
+      }
+    }
+
+    if (this.isClient) {
+      try {
+        window.localStorage.setItem('wsf_late_registrations', JSON.stringify(remaining));
+      } catch (e) {}
+    }
+
+    return { success: true, count: removedCount };
+  }
+
   public getStudent(idOrChest: string): Student | undefined {
     return findStudentByIdentifier(this.getStudents(), idOrChest);
   }
@@ -1342,6 +1573,40 @@ class FestService {
 
         this.setStorage('registrations', remaining);
         this.setStorage('registration_logs', logs);
+
+        // Reflect server-applied late fine in local college cache and update late_registrations table
+        const check = this.isRegistrationOpen(college.affl_no, item.item_id);
+        const isLate = check.isFinePeriod || Boolean(check.reason?.toLowerCase().includes('late'));
+
+        if (isLate) {
+          const colList = this.getStorage<College[]>('colleges', []);
+          const cIdx = colList.findIndex(c => c.affl_no === college.affl_no);
+          if (cIdx >= 0) {
+            colList[cIdx].fine_status = true;
+            this.setStorage('colleges', colList);
+          }
+
+          // Populate late_registrations store
+          const lateReason = check.isFinePeriod
+            ? 'Registered In Late Fine Window'
+            : (check.reason || 'Late Registration');
+
+          const lateRows: LateRegistration[] = chestNos.map(cNo => ({
+            id: `late-${Date.now()}-${cNo}`,
+            item_id: item.item_id,
+            college_affl_no: college.affl_no,
+            chest_no: cNo,
+            late_reason: lateReason,
+            effective_deadline: item.reg_deadline || this.getFestSettings().reg_deadline,
+            registered_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          }));
+
+          const existingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
+            .filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+          this.setStorage('late_registrations', [...existingLate, ...lateRows]);
+        }
+
         return { success: true };
       } catch (err: any) {
         console.error('Unexpected registration error:', err);
@@ -1363,6 +1628,32 @@ class FestService {
       });
     });
     this.setStorage('registrations', remaining);
+
+    // Also populate late_registrations in fallback if applicable
+    const checkFallback = this.isRegistrationOpen(college.affl_no, item.item_id);
+    if (checkFallback.isFinePeriod || college.fine_status || college.manual_lock_override) {
+      const lateReason = checkFallback.isFinePeriod
+        ? 'Registered In Late Fine Window'
+        : college.fine_status
+        ? 'Late Fine Flagged on Institution'
+        : 'Admin Lock Override Entry';
+
+      const lateRows: LateRegistration[] = chestNos.map(cNo => ({
+        id: `late-${Date.now()}-${cNo}`,
+        item_id: item.item_id,
+        college_affl_no: college.affl_no,
+        chest_no: cNo,
+        late_reason: lateReason,
+        effective_deadline: item.reg_deadline || this.getFestSettings().reg_deadline,
+        registered_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      }));
+
+      const existingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
+        .filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+      this.setStorage('late_registrations', [...existingLate, ...lateRows]);
+    }
+
     return { success: true };
   }
 
@@ -1398,6 +1689,14 @@ class FestService {
     const regs = this.getStorage<Registration[]>('registrations', []);
     const remaining = regs.filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
     this.setStorage('registrations', remaining);
+
+    if (supabase) {
+      supabase.from('late_registrations').delete().match({ item_id: item.item_id, college_affl_no: college.affl_no }).then();
+    }
+    const remainingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
+      .filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
+    this.setStorage('late_registrations', remainingLate);
+
     return { success: true };
   }
 
@@ -1425,7 +1724,10 @@ class FestService {
       remaining = regs.filter(r => r.college_affl_no !== affl);
       if (supabase) {
         supabase.from('registrations').delete().eq('college_affl_no', affl).then();
+        supabase.from('late_registrations').delete().eq('college_affl_no', affl).then();
       }
+      const lateList = this.getStorage<LateRegistration[]>('late_registrations', []);
+      this.setStorage('late_registrations', lateList.filter(l => l.college_affl_no !== affl));
     } else {
       clearedCount = regs.length;
       regs.forEach(r => {
@@ -1441,7 +1743,9 @@ class FestService {
       remaining = [];
       if (supabase) {
         supabase.from('registrations').delete().gte('college_affl_no', 0).then();
+        supabase.from('late_registrations').delete().gte('college_affl_no', 0).then();
       }
+      this.setStorage('late_registrations', []);
     }
 
     this.setStorage('registrations', remaining);

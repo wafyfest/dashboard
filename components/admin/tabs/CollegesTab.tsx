@@ -769,10 +769,11 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                   variant={selectedCollegeForDetail.manual_lock_override ? 'destructive' : 'outline'}
                   onClick={async () => {
                     await handleToggleOverride(selectedCollegeForDetail.affl_no);
-                    setSelectedCollegeForDetail(prev => prev ? { ...prev, manual_lock_override: !prev.manual_lock_override } : null);
+                    const fresh = festService.getCollege(selectedCollegeForDetail.affl_no);
+                    if (fresh) setSelectedCollegeForDetail(fresh);
                   }}
                 >
-                  {selectedCollegeForDetail.manual_lock_override ? 'Disable Override' : 'Allow Override'}
+                  {selectedCollegeForDetail.manual_lock_override ? 'Disable Override' : 'Allow Override (Apply Fine)'}
                 </Button>
                 <Button
                   size="xs"

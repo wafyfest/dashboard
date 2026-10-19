@@ -1,9 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// Paths that require NO authentication at all
-const PUBLIC_PATHS = ['/', '/login', '/student', '/student-login', '/_next', '/favicon'];
-
 // Route → allowed roles mapping (admin can access everything)
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
   '/admin': ['admin'],
@@ -13,11 +10,15 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   '/convenor': ['convenor', 'admin'],
 };
 
+const PROTECTED_PREFIXES = Object.keys(ROUTE_ROLE_MAP);
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Allow public paths without checking auth
-  if (pathname === '/' || PUBLIC_PATHS.filter(p => p !== '/').some(p => pathname.startsWith(p))) {
+  // 1. Only enforce authentication on protected dashboard routes.
+  // Public pages, SEO routes (robots, sitemap, manifest, og-image), and 404s pass through freely.
+  const isProtected = PROTECTED_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (!isProtected) {
     return NextResponse.next();
   }
 

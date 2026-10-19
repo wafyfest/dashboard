@@ -72,7 +72,7 @@ export function DashboardLayout({
       )}
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen sticky top-0 w-64 bg-[var(--bg-subtle)] border-r border-[var(--border-subtle)] p-5 shrink-0 select-none">
+      <aside className="hidden md:flex flex-col h-screen sticky top-0 w-64 bg-[var(--bg-subtle)] border-r border-[var(--border-subtle)] p-5 shrink-0 select-none font-heading">
         {/* Logo and Brand */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-slate-700/30">
@@ -174,7 +174,7 @@ export function DashboardLayout({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Bar */}
-        <header className="h-16 px-4 sm:px-8 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xs flex items-center justify-between gap-4 sticky top-0 z-30 transition-colors">
+        <header className="h-16 px-4 sm:px-8 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xs flex items-center justify-between gap-4 sticky top-0 z-30 transition-colors font-heading">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Toggle */}
             <button

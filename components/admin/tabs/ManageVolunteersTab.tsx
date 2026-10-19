@@ -42,7 +42,8 @@ import {
   Layers,
   ChevronDown,
   FileSpreadsheet,
-  RefreshCw
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -859,18 +860,50 @@ export function ManageVolunteersTab({
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="bg-transparent text-[var(--text-primary)] font-medium text-xs focus:outline-none cursor-pointer"
+          {/* Status Filter Tabs */}
+          <div className="flex items-center rounded-lg p-0.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
             >
-              <option value="all">All Statuses</option>
-              <option value="Approved">Approved</option>
-              <option value="Registered">Registered (Pending)</option>
-              <option value="Standby">Standby</option>
-            </select>
+              All ({totalVolunteersCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('Registered')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1.5 ${
+                statusFilter === 'Registered'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Not Approved ({registeredCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('Approved')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1.5 ${
+                statusFilter === 'Approved'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Approved ({approvedCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('Standby')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                statusFilter === 'Standby'
+                  ? 'bg-zinc-700 text-white shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              Standby ({standbyCount})
+            </button>
           </div>
         </div>
 
@@ -935,12 +968,15 @@ export function ManageVolunteersTab({
                     ? getStudentVolunteerPhase(student.phase || student.category, student.class)
                     : 'Aliya';
                   const isPg = studentPhase === 'PG';
+                  const isApproved = vol.status === 'Approved';
+                  const isStandby = vol.status === 'Standby';
+                  const isPending = !isApproved && !isStandby;
 
                   return (
                     <TableRow
                       key={vol.id || idx}
                       className={`hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] ${
-                        vol.status === 'Approved' ? 'bg-emerald-500/5 dark:bg-emerald-500/5' : ''
+                        isPending ? 'border-l-[3px] border-l-amber-500' : ''
                       }`}
                     >
                       {/* Checkbox */}
@@ -967,13 +1003,21 @@ export function ManageVolunteersTab({
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <div
-                            className={`w-7 h-7 rounded-full font-bold text-xs flex items-center justify-center shrink-0 border ${
-                              isPg
-                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                                : 'bg-[#132238]/10 dark:bg-[#1A2E4A] text-[#132238] dark:text-slate-200 border-[#132238]/20'
+                            className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 border relative ${
+                              isPending
+                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                                : 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)]'
                             }`}
                           >
                             {(student?.name || student?.full_name || 'V').charAt(0).toUpperCase()}
+                            {isPending && (
+                              <span
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-500 rounded-full flex items-center justify-center text-white ring-2 ring-[var(--bg-surface)] shadow-xs animate-pulse"
+                                title="Pending Approval"
+                              >
+                                <Clock className="w-2 h-2 stroke-[3]" />
+                              </span>
+                            )}
                           </div>
                           <div>
                             <div className="text-xs font-bold text-[var(--text-primary)]">
@@ -1044,32 +1088,56 @@ export function ManageVolunteersTab({
 
                       {/* Status */}
                       <TableCell>
-                        {vol.status === 'Approved' ? (
-                          <Badge variant="success" size="sm" className="flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                            Approved
-                          </Badge>
-                        ) : vol.status === 'Standby' ? (
-                          <Badge variant="warning" size="sm" className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                            Standby
-                          </Badge>
+                        {isApproved ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Approved</span>
+                          </div>
+                        ) : isStandby ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-500/10 border border-zinc-500/20">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Standby</span>
+                          </div>
                         ) : (
-                          <Badge variant="default" size="sm">
-                            Registered
-                          </Badge>
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                            </span>
+                            <span>Not Approved</span>
+                          </div>
                         )}
                       </TableCell>
 
                       {/* Actions */}
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {vol.status !== 'Approved' && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPending ? (
+                            <Button
+                              size="xs"
+                              onClick={() => handleQuickStatusChange(vol.id, 'Approved')}
+                              className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs px-2.5 py-1 h-7 rounded-lg flex items-center gap-1 border-0 transition-all hover:scale-[1.02] active:scale-95"
+                              title="Approve this volunteer registration"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              Approve
+                            </Button>
+                          ) : isApproved ? (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => handleQuickStatusChange(vol.id, 'Registered')}
+                              className="text-[11px] font-medium text-[var(--text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 h-7 px-2 transition-colors rounded-lg"
+                              title="Revoke approval / move to pending"
+                            >
+                              Revoke
+                            </Button>
+                          ) : (
                             <Button
                               variant="outline"
                               size="xs"
                               onClick={() => handleQuickStatusChange(vol.id, 'Approved')}
-                              className="text-[11px] text-emerald-700 border-emerald-300 dark:text-emerald-300 hover:bg-emerald-500/10"
+                              className="text-xs font-semibold text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/10 h-7 px-2 rounded-lg"
                               title="Approve volunteer"
                             >
                               Approve
@@ -1079,7 +1147,7 @@ export function ManageVolunteersTab({
                             variant="outline"
                             size="xs"
                             onClick={() => handleOpenEdit(vol)}
-                            className="text-[11px]"
+                            className="text-[11px] h-7 w-7 p-0 flex items-center justify-center rounded-lg"
                             title="Edit details"
                           >
                             <Edit2 className="w-3 h-3" />
@@ -1088,7 +1156,7 @@ export function ManageVolunteersTab({
                             variant="ghost"
                             size="xs"
                             onClick={() => handleDeleteVolunteer(vol)}
-                            className="text-[11px] text-rose-600 hover:bg-rose-500/10 p-1"
+                            className="text-[11px] text-rose-600 hover:bg-rose-500/10 h-7 w-7 p-0 flex items-center justify-center rounded-lg"
                             title="Remove volunteer"
                           >
                             <Trash2 className="w-3 h-3" />
