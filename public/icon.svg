@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Container -->
+  <rect width="64" height="64" rx="16" fill="url(#brandGrad)"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.3"/>
+  
+  <!-- Stylized WSF / Arts Trophy Emblem -->
+  <path d="M22 18H42V28C42 34.6274 36.6274 40 30 40H34C27.3726 40 22 34.6274 22 28V18Z" fill="url(#goldGrad)" opacity="0.95"/>
+  <path d="M22 22H16C14.8954 22 14 22.8954 14 24C14 27.5 17 31 22 31V22Z" fill="#34d399" opacity="0.75"/>
+  <path d="M42 22H48C49.1046 22 50 22.8954 50 24C50 27.5 47 31 42 31V22Z" fill="#34d399" opacity="0.75"/>
+  <rect x="30" y="38" width="4" height="8" rx="1" fill="#10b981"/>
+  <rect x="24" y="46" width="16" height="4" rx="2" fill="#34d399"/>
+  <!-- Central Sparkle Star -->
+  <circle cx="32" cy="27" r="3" fill="#ffffff"/>
+</svg>

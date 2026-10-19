@@ -2,19 +2,27 @@
 -- Description: Add all festival application tables to supabase_realtime publication to enable instant WebSockets sync without manual browser refreshes
 
 -- 1. Enable logical replication for all application tables
-ALTER PUBLICATION supabase_realtime ADD TABLE 
-  public.registrations,
-  public.entry_locks,
-  public.items,
-  public.results,
-  public.schedules,
-  public.stages,
-  public.appeals,
-  public.replacements,
-  public.fest_settings,
-  public.students,
-  public.colleges,
-  public.max_participation;
+DO $$
+DECLARE
+  v_tbl text;
+  v_tables text[] := ARRAY[
+    'registrations', 'entry_locks', 'items', 'results', 'schedules',
+    'stages', 'appeals', 'replacements', 'fest_settings', 'students',
+    'colleges', 'max_participation'
+  ];
+BEGIN
+  FOREACH v_tbl IN ARRAY v_tables
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' 
+        AND schemaname = 'public' 
+        AND tablename = v_tbl
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', v_tbl);
+    END IF;
+  END LOOP;
+END $$;
 
 -- 2. Set replica identity to FULL so that DELETE and UPDATE payloads contain complete row details
 ALTER TABLE public.registrations REPLICA IDENTITY FULL;

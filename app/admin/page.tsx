@@ -12,7 +12,8 @@ import {
   Lock,
   UserCheck,
   HeartHandshake,
-  BellRing
+  BellRing,
+  Layers
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -30,8 +31,9 @@ export default function AdminPage() {
     { id: 'overview', label: 'Fest Overview', icon: ShieldAlert },
     { id: 'schedule', label: 'Events Schedule', icon: Calendar },
     { id: 'locks_matrix', label: 'Entry Locks Matrix', icon: Lock },
-    { id: 'settings', label: 'Deadlines & Branding', icon: Clock },
+    { id: 'settings', label: 'Deadlines & Fines', icon: Clock },
     { id: 'items', label: 'Events Catalog', icon: Award },
+    { id: 'event_registrations', label: 'Event Registrations', icon: Layers },
     { id: 'colleges', label: 'Colleges & Overrides', icon: Building2 },
     { id: 'college_registrations', label: 'College Registrations', icon: UserCheck },
     { id: 'volunteers', label: 'Manage Volunteers', icon: HeartHandshake },

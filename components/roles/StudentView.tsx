@@ -871,7 +871,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
               {targetStu.photo_url ? (
                 <img
                   src={targetStu.photo_url}
-                  alt={targetStu.full_name}
+                  alt={targetStu.full_name || targetStu.name || 'Participant portrait photograph'}
                   className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shrink-0"
                 />
               ) : (

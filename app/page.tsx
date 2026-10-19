@@ -49,8 +49,8 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] transition-colors selection:bg-emerald-500 selection:text-white flex flex-col w-full overflow-x-hidden">
       {/* ─── Top Navigation Bar ────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-40 w-full border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-md font-heading">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 font-heading">
           {/* Logo & Title */}
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-base shadow-xs border border-slate-700/30 group-hover:scale-105 transition-transform shrink-0">
@@ -58,10 +58,10 @@ export default function LandingPage() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-extrabold text-xs sm:text-base tracking-tight text-[var(--text-primary)] truncate">
+                <span className="font-extrabold text-xs sm:text-base tracking-tight text-[var(--text-primary)] truncate font-heading">
                   {festSettings.fest_name || '14TH WAFY ARTS FEST'}
                 </span>
-                <span className="hidden md:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                <span className="hidden md:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 font-heading">
                   WSF & CIC
                 </span>
               </div>
@@ -72,7 +72,7 @@ export default function LandingPage() {
           </Link>
 
           {/* Desktop & Tablet Navigation */}
-          <div className="hidden sm:flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 sm:gap-3 shrink-0 font-heading">
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
@@ -90,7 +90,7 @@ export default function LandingPage() {
             {/* Student Login Link */}
             <Link
               href="/student-login"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all active:scale-[0.98] font-heading"
             >
               <GraduationCap className="w-4 h-4" />
               <span>Student Login</span>
@@ -100,7 +100,7 @@ export default function LandingPage() {
             {isAuthenticated ? (
               <Link
                 href={getPortalRoute()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all active:scale-[0.98] font-heading"
               >
                 <span>My Dashboard</span>
                 <ArrowRight className="w-4 h-4" />
@@ -109,7 +109,7 @@ export default function LandingPage() {
               <Link
                 href="/login"
                 id="header-login-btn"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] shadow-xs transition-all active:scale-[0.98] border border-slate-700/30"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] shadow-xs transition-all active:scale-[0.98] border border-slate-700/30 font-heading"
               >
                 <LogIn className="w-4 h-4 text-emerald-400" />
                 <span>Portal Login</span>
@@ -197,6 +197,52 @@ export default function LandingPage() {
             <div className="pt-2 flex items-center justify-center gap-2 text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <span>Official 14th Edition Information & Resource Portal</span>
+            </div>
+
+            {/* ─── Above-The-Fold Primary Call-To-Action (CTA) ────────────────── */}
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 max-w-md mx-auto">
+              <Link
+                href="/student-login"
+                id="hero-student-cta"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.02] active:scale-[0.98] font-heading group"
+              >
+                <GraduationCap className="w-4 h-4 text-emerald-200 group-hover:rotate-12 transition-transform" />
+                <span>Student Portal & Admit Card</span>
+                <ArrowRight className="w-4 h-4 text-emerald-200 group-hover:translate-x-1 transition-transform" />
+              </Link>
+
+              {isAuthenticated ? (
+                <Link
+                  href={getPortalRoute()}
+                  id="hero-dashboard-cta"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] border border-[var(--border-strong)] text-[var(--text-primary)] font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xs font-heading"
+                >
+                  <span>My Active Dashboard</span>
+                  <ArrowRight className="w-4 h-4 text-emerald-500" />
+                </Link>
+              ) : (
+                <Link
+                  href="/login"
+                  id="hero-officer-cta"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] border border-[var(--border-strong)] text-[var(--text-primary)] font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xs font-heading"
+                >
+                  <LogIn className="w-4 h-4 text-emerald-500" />
+                  <span>College / Officer Login</span>
+                </Link>
+              )}
+            </div>
+
+            {/* Micro Trust Indicators Above The Fold */}
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-muted)]">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> 25+ Institutions
+              </span>
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Double-Blind Tabulation
+              </span>
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Live Stage Calls
+              </span>
             </div>
           </div>
 
@@ -411,6 +457,9 @@ export default function LandingPage() {
             </Link>
             <Link href="/student-login" className="hover:text-emerald-500 transition-colors">
               Student Login
+            </Link>
+            <Link href="/privacy" className="hover:text-emerald-500 transition-colors">
+              Privacy Policy
             </Link>
           </div>
         </div>

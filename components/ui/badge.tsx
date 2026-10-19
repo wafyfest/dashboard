@@ -22,12 +22,12 @@ export function Badge({
 
   const variantStyles = {
     default:     'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-    navy:        'bg-[#132238] text-white border border-[#1E3558] dark:bg-[#1A2E4A] dark:text-slate-200 dark:border-[#2E476B]/60 shadow-xs',
+    navy:        'bg-black text-white border border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700 shadow-xs',
     secondary:   'bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800/60',
     success:     'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60',
     warning:     'bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
     destructive: 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60',
-    outline:     'text-[var(--text-secondary)] border border-[var(--border-medium)] bg-transparent',
+    outline:     'text-[var(--text-primary)] border border-[var(--border-medium)] bg-[var(--bg-subtle)]/75 font-medium',
     purple:      'bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60',
     amber:       'bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
   };

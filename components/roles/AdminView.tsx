@@ -42,6 +42,7 @@ import { CollegeRegistrationsTab } from '../admin/tabs/CollegeRegistrationsTab';
 import { ManageVolunteersTab } from '../admin/tabs/ManageVolunteersTab';
 import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
 import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
+import { EventRegistrationsTab } from '../admin/tabs/EventRegistrationsTab';
 
 
 export type AdminTab =
@@ -50,6 +51,7 @@ export type AdminTab =
   | 'locks_matrix'
   | 'settings'
   | 'items'
+  | 'event_registrations'
   | 'colleges'
   | 'college_registrations'
   | 'volunteers'
@@ -231,12 +233,12 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   <TableBody>
                     {schedules.map(sch => (
                       <TableRow key={sch.id}>
-                        <TableCell className="font-semibold text-slate-100">{sch.stage?.name}</TableCell>
+                        <TableCell className="font-semibold text-[var(--text-primary)]">{sch.stage?.name}</TableCell>
                         <TableCell>
-                          <div className="font-medium text-slate-200">{sch.item?.name}</div>
-                          <span className="text-[10px] text-slate-400">{sch.item?.code}</span>
+                          <div className="font-medium text-[var(--text-primary)]">{sch.item?.name}</div>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code}</span>
                         </TableCell>
-                        <TableCell className="text-slate-400 font-mono">
+                        <TableCell className="text-[var(--text-secondary)] font-mono">
                           {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </TableCell>
                         <TableCell>
@@ -267,11 +269,14 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       {/* 2. ENTRY LOCKS MATRIX TAB */}
       {activeTab === 'locks_matrix' && <LocksMatrixTab />}
 
-      {/* 2. SETTINGS & DEADLINES TAB */}
+      {/* 2. DEADLINES & FINES TAB */}
       {activeTab === 'settings' && <SettingsTab />}
 
       {/* 3. ITEMS CATALOG TAB */}
       {activeTab === 'items' && <EventsCatalogTab />}
+
+      {/* 3.1. EVENT-WISE ALL COLLEGES REGISTRATIONS TAB */}
+      {activeTab === 'event_registrations' && <EventRegistrationsTab />}
 
       {/* 4. COLLEGES & OVERRIDES TAB */}
       {activeTab === 'colleges' && renderCollegesCard()}
@@ -334,12 +339,12 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   ) : (
                     appeals.map(appeal => (
                       <TableRow key={appeal.id}>
-                        <TableCell className="font-semibold text-slate-100">{appeal.college?.name}</TableCell>
-                        <TableCell className="font-medium text-slate-700">{appeal.item?.name}</TableCell>
-                        <TableCell className="max-w-xs text-xs text-slate-600">
+                        <TableCell className="font-semibold text-[var(--text-primary)]">{appeal.college?.name}</TableCell>
+                        <TableCell className="font-medium text-[var(--text-primary)]">{appeal.item?.name}</TableCell>
+                        <TableCell className="max-w-xs text-xs text-[var(--text-secondary)]">
                           {appeal.reason}
                           {appeal.admin_remarks && (
-                            <div className="mt-1 text-[11px] bg-slate-100 p-1.5 rounded text-slate-700">
+                            <div className="mt-1 text-[11px] bg-[var(--bg-subtle)] p-1.5 rounded text-[var(--text-primary)] border border-[var(--border-subtle)]">
                               <strong>Remarks:</strong> {appeal.admin_remarks}
                             </div>
                           )}
@@ -446,18 +451,18 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   ) : (
                     replacements.map(rep => (
                       <TableRow key={rep.id}>
-                        <TableCell className="font-semibold text-slate-100">
+                        <TableCell className="font-semibold text-[var(--text-primary)]">
                           {rep.registration?.item?.name}
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-rose-700">{rep.original_student?.full_name || rep.original_student?.name}</div>
-                          <span className="text-[10px] text-slate-400">CIC: {rep.original_student?.cic_no || rep.original_student?.admission_no || rep.original_student?.chest_no || 'N/A'}</span>
+                          <div className="font-medium text-rose-600 dark:text-rose-400">{rep.original_student?.full_name || rep.original_student?.name}</div>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">CIC: {rep.original_student?.cic_no || rep.original_student?.admission_no || rep.original_student?.chest_no || 'N/A'}</span>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-emerald-700">{rep.replacement_student?.full_name || rep.replacement_student?.name}</div>
-                          <span className="text-[10px] text-slate-400">CIC: {rep.replacement_student?.cic_no || rep.replacement_student?.admission_no || rep.replacement_student?.chest_no || 'N/A'}</span>
+                          <div className="font-medium text-emerald-600 dark:text-emerald-400">{rep.replacement_student?.full_name || rep.replacement_student?.name}</div>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">CIC: {rep.replacement_student?.cic_no || rep.replacement_student?.admission_no || rep.replacement_student?.chest_no || 'N/A'}</span>
                         </TableCell>
-                        <TableCell className="text-xs text-slate-600">{rep.reason}</TableCell>
+                        <TableCell className="text-xs text-[var(--text-secondary)]">{rep.reason}</TableCell>
                         <TableCell>
                           <AppealStatusBadge status={rep.status} />
                         </TableCell>
@@ -541,43 +546,43 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                   groupedResults.map(res => (
                     <TableRow key={res.item_id}>
                       <TableCell>
-                        <div className="font-semibold text-slate-100">{res.item?.name}</div>
-                        <span className="text-[10px] text-slate-400">{res.item?.code}</span>
+                        <div className="font-semibold text-[var(--text-primary)]">{res.item?.name}</div>
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{res.item?.code}</span>
                       </TableCell>
                       <TableCell>
                         {res.first_reg ? (
                           <div>
-                            <span className="font-bold text-amber-600">🥇 {res.first_reg.college?.code || res.first_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-slate-500">
+                            <span className="font-bold text-amber-600 dark:text-amber-400">🥇 {res.first_reg.college?.code || res.first_reg.college?.short_name}</span>
+                            <div className="text-[11px] text-[var(--text-muted)]">
                               {res.first_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">Unassigned</span>
+                          <span className="text-[var(--text-muted)] text-xs">Unassigned</span>
                         )}
                       </TableCell>
                       <TableCell>
                         {res.second_reg ? (
                           <div>
-                            <span className="font-bold text-slate-600">🥈 {res.second_reg.college?.code || res.second_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-slate-500">
+                            <span className="font-bold text-[var(--text-secondary)]">🥈 {res.second_reg.college?.code || res.second_reg.college?.short_name}</span>
+                            <div className="text-[11px] text-[var(--text-muted)]">
                               {res.second_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">-</span>
+                          <span className="text-[var(--text-muted)] text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell>
                         {res.third_reg ? (
                           <div>
-                            <span className="font-bold text-amber-700">🥉 {res.third_reg.college?.code || res.third_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-slate-500">
+                            <span className="font-bold text-amber-700 dark:text-amber-500">🥉 {res.third_reg.college?.code || res.third_reg.college?.short_name}</span>
+                            <div className="text-[11px] text-[var(--text-muted)]">
                               {res.third_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">-</span>
+                          <span className="text-[var(--text-muted)] text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell>

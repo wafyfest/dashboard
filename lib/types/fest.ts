@@ -219,6 +219,20 @@ export interface Registration {
   participants?: Student[]; // group aggregated list helper
 }
 
+export interface LateRegistration {
+  id: string;
+  item_id: number;
+  college_affl_no: number;
+  chest_no: string;
+  late_reason: string;
+  effective_deadline?: string | null;
+  registered_at?: string;
+  created_at?: string;
+  item?: Item;
+  student?: Student;
+  college?: College;
+}
+
 export interface RegistrationLog {
   id: string;
   item_id: number;
