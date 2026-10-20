@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
@@ -127,7 +128,9 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const leaderboard = festService.getLeaderboard();
   const festSettings = festService.getFestSettings();
 
-  // Resolve current student strictly from authenticated session, or first student if demo
+  const { currentCollegeAfflNo } = useFest();
+
+  // Resolve current student strictly from authenticated session
   const currentStudent: Student | undefined = useMemo(() => {
     if (loggedInStudent) {
       return (
@@ -136,14 +139,14 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
         loggedInStudent
       );
     }
-    return students[0];
+    return undefined;
   }, [loggedInStudent, students]);
 
-  const targetStu = currentStudent || students[0];
-  const userAfflNo = targetStu?.college_affl_no || (loggedInStudent?.college_affl_no);
+  const targetStu = currentStudent;
+  const userAfflNo = targetStu?.college_affl_no || (loggedInStudent?.college_affl_no) || currentCollegeAfflNo || 1;
   const studentCollege: College | undefined = colleges.find(
     c => c.affl_no === userAfflNo || c.id === targetStu?.college_id
-  );
+  ) || colleges.find(c => c.affl_no === 1);
 
   // Events this student is registered for
   const studentRegistrations = targetStu
@@ -286,45 +289,61 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg sm:text-xl font-extrabold text-[var(--text-primary)] tracking-tight">
-                {targetStu?.full_name || targetStu?.name || 'Student Portal'}
+                {targetStu?.full_name || targetStu?.name || (loggedInStudent ? 'Student Participant' : 'Student Portal')}
               </h1>
               {targetStu && (
                 <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-navy)] text-emerald-400 font-mono text-xs font-bold border border-slate-700/40">
                   {getCanonicalChestNo(targetStu)}
                 </span>
               )}
-              {loggedInStudent && (
+              {loggedInStudent ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold border border-emerald-500/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Authenticated
                 </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-semibold border border-blue-500/20">
+                  Guest / Viewer Mode
+                </span>
               )}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">
-              College: <strong className="text-[var(--text-primary)]">{studentCollege?.name || 'Affiliated College'}</strong>{' '}
-              {studentCollege?.code && `(${studentCollege.code})`} • CIC No: <span className="font-mono font-semibold text-[var(--text-secondary)]">{targetStu?.admission_no || targetStu?.cic_no}</span>
+              College: <strong className="text-[var(--text-primary)]">{studentCollege?.name || 'KKHM ISLAMIC & ARTS COLLEGE'}</strong>{' '}
+              {studentCollege?.short_name && `(${studentCollege.short_name})`}
+              {targetStu && (
+                <> • CIC No: <span className="font-mono font-semibold text-[var(--text-secondary)]">{targetStu?.admission_no || targetStu?.cic_no}</span></>
+              )}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setActiveTab('admit_card')}
-            className="text-xs flex items-center gap-1.5"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Admit Card</span>
-          </Button>
-
-          {loggedInStudent && (
-            <button
-              onClick={handleStudentSignOut}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent transition-colors cursor-pointer"
+          {loggedInStudent ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setActiveTab('admit_card')}
+                className="text-xs flex items-center gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Admit Card</span>
+              </Button>
+              <button
+                onClick={handleStudentSignOut}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent transition-colors cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/student-login"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
             >
-              Sign Out
-            </button>
+              <GraduationCap className="w-4 h-4" />
+              <span>Student Sign In</span>
+            </Link>
           )}
         </div>
       </div>
@@ -771,17 +790,39 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       {/* 2. MY COMPETITION SCHEDULE                                         */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'schedule' && (
-        <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-          <CardHeader>
-            <div>
-              <CardTitle className="text-base font-bold text-[var(--text-primary)]">
-                My Competition Schedule & Venues
-              </CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                Official stage timetable, reporting slots, and blind allotment codes for {targetStu?.full_name || 'your profile'}
-              </CardDescription>
+        !loggedInStudent || !targetStu ? (
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 max-w-xl mx-auto shadow-card rounded-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 mx-auto flex items-center justify-center">
+              <Calendar className="w-7 h-7" />
             </div>
-          </CardHeader>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">Personal Schedule Requires Sign In</h3>
+              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
+                Sign in with your student CIC Number to access your personalized stage schedule, reporting slots, and blind chest codes.
+              </p>
+            </div>
+            <div>
+              <Link
+                href="/student-login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Sign In with CIC Number</span>
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+            <CardHeader>
+              <div>
+                <CardTitle className="text-base font-bold text-[var(--text-primary)]">
+                  My Competition Schedule & Venues
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Official stage timetable, reporting slots, and blind allotment codes for {targetStu?.full_name || 'your profile'}
+                </CardDescription>
+              </div>
+            </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -836,18 +877,41 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
             </Table>
           </CardContent>
         </Card>
+        )
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 3. OFFICIAL ADMIT CARD VIEW                                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'admit_card' && targetStu && (
-        <div className="max-w-xl mx-auto space-y-4">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 text-xs">
-              <Printer className="w-3.5 h-3.5" /> Print Admit Card
-            </Button>
-          </div>
+      {activeTab === 'admit_card' && (
+        !loggedInStudent || !targetStu ? (
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 max-w-xl mx-auto shadow-card rounded-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 mx-auto flex items-center justify-center">
+              <Printer className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">Student Authentication Required</h3>
+              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
+                Please log in with your CIC Number & password to generate and print your official 14th Wafy Arts Fest Student Participant Admit Card.
+              </p>
+            </div>
+            <div>
+              <Link
+                href="/student-login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Sign In to Access Admit Card</span>
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <div className="max-w-xl mx-auto space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 text-xs">
+                <Printer className="w-3.5 h-3.5" /> Print Admit Card
+              </Button>
+            </div>
 
           <div className="bg-white text-slate-900 rounded-3xl border-2 border-slate-300 p-6 shadow-elevated print:border-black print:shadow-none space-y-4">
             {/* Header */}
@@ -935,6 +999,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
             </div>
           </div>
         </div>
+        )
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1066,19 +1131,41 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       {/* 5. OFFICIAL APPEAL SUBMISSION FORM                                 */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'appeals' && (
-        <div className="max-w-2xl mx-auto">
-          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <CardHeader>
-              <div>
-                <CardTitle className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-rose-500" />
-                  <span>File Competition Result Appeal</span>
-                </CardTitle>
-                <CardDescription className="text-xs mt-1">
-                  Students may petition the Appellate Board regarding evaluation disputes within the designated review window.
-                </CardDescription>
-              </div>
-            </CardHeader>
+        !loggedInStudent || !targetStu ? (
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 max-w-xl mx-auto shadow-card rounded-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">Sign In Required to File Appeal</h3>
+              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
+                Only authenticated participants can submit formal evaluation appeals to the Arts Fest Appellate Board.
+              </p>
+            </div>
+            <div>
+              <Link
+                href="/student-login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Sign In with CIC Number</span>
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <div className="max-w-2xl mx-auto">
+            <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+              <CardHeader>
+                <div>
+                  <CardTitle className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-rose-500" />
+                    <span>File Competition Result Appeal</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Students may petition the Appellate Board regarding evaluation disputes within the designated review window.
+                  </CardDescription>
+                </div>
+              </CardHeader>
 
             <CardContent>
               {appealSuccess && (
@@ -1179,6 +1266,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
             </CardContent>
           </Card>
         </div>
+        )
       )}
     </div>
   );

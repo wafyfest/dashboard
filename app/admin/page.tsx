@@ -13,7 +13,8 @@ import {
   UserCheck,
   HeartHandshake,
   BellRing,
-  Layers
+  Layers,
+  ScrollText
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -39,7 +40,8 @@ export default function AdminPage() {
     { id: 'volunteers', label: 'Manage Volunteers', icon: HeartHandshake },
     { id: 'announcements', label: 'Broadcast Alerts', icon: BellRing },
     { id: 'appeals', label: 'Appeals & Replacements', icon: AlertTriangle },
-    { id: 'results', label: 'Results & Points', icon: Trophy }
+    { id: 'results', label: 'Results & Points', icon: Trophy },
+    { id: 'logs', label: 'System Audit Logs', icon: ScrollText }
   ];
 
   if (!isMounted) {

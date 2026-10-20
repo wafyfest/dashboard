@@ -18,6 +18,7 @@ import {
   MaxParticipation,
   SubmissionEntry,
   LateRegistration,
+  SystemAuditLog,
   UserRole,
   Profile,
   StageStatus,
@@ -56,6 +57,7 @@ class FestService {
     students: [],
     registrations: [],
     registration_logs: [],
+    system_audit_logs: [],
     entryLocks: [],
     schedules: [],
     stages: [],
@@ -97,6 +99,7 @@ class FestService {
       students: [],
       registrations: [],
       registration_logs: [],
+      system_audit_logs: [],
       entryLocks: [],
       schedules: [],
       stages: [],
@@ -458,6 +461,20 @@ class FestService {
         // Deferred
       }
 
+      // 13. System Audit Logs
+      try {
+        const { data: logData, error: logErr } = await client
+          .from('system_audit_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (!logErr && logData) {
+          this.setStorage('system_audit_logs', logData);
+        }
+      } catch (err) {
+        // Deferred
+      }
+
       if (!hasError) {
         this.scopeSyncTimes.set(scopeKey, Date.now());
       }
@@ -497,11 +514,13 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'max_participation' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_audit_logs' }, triggerDebouncedSync)
       .on('broadcast', { event: 'volunteer_change' }, triggerDebouncedSync)
       .on('broadcast', { event: 'announcement_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'system_log_change' }, triggerDebouncedSync)
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.info('⚡ Supabase Realtime channel connected: Live updates active across all tables.');
+          console.info('⚡ Supabase Realtime channel connected: Live updates active across all tables including audit logs.');
         }
       });
 
@@ -1760,6 +1779,115 @@ class FestService {
     const col = this.getCollege(collegeAfflNoOrId);
     return col ? logs.filter(l => l.college_affl_no === col.affl_no) : logs;
   }
+
+  // --- System Audit Logs ---
+  public getSystemAuditLogs(filters?: {
+    category?: string;
+    severity?: string;
+    collegeAfflNo?: number;
+    itemId?: number;
+    search?: string;
+  }): SystemAuditLog[] {
+    let logs = this.getStorage<SystemAuditLog[]>('system_audit_logs', []);
+    if (!filters) return logs;
+
+    if (filters.category && filters.category !== 'ALL') {
+      logs = logs.filter(l => l.category?.toUpperCase() === filters.category?.toUpperCase());
+    }
+    if (filters.severity && filters.severity !== 'ALL') {
+      logs = logs.filter(l => l.severity?.toLowerCase() === filters.severity?.toLowerCase());
+    }
+    if (filters.collegeAfflNo) {
+      logs = logs.filter(l => Number(l.college_affl_no) === Number(filters.collegeAfflNo));
+    }
+    if (filters.itemId) {
+      logs = logs.filter(l => Number(l.item_id) === Number(filters.itemId));
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase().trim();
+      logs = logs.filter(l =>
+        l.description?.toLowerCase().includes(q) ||
+        l.action_type?.toLowerCase().includes(q) ||
+        l.actor_name?.toLowerCase().includes(q) ||
+        (l.target_id && l.target_id.toLowerCase().includes(q))
+      );
+    }
+    return logs;
+  }
+
+  public async fetchSystemAuditLogs(limit = 500): Promise<SystemAuditLog[]> {
+    if (!supabase) return this.getSystemAuditLogs();
+    try {
+      const { data, error } = await supabase
+        .from('system_audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (!error && data) {
+        this.setStorage('system_audit_logs', data);
+        return data;
+      }
+    } catch (e) {
+      console.warn('fetchSystemAuditLogs notice:', e);
+    }
+    return this.getSystemAuditLogs();
+  }
+
+  public async logSystemEvent(event: {
+    action_type: string;
+    category: string;
+    severity?: 'info' | 'success' | 'warning' | 'danger';
+    actor_role?: string;
+    actor_name?: string;
+    college_affl_no?: number | null;
+    item_id?: number | null;
+    target_id?: string | null;
+    description: string;
+    details?: Record<string, any>;
+  }): Promise<{ success: boolean; error?: string }> {
+    const newLog: SystemAuditLog = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      action_type: event.action_type,
+      category: event.category,
+      severity: event.severity || 'info',
+      actor_role: event.actor_role || 'admin',
+      actor_name: event.actor_name || 'Admin',
+      college_affl_no: event.college_affl_no || null,
+      item_id: event.item_id || null,
+      target_id: event.target_id || null,
+      description: event.description,
+      details: event.details || {},
+      created_at: new Date().toISOString()
+    };
+
+    // Update in-memory storage immediately for optimistic UI
+    const current = this.getStorage<SystemAuditLog[]>('system_audit_logs', []);
+    this.setStorage('system_audit_logs', [newLog, ...current]);
+
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('system_audit_logs').insert([{
+          action_type: newLog.action_type,
+          category: newLog.category,
+          severity: newLog.severity,
+          actor_role: newLog.actor_role,
+          actor_name: newLog.actor_name,
+          college_affl_no: newLog.college_affl_no,
+          item_id: newLog.item_id,
+          target_id: newLog.target_id,
+          description: newLog.description,
+          details: newLog.details
+        }]);
+        if (error) {
+          console.warn('System audit log remote insert notice:', error.message);
+        }
+      } catch (err) {
+        console.warn('Failed to insert system audit log to Supabase:', err);
+      }
+    }
+    return { success: true };
+  }
+
 
   // --- Stage Controller: Code Letters & Stages ---
   private static DEFAULT_STAGES: Stage[] = [

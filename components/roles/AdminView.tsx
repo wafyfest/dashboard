@@ -43,6 +43,7 @@ import { ManageVolunteersTab } from '../admin/tabs/ManageVolunteersTab';
 import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
 import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
 import { EventRegistrationsTab } from '../admin/tabs/EventRegistrationsTab';
+import { SystemLogsTab } from '../admin/tabs/SystemLogsTab';
 
 
 export type AdminTab =
@@ -57,7 +58,8 @@ export type AdminTab =
   | 'volunteers'
   | 'announcements'
   | 'appeals'
-  | 'results';
+  | 'results'
+  | 'logs';
 
 interface AdminViewProps {
   activeTab?: AdminTab;
@@ -110,7 +112,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
   // College-wise Registrations Management State
   const [selectedCollegeAfflForReg, setSelectedCollegeAfflForReg] = useState<number>(() => {
-    return colleges.length > 0 ? colleges[0].affl_no : 11;
+    return colleges.length > 0 ? colleges[0].affl_no : 1;
   });
 
   React.useEffect(() => {
@@ -617,8 +619,8 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
         </Card>
       )}
 
-
-
+      {/* 6.0. SYSTEM AUDIT LOGS TAB */}
+      {activeTab === 'logs' && <SystemLogsTab />}
 
     </div>
   );
