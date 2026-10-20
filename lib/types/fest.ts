@@ -450,3 +450,34 @@ export interface Announcement {
   created_at: string;
   updated_at?: string;
 }
+
+export type AuditLogCategory =
+  | 'ALL'
+  | 'REGISTRATION'
+  | 'LOCKS'
+  | 'SETTINGS'
+  | 'APPEALS'
+  | 'SCHEDULE'
+  | 'RESULTS'
+  | 'ANNOUNCEMENTS'
+  | 'VOLUNTEERS'
+  | 'SYSTEM';
+
+export type AuditLogSeverity = 'info' | 'success' | 'warning' | 'danger';
+
+export interface SystemAuditLog {
+  id: string;
+  action_type: string;
+  category: string;
+  severity: AuditLogSeverity;
+  actor_role?: string | null;
+  actor_name?: string | null;
+  college_affl_no?: number | null;
+  item_id?: number | null;
+  target_id?: string | null;
+  description: string;
+  details?: Record<string, any> | null;
+  ip_address?: string | null;
+  created_at: string;
+}
+

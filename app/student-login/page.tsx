@@ -19,7 +19,14 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function StudentLoginPage() {
   const router = useRouter();
-  const { theme, toggleTheme, setCurrentRole, festSettings } = useFest();
+  const {
+    theme,
+    toggleTheme,
+    setCurrentRole,
+    setCurrentCollegeAfflNo,
+    setCurrentCollegeId,
+    festSettings
+  } = useFest();
 
   const [cicNo, setCicNo] = useState('');
   const [password, setPassword] = useState('');
@@ -114,8 +121,12 @@ export default function StudentLoginPage() {
         document.cookie = `arts_fest_student_cic=${student.cic_no}; path=/; max-age=86400; SameSite=Lax`;
       }
 
-      // Set current context role to student
+      // Set current context role to student and scope to student's college
       setCurrentRole('student');
+      if (student.college_affl_no) {
+        setCurrentCollegeAfflNo(Number(student.college_affl_no));
+        setCurrentCollegeId(`col-${student.college_affl_no}`);
+      }
 
       // Redirect to student portal
       router.push('/student');
@@ -194,7 +205,7 @@ export default function StudentLoginPage() {
                 type="text"
                 value={cicNo}
                 onChange={e => setCicNo(e.target.value)}
-                placeholder="e.g. 18050 or 19288"
+                placeholder="e.g. 22801 or 18050"
                 autoComplete="username"
                 className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono placeholder:text-[var(--text-muted)]"
                 required
@@ -217,7 +228,7 @@ export default function StudentLoginPage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Enter password (e.g. 18050@134)"
+                placeholder="Enter password (e.g. 22801@1 or 18050@134)"
                 autoComplete="current-password"
                 className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono placeholder:text-[var(--text-muted)]"
                 required
@@ -229,7 +240,7 @@ export default function StudentLoginPage() {
           <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-3 text-[11px] text-[var(--text-secondary)] flex items-start gap-2">
             <Info className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
             <span>
-              <strong>First time logging in?</strong> By default, your password is set as <code className="bg-emerald-500/10 px-1 py-0.5 rounded text-emerald-600 dark:text-emerald-400 font-mono">[CIC_NO]@[COLLEGE_NO]</code> (e.g., <span className="font-mono">18050@134</span>).
+              <strong>First time logging in?</strong> By default, your password is set as <code className="bg-emerald-500/10 px-1 py-0.5 rounded text-emerald-600 dark:text-emerald-400 font-mono">[CIC_NO]@[COLLEGE_NO]</code> (e.g., <span className="font-mono">22801@1</span>).
             </span>
           </div>
 

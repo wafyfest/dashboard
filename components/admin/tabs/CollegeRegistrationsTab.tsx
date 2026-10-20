@@ -82,7 +82,7 @@ export function CollegeRegistrationsTab({
 
   // Selected College State
   const [internalSelectedAffl, setInternalSelectedAffl] = useState<number>(() => {
-    return selectedCollegeAffl || (colleges.length > 0 ? colleges[0].affl_no : 11);
+    return selectedCollegeAffl || (colleges.length > 0 ? colleges[0].affl_no : 1);
   });
 
   const activeCollegeAffl = selectedCollegeAffl ?? internalSelectedAffl;

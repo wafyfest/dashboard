@@ -29,8 +29,8 @@ const FestContext = createContext<FestContextType | undefined>(undefined);
 
 export function FestProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRoleState] = useState<UserRole>('college');
-  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-11');
-  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(11);
+  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-1');
+  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(1);
   const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
@@ -100,9 +100,34 @@ export function FestProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(false);
         }
       } else {
-        setIsAuthenticated(false);
-        const connected = await festService.syncWithSupabase(undefined, false);
-        setIsSupabaseConnected(connected);
+        // Check for active student session
+        let hasStudentSession = false;
+        if (typeof window !== 'undefined') {
+          const studentSessionStr = localStorage.getItem('arts_fest_student_session');
+          if (studentSessionStr) {
+            try {
+              const studentSession = JSON.parse(studentSessionStr);
+              if (studentSession && studentSession.college_affl_no) {
+                const sAffl = Number(studentSession.college_affl_no);
+                setCurrentRoleState('student');
+                setCurrentCollegeAfflNoState(sAffl);
+                setCurrentCollegeIdState(`col-${sAffl}`);
+                setIsAuthenticated(true);
+                hasStudentSession = true;
+                const connected = await festService.syncWithSupabase(sAffl, true);
+                setIsSupabaseConnected(connected);
+              }
+            } catch (e) {
+              // Ignore JSON parse error
+            }
+          }
+        }
+
+        if (!hasStudentSession) {
+          setIsAuthenticated(false);
+          const connected = await festService.syncWithSupabase(undefined, false);
+          setIsSupabaseConnected(connected);
+        }
       }
       setIsLoadingAuth(false);
     });
@@ -112,8 +137,8 @@ export function FestProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         setCurrentRoleState('college');
-        setCurrentCollegeAfflNoState(11);
-        setCurrentCollegeIdState('col-11');
+        setCurrentCollegeAfflNoState(1);
+        setCurrentCollegeIdState('col-1');
       }
       if (event === 'SIGNED_IN' && session?.user) {
         const isFreshLogin = !isAuthenticatedRef.current;
@@ -239,9 +264,15 @@ export function FestProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('arts_fest_active_role');
       localStorage.removeItem('arts_fest_active_affl_no');
+      localStorage.removeItem('arts_fest_student_session');
       document.cookie = 'arts_fest_active_role=; path=/; max-age=0; SameSite=Lax';
       document.cookie = 'arts_fest_active_affl_no=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'arts_fest_student_id=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'arts_fest_student_cic=; path=/; max-age=0; SameSite=Lax';
     }
+    setCurrentRoleState('college');
+    setCurrentCollegeAfflNoState(1);
+    setCurrentCollegeIdState('col-1');
     setIsAuthenticated(false);
   };
 

@@ -105,7 +105,7 @@ export function ManageVolunteersTab({
   // Add Volunteer Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newCollegeAffl, setNewCollegeAffl] = useState<number>(
-    colleges[0]?.affl_no || 11
+    colleges[0]?.affl_no || 1
   );
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [newDuty, setNewDuty] = useState(VOLUNTEER_DUTIES[0]);
