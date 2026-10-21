@@ -26,7 +26,10 @@ import {
   User,
   RotateCcw,
   Radio,
-  FileCheck2
+  FileCheck2,
+  Printer,
+  AlertTriangle,
+  Flame
 } from 'lucide-react';
 
 interface StageControllerResultViewProps {
@@ -113,6 +116,18 @@ export function StageControllerResultView({
       };
     });
   }, [selectedEventId, allRegistrations, colleges, students, codeLetters]);
+
+  // Print run sheet
+  const handlePrintCodeSheet = () => {
+    window.print();
+  };
+
+  // Helper to check if schedule is running overdue
+  const checkIsOverrun = (endingStr?: string | null, status?: StageStatus) => {
+    if (status !== 'On_Going' || !endingStr) return false;
+    const end = new Date(endingStr).getTime();
+    return Date.now() > end;
+  };
 
   // Loading/busy feedback for code generation
   const [isProcessing, setIsProcessing] = useState(false);
@@ -336,7 +351,14 @@ export function StageControllerResultView({
                             {formatTime(sch.starting)}
                           </TableCell>
                           <TableCell className="text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">
-                            {formatTime(sch.ending)}
+                            <div className="flex items-center gap-1.5">
+                              <span>{formatTime(sch.ending)}</span>
+                              {checkIsOverrun(sch.ending, sch.status) && (
+                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] px-1 py-0 animate-pulse font-mono">
+                                  OVERRUN
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell onClick={e => e.stopPropagation()}>
                             <select
@@ -408,7 +430,18 @@ export function StageControllerResultView({
               <span>Back to {currentStage?.name} Events</span>
             </button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 print:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintCodeSheet}
+                className="gap-1.5 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-850 font-semibold cursor-pointer"
+                title="Print Blind Code Sheet for Stage Marshals & Jury Runners"
+              >
+                <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <span>Print Code Sheet</span>
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -457,6 +490,11 @@ export function StageControllerResultView({
                   <span className="text-xs font-mono font-bold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
                     <Clock className="w-3.5 h-3.5 text-emerald-500" />
                     {formatTime(selectedSchedule?.starting)} - {formatTime(selectedSchedule?.ending)}
+                    {checkIsOverrun(selectedSchedule?.ending, selectedSchedule?.status) && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-amber-500" /> Overrun
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-[var(--border-subtle)] hidden sm:block" />
@@ -616,6 +654,81 @@ export function StageControllerResultView({
               </Table>
             </CardContent>
           </Card>
+        </div>
+      )}
+      {/* PRINT-ONLY BLIND CODE SHEET (Rendered only on window.print()) */}
+      {selectedEventId && selectedItem && (
+        <div className="hidden print:block fixed inset-0 bg-white text-black p-8 z-[9999]">
+          <div className="border-b-2 border-black pb-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold uppercase tracking-wider">WAFFY ARTS FEST 2026</h1>
+                <h2 className="text-base font-semibold">Stage {currentStage?.stage_number}: {currentStage?.name}</h2>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-mono font-bold">OFFICIAL BLIND CODE RUN SHEET</p>
+                <p className="text-xs text-gray-600">Printed: {new Date().toLocaleTimeString()} on {new Date().toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-gray-100 rounded border border-gray-300 flex items-center justify-between text-xs">
+              <div>
+                <span className="font-bold">Item:</span> #{selectedItem.item_id} — {selectedItem.name_eng || selectedItem.name} ({selectedItem.phase || selectedItem.category})
+              </div>
+              <div>
+                <span className="font-bold">Scheduled Time:</span> {formatTime(selectedSchedule?.starting)} - {formatTime(selectedSchedule?.ending)}
+              </div>
+              <div>
+                <span className="font-bold">Total Participants:</span> {eventParticipants.length}
+              </div>
+            </div>
+          </div>
+
+          <table className="w-full text-xs border-collapse border border-gray-400">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-gray-400 p-2 text-center w-12">#</th>
+                <th className="border border-gray-400 p-2 text-center font-bold w-24">Blind Code</th>
+                <th className="border border-gray-400 p-2 text-left">Student / Candidate Name</th>
+                <th className="border border-gray-400 p-2 text-left">Chest No</th>
+                <th className="border border-gray-400 p-2 text-left">Institution</th>
+                <th className="border border-gray-400 p-2 text-center w-28">Stage Callout</th>
+                <th className="border border-gray-400 p-2 text-center w-28">Jury Signature</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventParticipants
+                .slice()
+                .sort((a, b) => (a.codeLetter || 'ZZ').localeCompare(b.codeLetter || 'ZZ'))
+                .map((p, idx) => (
+                  <tr key={p.registration.id || p.chestNo} className="border-b border-gray-300">
+                    <td className="border border-gray-400 p-2 text-center font-mono">{idx + 1}</td>
+                    <td className="border border-gray-400 p-2 text-center font-bold font-mono text-base bg-gray-50">
+                      {p.codeLetter || '—'}
+                    </td>
+                    <td className="border border-gray-400 p-2 font-semibold">
+                      {p.student?.full_name || p.student?.name || 'Registered Candidate'}
+                    </td>
+                    <td className="border border-gray-400 p-2 font-mono">{p.canonicalChestNo}</td>
+                    <td className="border border-gray-400 p-2">
+                      {p.college?.name || `College ${p.registration.college_affl_no}`}
+                    </td>
+                    <td className="border border-gray-400 p-2 text-center text-gray-400">
+                      [ ] Pres &nbsp; [ ] Abs
+                    </td>
+                    <td className="border border-gray-400 p-2 text-center"></td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+
+          <div className="mt-8 pt-4 border-t border-gray-400 flex items-center justify-between text-xs">
+            <div>
+              <p>Stage Controller Name: ___________________________</p>
+            </div>
+            <div>
+              <p>Stage Controller Signature: ___________________________</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

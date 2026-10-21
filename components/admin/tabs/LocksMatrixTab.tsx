@@ -41,6 +41,7 @@ export function LocksMatrixTab() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
+  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
 
   // Expanded Accordion State (open event IDs)
   const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(() => {
@@ -68,10 +69,12 @@ export function LocksMatrixTab() {
     return ['All', ...Array.from(phases)];
   }, [items]);
 
-  // Filtered items based on search query & phase tab
+  // Filtered items based on search query, phase tab & mode
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchPhase = selectedPhase === 'All' || item.phase === selectedPhase;
+      const m = (item.mode || 'onstage').toLowerCase().trim();
+      const matchMode = selectedMode === 'All' || m === selectedMode;
       const q = searchQuery.toLowerCase().trim();
       const itemCodeStr = (item.item_code || item.code || '').toLowerCase();
       const matchSearch =
@@ -82,9 +85,9 @@ export function LocksMatrixTab() {
         String(item.item_id).includes(q) ||
         (item.name_mal && item.name_mal.includes(q));
 
-      return matchPhase && matchSearch;
+      return matchPhase && matchMode && matchSearch;
     });
-  }, [items, selectedPhase, searchQuery]);
+  }, [items, selectedPhase, selectedMode, searchQuery]);
 
   const toggleExpand = (itemId: number) => {
     setExpandedItemIds(prev => {
@@ -189,22 +192,43 @@ export function LocksMatrixTab() {
               )}
             </div>
 
-            {/* Minimalist Category Filter Pills */}
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {availablePhases.map(phase => (
-                <button
-                  key={phase}
-                  type="button"
-                  onClick={() => setSelectedPhase(phase)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    selectedPhase === phase
-                      ? 'bg-slate-800 text-slate-100 border border-slate-700'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  {phase}
-                </button>
-              ))}
+            {/* Minimalist Filter Pills: Phases & Modes */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Category / Phase Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {availablePhases.map(phase => (
+                  <button
+                    key={phase}
+                    type="button"
+                    onClick={() => setSelectedPhase(phase)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      selectedPhase === phase
+                        ? 'bg-slate-800 text-slate-100 border border-slate-700'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    {phase}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mode Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pl-2 border-l border-slate-800">
+                {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setSelectedMode(m)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      selectedMode === m
+                        ? 'bg-slate-800 text-slate-100 border border-slate-700'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </CardContent>

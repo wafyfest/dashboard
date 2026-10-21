@@ -41,7 +41,7 @@ BEGIN
       TO authenticated
       USING (
         (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-        OR (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+        OR public.auth_user_role() = 'admin'::user_role
         OR EXISTS (
           SELECT 1 FROM public.profiles
           WHERE profiles.id = auth.uid() AND profiles.role = 'admin'

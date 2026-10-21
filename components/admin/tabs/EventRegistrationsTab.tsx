@@ -94,7 +94,7 @@ export function EventRegistrationsTab() {
   // Filters state
   const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('All');
-  const [modeFilter, setModeFilter] = useState<'All' | 'onstage' | 'offstage'>('All');
+  const [modeFilter, setModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Registered' | 'Empty'>('All');
 
   // Expanded items state (set of item_ids)
@@ -322,7 +322,7 @@ export function EventRegistrationsTab() {
 
             {/* Mode Filter */}
             <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
-              {(['All', 'onstage', 'offstage'] as const).map(m => (
+              {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
@@ -333,7 +333,7 @@ export function EventRegistrationsTab() {
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  {m === 'All' ? 'All Modes' : m}
+                  {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
                 </button>
               ))}
             </div>

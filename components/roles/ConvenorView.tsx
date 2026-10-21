@@ -31,10 +31,14 @@ import {
   GraduationCap,
   Copy,
   Check,
-  PhoneCall
+  PhoneCall,
+  Megaphone,
+  Radio
 } from 'lucide-react';
+import { LiveStageProgressWidget } from './LiveStageProgressWidget';
+import { ConvenorBroadcastModal } from './ConvenorBroadcastModal';
 
-export type ConvenorTab = 'all' | 'coordinator' | 'manager' | 'asst_manager';
+export type ConvenorTab = 'all' | 'coordinator' | 'manager' | 'asst_manager' | 'stage_monitor';
 type SortType = 'affl_asc' | 'affl_desc' | 'name_asc' | 'name_desc';
 
 interface ConvenorViewProps {
@@ -124,6 +128,7 @@ export function ConvenorView({ activeTab: controlledTab, onTabChange }: Convenor
   const [sortBy, setSortBy] = useState<SortType>('affl_asc');
   const [expandedCollegeIds, setExpandedCollegeIds] = useState<Set<number>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
 
   // Colleges reactive from festService
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
@@ -245,17 +250,63 @@ export function ConvenorView({ activeTab: controlledTab, onTabChange }: Convenor
 
   return (
     <div className="space-y-6 w-full">
-      {/* 1. TOP SUMMARY TILES (Clickable to switch view modes) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Tile 1: All Participating Colleges */}
-        <Card
-          onClick={() => setActiveTab('all')}
-          className={`p-4 cursor-pointer transition-all border ${
-            activeTab === 'all'
-              ? 'border-emerald-500 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/40'
-              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
-          }`}
-        >
+      {/* Broadcast Modal */}
+      <ConvenorBroadcastModal
+        isOpen={isBroadcastModalOpen}
+        onClose={() => setIsBroadcastModalOpen(false)}
+        onSuccess={() => {
+          alert('⚡ Flash Announcement successfully broadcasted to Team Managers!');
+        }}
+      />
+
+      {/* DEDICATED TAB: STAGE PROGRESS & BROADCAST BULLETINS */}
+      {activeTab === 'stage_monitor' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Operations Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 rounded-2xl shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                <h2 className="text-base font-black text-[var(--text-primary)]">
+                  Backstage Operations & Emergency Dispatch Desk
+                </h2>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-2xl">
+                Real-time multi-stage telemetry monitoring live events, upcoming items, and backstage progress. Trigger instant flash announcements directly to team managers&apos; mobile devices and digital displays.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                onClick={() => setIsBroadcastModalOpen(true)}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-10 px-4 rounded-xl shadow-md flex items-center gap-2 transition-transform active:scale-95 cursor-pointer"
+              >
+                <Megaphone className="w-4 h-4 animate-bounce" />
+                <span>Broadcast Flash Bulletin</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Live Stage Progress Card */}
+          <LiveStageProgressWidget refreshKey={refreshKey} />
+        </div>
+      )}
+
+      {/* DIRECTORY TABS: ALL / COORDINATOR / MANAGER / ASST_MANAGER */}
+      {activeTab !== 'stage_monitor' && (
+        <>
+          {/* 1. TOP SUMMARY TILES (Clickable to switch view modes) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Tile 1: All Participating Colleges */}
+            <Card
+              onClick={() => setActiveTab('all')}
+              className={`p-4 cursor-pointer transition-all border ${
+                activeTab === 'all'
+                  ? 'border-emerald-500 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/40'
+                  : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
@@ -1176,6 +1227,8 @@ export function ConvenorView({ activeTab: controlledTab, onTabChange }: Convenor
             </Table>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -165,6 +165,7 @@ export function CollegeRegistrationsTab({
   // Search & Filters for Events Table
   const [regSearchQuery, setRegSearchQuery] = useState('');
   const [regCategoryFilter, setRegCategoryFilter] = useState('All');
+  const [regModeFilter, setRegModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
   const [regStatusFilter, setRegStatusFilter] = useState<'All' | 'Registered' | 'Late' | 'Unregistered'>('All');
 
   // Search & Filters for Students View
@@ -321,6 +322,9 @@ export function CollegeRegistrationsTab({
         const itemCat = item.category || item.phase || '';
         const matchesCategory =
           regCategoryFilter === 'All' || itemCat.toLowerCase() === regCategoryFilter.toLowerCase();
+        const itemMode = (item.mode || 'onstage').toLowerCase().trim();
+        const matchesMode =
+          regModeFilter === 'All' || itemMode === regModeFilter;
         const isRegistered = registeredItemIds.has(item.item_id);
         const isLateEvent = activeCollegeLateItemIds.has(Number(item.item_id));
         const matchesStatus =
@@ -328,14 +332,14 @@ export function CollegeRegistrationsTab({
           (regStatusFilter === 'Registered' && isRegistered) ||
           (regStatusFilter === 'Late' && isLateEvent) ||
           (regStatusFilter === 'Unregistered' && !isRegistered);
-        return matchesSearch && matchesCategory && matchesStatus;
+        return matchesSearch && matchesCategory && matchesMode && matchesStatus;
       })
       .sort((a, b) => {
         const codeA = a.code || a.item_code || '';
         const codeB = b.code || b.item_code || '';
         return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
       });
-  }, [items, regSearchQuery, regCategoryFilter, regStatusFilter, registeredItemIds, activeCollegeLateItemIds, collegeRegs, collegeStudents, students]);
+  }, [items, regSearchQuery, regCategoryFilter, regModeFilter, regStatusFilter, registeredItemIds, activeCollegeLateItemIds, collegeRegs, collegeStudents, students]);
 
   const categories = ['All', 'Foundation', 'Thamheediyya', 'Aliya', 'PG', 'General'];
 
@@ -752,6 +756,23 @@ export function CollegeRegistrationsTab({
                           }`}
                         >
                           {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1 overflow-x-auto text-xs border-l border-[var(--border-subtle)] pl-2">
+                      {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setRegModeFilter(m)}
+                          className={`px-2.5 py-1 rounded-lg font-semibold transition-all border ${
+                            regModeFilter === m
+                              ? 'bg-slate-900 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900'
+                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
+                          }`}
+                        >
+                          {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
                         </button>
                       ))}
                     </div>
