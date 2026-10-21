@@ -2371,16 +2371,33 @@ class FestService {
     const results = this.getStorage<Result[]>('results', []);
     const remaining = results.filter(r => r.item_id !== itemId);
 
+    // Look up code_letters and registrations for this event to resolve student/college identity
+    const codeLetters = this.getCodeLetters(itemId);
+    const registrations = this.getRegistrations().filter(r => Number(r.item_id) === itemId);
+
     const sorted = [...scores].sort((a, b) => (b.mark_percentage || b.total || 0) - (a.mark_percentage || a.total || 0));
 
     sorted.forEach((s, index) => {
       const marks = s.mark_percentage || s.total || 75;
+      const cleanLetter = (s.code_letter || '').trim().toUpperCase();
+
+      // Resolve chest number and college affiliation from code_letters or registrations
+      const matchedLetterEntry = codeLetters.find(
+        cl => (cl.code_letter || '').trim().toUpperCase() === cleanLetter
+      );
+      const matchedReg = registrations.find(
+        r => (r.code_letter || '').trim().toUpperCase() === cleanLetter
+      );
+
+      const resolvedChestNo = s.chest_no || matchedLetterEntry?.chest_no || matchedReg?.chest_no || null;
+      const resolvedAfflNo = s.college_affl_no || matchedLetterEntry?.college_affl_no || matchedReg?.college_affl_no || null;
+
       remaining.push({
         id: `res-${Date.now()}-${s.code_letter}`,
         item_id: itemId,
         code_letter: s.code_letter,
-        college_affl_no: s.college_affl_no || null,
-        chest_no: s.chest_no || null,
+        college_affl_no: resolvedAfflNo,
+        chest_no: resolvedChestNo,
         mark_percentage: marks,
         grade: s.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : 'B'),
         rank: index + 1,
