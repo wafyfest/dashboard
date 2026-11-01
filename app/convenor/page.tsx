@@ -5,7 +5,8 @@ import {
   Building2,
   GraduationCap,
   Users,
-  UserCheck
+  UserCheck,
+  Radio
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { ConvenorView, ConvenorTab } from '@/components/roles/ConvenorView';
@@ -23,7 +24,8 @@ export default function ConvenorPage() {
     { id: 'all', label: 'All College Contacts', icon: Building2 },
     { id: 'coordinator', label: 'Staff Co-ordinators', icon: GraduationCap },
     { id: 'manager', label: 'Team Managers', icon: Users },
-    { id: 'asst_manager', label: 'Assistant Managers', icon: UserCheck }
+    { id: 'asst_manager', label: 'Assistant Managers', icon: UserCheck },
+    { id: 'stage_monitor', label: 'Stage Progress & Alerts', icon: Radio }
   ];
 
   if (!isMounted) {

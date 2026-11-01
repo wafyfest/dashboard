@@ -325,7 +325,14 @@ export function StageControllerResultView({
                             {formatTime(sch.starting)}
                           </TableCell>
                           <TableCell className="text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">
-                            {formatTime(sch.ending)}
+                            <div className="flex items-center gap-1.5">
+                              <span>{formatTime(sch.ending)}</span>
+                              {checkIsOverrun(sch.ending, sch.status) && (
+                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] px-1 py-0 animate-pulse font-mono">
+                                  OVERRUN
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell onClick={e => e.stopPropagation()}>
                             <select
@@ -436,6 +443,11 @@ export function StageControllerResultView({
                   <span className="text-xs font-mono font-bold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
                     <Clock className="w-3.5 h-3.5 text-emerald-500" />
                     {formatTime(selectedSchedule?.starting)} - {formatTime(selectedSchedule?.ending)}
+                    {checkIsOverrun(selectedSchedule?.ending, selectedSchedule?.status) && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-amber-500" /> Overrun
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-[var(--border-subtle)] hidden sm:block" />

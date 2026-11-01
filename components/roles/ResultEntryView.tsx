@@ -6,6 +6,7 @@ import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
 import { Badge, CategoryBadge } from '../ui/badge';
+import { Badge, CategoryBadge } from '../ui/badge';
 import { Button } from '../ui/button';
 import {
   Radio,
