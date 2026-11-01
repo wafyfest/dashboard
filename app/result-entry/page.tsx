@@ -1,70 +1,40 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Radio,
   ClipboardPen,
-  Lock,
-  BookOpen,
-  MapPin,
-  Trophy
+  Globe,
+  FileCheck2
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { ResultEntryView, ResultEntryTab } from '@/components/roles/ResultEntryView';
-import { StageControllerResultView } from '@/components/roles/StageControllerResultView';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { useFest } from '@/lib/context/FestContext';
-import { festService } from '@/lib/services/festService';
 
 export default function ResultEntryPage() {
-  const { refreshKey } = useFest();
-  const stages = useMemo(() => festService.getStages(), [refreshKey]);
-  const [activeTab, setActiveTab] = useState<string>('stage-1');
+  const [activeTab, setActiveTab] = useState<ResultEntryTab>('event-status');
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Set default stage when stages load
-  useEffect(() => {
-    if (stages.length > 0 && !activeTab.startsWith('stage-') && activeTab !== 'scoring' && activeTab !== 'published') {
-      setActiveTab(`stage-${stages[0].stage_number}`);
-    }
-  }, [stages, activeTab]);
-
-  // Dynamic Sidebar Navigation: Stages from stages table followed by Tabulation Consoles
-  const navItems: NavItem[] = useMemo(() => {
-    const stageItems: NavItem[] = stages.map(st => ({
-      id: `stage-${st.stage_number}`,
-      label: st.name,
-      icon: Radio
-    }));
-
-    return [
-      ...stageItems,
-      { id: 'scoring', label: 'Score Entry Console', icon: ClipboardPen },
-      { id: 'published', label: 'Published Results Registry', icon: Lock }
-    ];
-  }, [stages]);
-
-  // Determine active stage number if currently on a stage tab
-  const activeStageNumber = useMemo(() => {
-    if (activeTab.startsWith('stage-')) {
-      const num = parseInt(activeTab.replace('stage-', ''), 10);
-      return isNaN(num) ? 1 : num;
-    }
-    return 1;
-  }, [activeTab]);
+  // 4 Sidebar Consoles strictly as requested
+  const navItems: NavItem[] = [
+    { id: 'event-status', label: 'Event Status', icon: Radio },
+    { id: 'score-entry', label: 'Score Entry', icon: ClipboardPen },
+    { id: 'result-publishing', label: 'Result Publishing', icon: Globe },
+    { id: 'result-verification', label: 'Result Verification', icon: FileCheck2 }
+  ];
 
   if (!isMounted) {
     return (
       <DashboardLayout
-        portalTitle="Result & Stage Console"
+        portalTitle="Result Entry Console"
         roleBadge="Result Entry"
         navItems={navItems}
         activeItemId={activeTab}
-        onSelectNavItem={setActiveTab}
+        onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
       >
         <div className="max-w-7xl mx-auto space-y-4">
           <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
@@ -77,26 +47,17 @@ export default function ResultEntryPage() {
   return (
     <ProtectedRoute allowedRoles={['result_entry', 'stage_controller', 'admin']}>
       <DashboardLayout
-        portalTitle="Result & Stage Console"
+        portalTitle="Result Entry Console"
         roleBadge="Result Entry"
         navItems={navItems}
         activeItemId={activeTab}
-        onSelectNavItem={setActiveTab}
+        onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
       >
         <div className="max-w-7xl mx-auto">
-          {activeTab.startsWith('stage-') && (
-            <StageControllerResultView
-              selectedStageNumber={activeStageNumber}
-              onSelectStageNumber={(num) => setActiveTab(`stage-${num}`)}
-            />
-          )}
-
-          {(activeTab === 'scoring' || activeTab === 'published') && (
-            <ResultEntryView
-              activeTab={activeTab as ResultEntryTab}
-              onTabChange={(tab) => setActiveTab(tab)}
-            />
-          )}
+          <ResultEntryView
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab)}
+          />
         </div>
       </DashboardLayout>
     </ProtectedRoute>
