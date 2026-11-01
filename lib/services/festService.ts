@@ -66,8 +66,10 @@ class FestService {
     volunteers: [],
     announcements: [],
     code_letters: [],
+    chest_no: [],
     late_registrations: [],
-    maxParticipation: []
+    maxParticipation: [],
+    points_matrix: []
   };
 
   constructor() {
@@ -107,7 +109,9 @@ class FestService {
       appeals: [],
       replacements: [],
       code_letters: [],
-      maxParticipation: []
+      chest_no: [],
+      maxParticipation: [],
+      points_matrix: []
     };
     this.scopeSyncTimes.clear();
     await this.syncWithSupabase(undefined, true);
@@ -282,12 +286,37 @@ class FestService {
         console.warn('Supabase sync notice (late_registrations):', err);
       }
 
-      // 7. Results & Locks: Safe fetch
+      // 7. Results: Safe fetch with deduplication
       const { data: resData, error: resErr } = await client.from('results').select('*');
       if (resErr) {
         console.warn('Supabase sync notice (results):', resErr.message);
       } else if (resData) {
-        this.setStorage('results', resData);
+        const dedupedMap = new Map<string, any>();
+        for (const res of resData) {
+          const cleanChest = (res.chest_no || '').trim().toUpperCase();
+          const cleanCode = (res.code_letter || '').trim().toUpperCase();
+          const key = cleanChest ? `${res.item_id}:chest:${cleanChest}` : `${res.item_id}:code:${cleanCode}`;
+          dedupedMap.set(key, {
+            ...res,
+            item_id: Number(res.item_id),
+            college_affl_no: res.college_affl_no ? Number(res.college_affl_no) : null,
+            mark_percentage: res.mark_percentage !== null ? Number(res.mark_percentage) : null,
+            rank: res.rank !== null ? Number(res.rank) : null,
+            points: res.points !== null ? Number(res.points) : 0,
+            published: Boolean(res.published)
+          });
+        }
+        this.setStorage('results', Array.from(dedupedMap.values()));
+      }
+
+      // 7.1. Points Matrix
+      try {
+        const { data: pmData, error: pmErr } = await client.from('points_matrix').select('*');
+        if (!pmErr && pmData) {
+          this.setStorage('points_matrix', pmData);
+        }
+      } catch (err) {
+        // Optional table
       }
 
       if (collegeAfflNo) {
@@ -475,6 +504,54 @@ class FestService {
         // Deferred
       }
 
+      // 14. Code Letters: Fetch from Supabase code_letters table
+      try {
+        const { data: codeData, error: codeErr } = await client
+          .from('code_letters')
+          .select('*');
+        if (!codeErr && codeData) {
+          const normalizedCodes = codeData.map((c: any) => ({
+            ...c,
+            item_id: Number(c.item_id),
+            college_affl_no: Number(c.college_affl_no)
+          }));
+          this.setStorage('code_letters', normalizedCodes);
+
+          // Backfill into cached registrations
+          const regs = this.getStorage<Registration[]>('registrations', []);
+          if (regs.length > 0) {
+            const codeMap = new Map<string, string>();
+            normalizedCodes.forEach((c: any) => {
+              if (c.chest_no && c.code_letter) {
+                codeMap.set(`${c.item_id}:${c.chest_no.trim().toUpperCase()}`, c.code_letter.trim());
+              }
+            });
+            regs.forEach(r => {
+              const cleanChest = (r.chest_no || '').trim().toUpperCase();
+              const foundCode = codeMap.get(`${r.item_id}:${cleanChest}`);
+              if (foundCode) {
+                r.code_letter = foundCode;
+              }
+            });
+            this.setStorage('registrations', regs);
+          }
+        }
+      } catch (err) {
+        console.warn('Notice: Supabase code_letters sync deferred');
+      }
+
+      // 15. Chest Nos mapping table
+      try {
+        const { data: chestData, error: chestErr } = await client
+          .from('chest_no')
+          .select('*');
+        if (!chestErr && chestData) {
+          this.setStorage('chest_no', chestData);
+        }
+      } catch (err) {
+        console.warn('Notice: Supabase chest_no sync deferred');
+      }
+
       if (!hasError) {
         this.scopeSyncTimes.set(scopeKey, Date.now());
       }
@@ -515,6 +592,8 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_audit_logs' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'code_letters' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chest_no' }, triggerDebouncedSync)
       .on('broadcast', { event: 'volunteer_change' }, triggerDebouncedSync)
       .on('broadcast', { event: 'announcement_change' }, triggerDebouncedSync)
       .on('broadcast', { event: 'system_log_change' }, triggerDebouncedSync)
@@ -2103,6 +2182,211 @@ class FestService {
     return list;
   }
 
+  public getChestNos(): any[] {
+    return this.getStorage('chest_no', []);
+  }
+
+  public async fetchCodeLetters(itemId?: number | string): Promise<CodeLetter[]> {
+    if (!supabase) return this.getCodeLetters(itemId);
+    try {
+      let query = supabase.from('code_letters').select('*');
+      if (itemId !== undefined && itemId !== null) {
+        query = query.eq('item_id', Number(itemId));
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        const normalized: CodeLetter[] = data.map((c: any) => ({
+          ...c,
+          item_id: Number(c.item_id),
+          college_affl_no: Number(c.college_affl_no)
+        }));
+        if (itemId !== undefined && itemId !== null) {
+          const numId = Number(itemId);
+          const existing = this.getStorage<CodeLetter[]>('code_letters', []).filter(c => Number(c.item_id) !== numId);
+          this.setStorage('code_letters', [...existing, ...normalized]);
+        } else {
+          this.setStorage('code_letters', normalized);
+        }
+        return normalized;
+      }
+    } catch (e) {
+      console.warn('Error fetching code letters from Supabase:', e);
+    }
+    return this.getCodeLetters(itemId);
+  }
+
+  public async fetchEventParticipantsData(itemId: number | string): Promise<{
+    registrations: Registration[];
+    codeLetters: CodeLetter[];
+  }> {
+    const numItemId = Number(itemId);
+    if (!supabase) {
+      return {
+        registrations: this.getRegistrations().filter(r => Number(r.item_id) === numItemId),
+        codeLetters: this.getCodeLetters(numItemId)
+      };
+    }
+
+    try {
+      const client = supabase;
+
+      // 1. Fetch registrations for this event
+      const { data: regRows, error: regErr } = await client
+        .from('registrations')
+        .select('*')
+        .eq('item_id', numItemId);
+
+      if (regErr) {
+        console.warn('Error fetching event registrations:', regErr.message);
+      }
+
+      // 2. Fetch late registrations for this event
+      let lateRows: any[] = [];
+      try {
+        const { data: lateData, error: lateErr } = await client
+          .from('late_registrations')
+          .select('*')
+          .eq('item_id', numItemId);
+        if (!lateErr && lateData) {
+          lateRows = lateData;
+        }
+      } catch (e) {
+        // late_registrations table optional
+      }
+
+      // 3. Fetch code_letters for this event
+      const { data: codeRows, error: codeErr } = await client
+        .from('code_letters')
+        .select('*')
+        .eq('item_id', numItemId);
+
+      if (codeErr) {
+        console.warn('Error fetching event code letters:', codeErr.message);
+      }
+
+      // 4. Fetch chest_no mapping table
+      let chestMapRows: any[] = [];
+      try {
+        const { data: cData } = await client.from('chest_no').select('*');
+        if (cData) {
+          chestMapRows = cData;
+          this.setStorage('chest_no', cData);
+        }
+      } catch (e) {
+        // chest_no table optional
+      }
+
+      // Collect all chest numbers from registrations
+      const combinedRegs = [...(regRows || []), ...lateRows];
+      const chestNos = Array.from(new Set(combinedRegs.map(r => r.chest_no).filter(Boolean)));
+
+      // 5. Fetch students details for these chest numbers / cic_nos
+      let fetchedStudents: Student[] = [];
+      if (chestNos.length > 0) {
+        // Query students by chest_no
+        try {
+          const { data: stuByChest } = await client
+            .from('students')
+            .select('*')
+            .in('chest_no', chestNos);
+
+          if (stuByChest && stuByChest.length > 0) {
+            fetchedStudents = [...fetchedStudents, ...stuByChest];
+          }
+        } catch (e) {}
+
+        // Look up by admission_no or cic_no from chest_no table
+        const foundChestNos = new Set(fetchedStudents.map(s => s.chest_no));
+        const missingChestNos = chestNos.filter(cn => !foundChestNos.has(cn));
+        
+        const mappedCicNos = chestMapRows
+          .filter(c => missingChestNos.includes(c.chest_no))
+          .map(c => c.cic_no)
+          .filter(Boolean);
+
+        const lookupKeys = Array.from(new Set([...missingChestNos, ...mappedCicNos]));
+        if (lookupKeys.length > 0) {
+          try {
+            const { data: stuByAdm } = await client
+              .from('students')
+              .select('*')
+              .in('admission_no', lookupKeys);
+            if (stuByAdm && stuByAdm.length > 0) {
+              fetchedStudents = [...fetchedStudents, ...stuByAdm];
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Update in-memory students storage
+      if (fetchedStudents.length > 0) {
+        const existingStudents = this.getStorage<Student[]>('students', []);
+        const studentMap = new Map<string, Student>();
+        existingStudents.forEach(s => {
+          if (s.id) studentMap.set(s.id, s);
+          if (s.chest_no) studentMap.set(s.chest_no, s);
+        });
+        fetchedStudents.forEach(s => {
+          if (s.id) studentMap.set(s.id, s);
+          if (s.chest_no) studentMap.set(s.chest_no, s);
+        });
+        this.setStorage('students', Array.from(studentMap.values()));
+      }
+
+      // Format code letters
+      const newCodeLetters: CodeLetter[] = (codeRows || []).map((cl: any) => ({
+        id: cl.id,
+        item_id: Number(cl.item_id),
+        college_affl_no: Number(cl.college_affl_no),
+        chest_no: cl.chest_no,
+        code_letter: cl.code_letter,
+        created_at: cl.created_at
+      }));
+
+      // Update in-memory code_letters storage
+      const storedCodeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
+      const otherCodeLetters = storedCodeLetters.filter(cl => Number(cl.item_id) !== numItemId);
+      this.setStorage('code_letters', [...otherCodeLetters, ...newCodeLetters]);
+
+      // Map code letters to registrations
+      const codeLetterMap = new Map<string, string>();
+      newCodeLetters.forEach(cl => {
+        if (cl.chest_no && cl.code_letter) {
+          codeLetterMap.set(cl.chest_no.trim().toUpperCase(), cl.code_letter.trim());
+        }
+      });
+
+      const normalizedRegs: Registration[] = combinedRegs.map((r: any) => {
+        const cleanChest = (r.chest_no || '').trim().toUpperCase();
+        const activeLetter = codeLetterMap.get(cleanChest) || r.code_letter || null;
+        return {
+          ...r,
+          id: r.id || `reg-${numItemId}-${r.chest_no}`,
+          item_id: numItemId,
+          college_affl_no: Number(r.college_affl_no),
+          chest_no: r.chest_no,
+          code_letter: activeLetter
+        };
+      });
+
+      // Update in-memory registrations storage
+      const existingRegs = this.getStorage<Registration[]>('registrations', []);
+      const otherItemRegs = existingRegs.filter(r => Number(r.item_id) !== numItemId);
+      this.setStorage('registrations', [...otherItemRegs, ...normalizedRegs]);
+
+      return {
+        registrations: normalizedRegs,
+        codeLetters: newCodeLetters
+      };
+    } catch (err) {
+      console.error('Failed to fetch event participants data:', err);
+      return {
+        registrations: this.getRegistrations().filter(r => Number(r.item_id) === numItemId),
+        codeLetters: this.getCodeLetters(numItemId)
+      };
+    }
+  }
+
   private getLetterForIndex(idx: number): string {
     if (idx < 26) return String.fromCharCode(65 + idx);
     const first = String.fromCharCode(65 + Math.floor(idx / 26) - 1);
@@ -2114,6 +2398,7 @@ class FestService {
    * Assigns a single random code letter to a participant for an item.
    * Pulls an unused letter from the available pool (starting from 'A' up to total registrations count).
    * Inserts into code_letters table and updates registrations.code_letter.
+   * One-time allocation: strictly prevents re-rolls or duplicate assignments.
    */
   public async assignRandomCodeLetter(
     itemId: number,
@@ -2123,6 +2408,15 @@ class FestService {
     const numItemId = Number(itemId);
     const numAffl = Number(collegeAfflNo);
     const cleanChestNo = chestNo.trim().toUpperCase();
+
+    // 0. Check if this participant already has a code letter assigned (One-time only rule)
+    const existingCodeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
+    const alreadyAssigned = existingCodeLetters.find(
+      cl => Number(cl.item_id) === numItemId && (cl.chest_no || '').trim().toUpperCase() === cleanChestNo
+    );
+    if (alreadyAssigned && alreadyAssigned.code_letter) {
+      return { success: true, codeLetter: alreadyAssigned.code_letter };
+    }
 
     const regs = this.getStorage<Registration[]>('registrations', []);
     const itemRegs = regs.filter(r => Number(r.item_id) === numItemId);
@@ -2146,6 +2440,12 @@ class FestService {
         usedLetters.add(r.code_letter.trim().toUpperCase());
       }
     });
+    existingCodeLetters.forEach(cl => {
+      const isOther = (cl.chest_no || '').trim().toUpperCase() !== cleanChestNo;
+      if (Number(cl.item_id) === numItemId && isOther && cl.code_letter) {
+        usedLetters.add(cl.code_letter.trim().toUpperCase());
+      }
+    });
 
     // Pick an available letter from the pool
     let available = alphabetPool.filter(l => !usedLetters.has(l));
@@ -2165,8 +2465,7 @@ class FestService {
     this.setStorage('registrations', regs);
 
     // 2. Update in-memory code_letters
-    const codeLetters = this.getStorage<CodeLetter[]>('code_letters', []);
-    const remainingCodeLetters = codeLetters.filter(
+    const remainingCodeLetters = existingCodeLetters.filter(
       cl => !(Number(cl.item_id) === numItemId && (cl.chest_no || '').trim().toUpperCase() === cleanChestNo)
     );
     const newEntry: CodeLetter = {
@@ -2182,7 +2481,7 @@ class FestService {
     // 3. Persist to Supabase if connected
     if (supabase) {
       try {
-        // Delete previous code_letter for this student/item
+        // Delete previous code_letter for this student/item if any
         await supabase
           .from('code_letters')
           .delete()
@@ -2317,43 +2616,228 @@ class FestService {
     return { success: true };
   }
 
+  // --- Points Matrix & Auto Calculation ---
+  public getPointsMatrix(): any[] {
+    return this.getStorage<any[]>('points_matrix', []);
+  }
+
+  public async fetchPointsMatrix(): Promise<any[]> {
+    if (!supabase) return this.getPointsMatrix();
+    try {
+      const { data, error } = await supabase.from('points_matrix').select('*');
+      if (!error && data) {
+        this.setStorage('points_matrix', data);
+        return data;
+      }
+    } catch (e) {
+      console.warn('Error fetching points matrix:', e);
+    }
+    return this.getPointsMatrix();
+  }
+
+  public calculatePoints(phase?: string, category?: string, grade?: string, rank?: number | null): number {
+    const matrix = this.getStorage<any[]>('points_matrix', []);
+    const normGrade = (grade || '').trim().toUpperCase();
+    const numRank = rank ? Number(rank) : null;
+
+    if (matrix && matrix.length > 0) {
+      const exactMatch = matrix.find(m => {
+        const matchPhase = !phase || !m.phase || m.phase.toLowerCase() === phase.toLowerCase();
+        const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
+        const matchRank = numRank ? Number(m.rank) === numRank : (!m.rank || m.rank === 0);
+        const matchGrade = normGrade ? (m.grade || '').toUpperCase() === normGrade : (!m.grade);
+        return matchPhase && matchCat && matchRank && matchGrade;
+      });
+      if (exactMatch && exactMatch.points !== undefined) {
+        return Number(exactMatch.points);
+      }
+
+      // Match by rank
+      if (numRank) {
+        const rankMatch = matrix.find(m => {
+          const matchPhase = !phase || !m.phase || m.phase.toLowerCase() === phase.toLowerCase();
+          const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
+          return matchPhase && matchCat && Number(m.rank) === numRank;
+        });
+        if (rankMatch && rankMatch.points !== undefined) {
+          return Number(rankMatch.points);
+        }
+      }
+
+      // Match by grade
+      if (normGrade) {
+        const gradeMatch = matrix.find(m => {
+          const matchPhase = !phase || !m.phase || m.phase.toLowerCase() === phase.toLowerCase();
+          const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
+          return matchPhase && matchCat && (m.grade || '').toUpperCase() === normGrade;
+        });
+        if (gradeMatch && gradeMatch.points !== undefined) {
+          return Number(gradeMatch.points);
+        }
+      }
+    }
+
+    // Default Arts Fest Points Matrix Logic:
+    let rankPts = 0;
+    if (numRank === 1) rankPts = 5;
+    else if (numRank === 2) rankPts = 3;
+    else if (numRank === 3) rankPts = 1;
+
+    let gradePts = 0;
+    if (normGrade === 'A+' || normGrade === 'A') gradePts = 5;
+    else if (normGrade === 'B') gradePts = 3;
+    else if (normGrade === 'C') gradePts = 1;
+
+    if (numRank && rankPts > 0) {
+      return rankPts;
+    }
+    return gradePts;
+  }
+
+  // --- Live Results Fetch & Deduplication ---
+  public async fetchResults(itemId?: number | string): Promise<Result[]> {
+    if (!supabase) return this.getResults();
+    try {
+      let query = supabase.from('results').select('*');
+      if (itemId !== undefined && itemId !== null) {
+        query = query.eq('item_id', Number(itemId));
+      }
+      const { data, error } = await query;
+      if (!error && data) {
+        const normalized = data.map((r: any) => ({
+          ...r,
+          item_id: Number(r.item_id),
+          college_affl_no: r.college_affl_no ? Number(r.college_affl_no) : null,
+          mark_percentage: r.mark_percentage !== null ? Number(r.mark_percentage) : null,
+          rank: r.rank !== null ? Number(r.rank) : null,
+          points: r.points !== null ? Number(r.points) : 0,
+          published: Boolean(r.published)
+        }));
+
+        // Deduplicate rows for the same participant/event
+        const dedupedMap = new Map<string, Result>();
+        for (const res of normalized) {
+          const cleanChest = (res.chest_no || '').trim().toUpperCase();
+          const cleanCode = (res.code_letter || '').trim().toUpperCase();
+          const key = cleanChest ? `${res.item_id}:chest:${cleanChest}` : `${res.item_id}:code:${cleanCode}`;
+          dedupedMap.set(key, res);
+        }
+        const clean = Array.from(dedupedMap.values());
+
+        if (itemId !== undefined && itemId !== null) {
+          const numId = Number(itemId);
+          const existing = this.getStorage<Result[]>('results', []).filter(r => Number(r.item_id) !== numId);
+          this.setStorage('results', [...existing, ...clean]);
+        } else {
+          this.setStorage('results', clean);
+        }
+        return this.getResults();
+      }
+    } catch (e) {
+      console.warn('Error fetching results:', e);
+    }
+    return this.getResults();
+  }
+
   // --- Result Entry & Scoring ---
   public getResults(): Result[] {
-    const results = this.getStorage<Result[]>('results', []);
+    const rawResults = this.getStorage<Result[]>('results', []);
     const items = this.getItems();
     const colleges = this.getColleges();
     const students = this.getStudents();
     const registrations = this.getRegistrations();
 
-    return results.map(res => {
-      const itm = items.find(i => i.item_id === res.item_id);
-      const col = colleges.find(c => c.affl_no === res.college_affl_no);
+    // Deduplicate by item_id and chest_no / code_letter to prevent any repeated data
+    const dedupedMap = new Map<string, Result>();
+    for (const res of rawResults) {
+      const cleanChest = (res.chest_no || '').trim().toUpperCase();
+      const cleanCode = (res.code_letter || '').trim().toUpperCase();
+      const key = cleanChest ? `${res.item_id}:chest:${cleanChest}` : `${res.item_id}:code:${cleanCode}`;
+      dedupedMap.set(key, res);
+    }
+    const cleanResults = Array.from(dedupedMap.values());
+
+    return cleanResults.map(res => {
+      const itm = items.find(i => Number(i.item_id) === Number(res.item_id));
+      const col = colleges.find(c => Number(c.affl_no) === Number(res.college_affl_no));
       const stu = findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined);
-      const itemResults = results.filter(r => r.item_id === res.item_id);
-      const first = itemResults.find(r => r.rank === 1);
-      const second = itemResults.find(r => r.rank === 2);
-      const third = itemResults.find(r => r.rank === 3);
+      const itemResults = cleanResults.filter(r => Number(r.item_id) === Number(res.item_id));
+      const first = itemResults.find(r => Number(r.rank) === 1);
+      const second = itemResults.find(r => Number(r.rank) === 2);
+      const third = itemResults.find(r => Number(r.rank) === 3);
 
       return {
         ...res,
         item: itm,
         college: col,
         student: stu,
-        first_reg: first ? registrations.find(r => r.item_id === res.item_id && r.college_affl_no === first.college_affl_no) : null,
-        second_reg: second ? registrations.find(r => r.item_id === res.item_id && r.college_affl_no === second.college_affl_no) : null,
-        third_reg: third ? registrations.find(r => r.item_id === res.item_id && r.college_affl_no === third.college_affl_no) : null,
+        first_reg: first ? registrations.find(r => Number(r.item_id) === Number(res.item_id) && Number(r.college_affl_no) === Number(first.college_affl_no)) : null,
+        second_reg: second ? registrations.find(r => Number(r.item_id) === Number(res.item_id) && Number(r.college_affl_no) === Number(second.college_affl_no)) : null,
+        third_reg: third ? registrations.find(r => Number(r.item_id) === Number(res.item_id) && Number(r.college_affl_no) === Number(third.college_affl_no)) : null,
         scores_breakdown: itemResults.map(r => ({
           code_letter: r.code_letter || '',
-          criteria_a: Math.round((r.mark_percentage || 75) * 0.4),
-          criteria_b: Math.round((r.mark_percentage || 75) * 0.4),
-          criteria_c: Math.round((r.mark_percentage || 75) * 0.2),
-          total: r.mark_percentage || 75
+          criteria_a: Math.round((Number(r.mark_percentage) || 75) * 0.4),
+          criteria_b: Math.round((Number(r.mark_percentage) || 75) * 0.4),
+          criteria_c: Math.round((Number(r.mark_percentage) || 75) * 0.2),
+          total: Number(r.mark_percentage) || 75
         }))
       };
     });
   }
 
-  public submitResultEntry(
+  /**
+   * Returns aggregated distinct results by event (one summary row per event that has results entered).
+   * This ensures published results registry never repeats rows!
+   */
+  public getAggregatedEventResults(): Array<{
+    item_id: number;
+    item: Item | undefined;
+    results: Result[];
+    first: Result | undefined;
+    second: Result | undefined;
+    third: Result | undefined;
+    is_published: boolean;
+    total_scored: number;
+  }> {
+    const allResults = this.getResults();
+    const items = this.getItems();
+    const itemMap = new Map<number, Result[]>();
+
+    for (const r of allResults) {
+      const numId = Number(r.item_id);
+      const list = itemMap.get(numId) || [];
+      list.push(r);
+      itemMap.set(numId, list);
+    }
+
+    const aggregated: any[] = [];
+    itemMap.forEach((resList, itmId) => {
+      const itm = items.find(i => Number(i.item_id) === itmId);
+      const sorted = [...resList].sort((a, b) => {
+        if (a.rank && b.rank) return Number(a.rank) - Number(b.rank);
+        return (Number(b.mark_percentage) || 0) - (Number(a.mark_percentage) || 0);
+      });
+      const first = sorted.find(r => Number(r.rank) === 1) || sorted[0];
+      const second = sorted.find(r => Number(r.rank) === 2) || sorted[1];
+      const third = sorted.find(r => Number(r.rank) === 3) || sorted[2];
+      const isPublished = sorted.some(r => Boolean(r.published));
+
+      aggregated.push({
+        item_id: itmId,
+        item: itm,
+        results: sorted,
+        first,
+        second,
+        third,
+        is_published: isPublished,
+        total_scored: sorted.length
+      });
+    });
+
+    return aggregated.sort((a, b) => (a.item?.item_code || '').localeCompare(b.item?.item_code || ''));
+  }
+
+  public async submitResultEntry(
     itemIdOrCode: number | string,
     scores: Array<{
       code_letter: string;
@@ -2362,67 +2846,137 @@ class FestService {
       mark_percentage?: number;
       total?: number;
       grade?: string;
+      rank?: number | null;
       points?: number;
     }>
-  ): void {
+  ): Promise<{ success: boolean; error?: string }> {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
+    const numItemId = Number(itemId);
 
-    const results = this.getStorage<Result[]>('results', []);
-    const remaining = results.filter(r => r.item_id !== itemId);
+    // 1. Resolve student and college details from code_letters / registrations
+    const codeLetters = this.getCodeLetters(numItemId);
+    const regs = this.getRegistrations().filter(r => Number(r.item_id) === numItemId);
 
-    const sorted = [...scores].sort((a, b) => (b.mark_percentage || b.total || 0) - (a.mark_percentage || a.total || 0));
-
-    sorted.forEach((s, index) => {
-      const marks = s.mark_percentage || s.total || 75;
-      remaining.push({
-        id: `res-${Date.now()}-${s.code_letter}`,
-        item_id: itemId,
-        code_letter: s.code_letter,
-        college_affl_no: s.college_affl_no || null,
-        chest_no: s.chest_no || null,
-        mark_percentage: marks,
-        grade: s.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : 'B'),
-        rank: index + 1,
-        points: s.points || (index === 0 ? 5 : index === 1 ? 3 : index === 2 ? 1 : 0),
-        published: false,
-        best_in_fest: index === 0 && marks >= 95,
-        created_at: new Date().toISOString()
-      });
+    const sorted = [...scores].sort((a, b) => {
+      if (a.rank && b.rank) return a.rank - b.rank;
+      return (b.mark_percentage || b.total || 0) - (a.mark_percentage || a.total || 0);
     });
 
-    this.setStorage('results', remaining);
-    if (supabase) {
-      const client = supabase;
-      client.from('results').delete().eq('item_id', itemId).then(() => {
-        const dbPayloads = remaining
-          .filter(r => r.item_id === itemId)
-          .map(({ id, ...rest }) => rest);
-        client.from('results').insert(dbPayloads).then();
+    // Clean deduplicated entries
+    const newResults: Result[] = [];
+    const seenCodes = new Set<string>();
+
+    for (let index = 0; index < sorted.length; index++) {
+      const s = sorted[index];
+      const cleanCode = (s.code_letter || '').trim().toUpperCase();
+      if (!cleanCode || seenCodes.has(cleanCode)) continue;
+      seenCodes.add(cleanCode);
+
+      // Match registration or code_letter entry
+      const matchingCodeLetter = codeLetters.find(cl => (cl.code_letter || '').trim().toUpperCase() === cleanCode);
+      const matchingReg = regs.find(r => {
+        const rCode = (r.code_letter || '').trim().toUpperCase();
+        if (rCode && rCode === cleanCode) return true;
+        if (matchingCodeLetter && (r.chest_no || '').trim().toUpperCase() === (matchingCodeLetter.chest_no || '').trim().toUpperCase()) return true;
+        return false;
+      });
+
+      const cleanChest = s.chest_no || matchingCodeLetter?.chest_no || matchingReg?.chest_no || null;
+      const afflNo = s.college_affl_no || matchingCodeLetter?.college_affl_no || matchingReg?.college_affl_no || null;
+
+      const marks = s.mark_percentage !== undefined ? s.mark_percentage : (s.total !== undefined ? s.total : 75);
+      const calculatedGrade = s.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : marks >= 70 ? 'B' : 'C');
+      const calculatedRank = s.rank !== undefined ? s.rank : (index < 3 ? index + 1 : null);
+      const calculatedPoints = s.points !== undefined ? s.points : this.calculatePoints(itm?.phase, itm?.category, calculatedGrade, calculatedRank);
+
+      newResults.push({
+        id: `res-${numItemId}-${cleanCode}`,
+        item_id: numItemId,
+        code_letter: cleanCode,
+        college_affl_no: afflNo,
+        chest_no: cleanChest,
+        mark_percentage: marks,
+        grade: calculatedGrade,
+        rank: calculatedRank as any,
+        points: calculatedPoints,
+        published: false,
+        best_in_fest: calculatedRank === 1 && marks >= 95,
+        created_at: new Date().toISOString()
       });
     }
+
+    // 2. Persist to Supabase with proper AWAIT and CLEAN DELETION
+    if (supabase) {
+      try {
+        // Delete previous entries for this item to avoid duplicates
+        const { error: delErr } = await supabase
+          .from('results')
+          .delete()
+          .eq('item_id', numItemId);
+
+        if (delErr) {
+          console.warn('Supabase delete old results notice:', delErr.message);
+        }
+
+        const dbPayloads = newResults.map(r => ({
+          item_id: numItemId,
+          code_letter: r.code_letter,
+          college_affl_no: r.college_affl_no,
+          chest_no: r.chest_no,
+          mark_percentage: r.mark_percentage,
+          grade: r.grade,
+          rank: r.rank,
+          points: r.points,
+          published: r.published || false,
+          best_in_fest: r.best_in_fest || false
+        }));
+
+        if (dbPayloads.length > 0) {
+          const { error: insErr } = await supabase.from('results').insert(dbPayloads);
+          if (insErr) {
+            console.error('Supabase insert results error:', insErr.message);
+            return { success: false, error: insErr.message };
+          }
+        }
+      } catch (err: any) {
+        console.error('Supabase results sync error:', err.message);
+      }
+    }
+
+    // 3. Update in-memory storage
+    const existingResults = this.getStorage<Result[]>('results', []);
+    const otherResults = existingResults.filter(r => Number(r.item_id) !== numItemId);
+    const merged = [...otherResults, ...newResults];
+    this.setStorage('results', merged);
+
+    return { success: true };
   }
 
   public async publishResult(itemIdOrCode: number | string, publish: boolean = true): Promise<boolean> {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
-    if (!itemId || isNaN(itemId)) return false;
+    const numItemId = Number(itemId);
+    if (!numItemId || isNaN(numItemId)) return false;
 
     if (supabase) {
-      const { error } = await supabase
-        .from('results')
-        .update({ published: publish })
-        .eq('item_id', itemId);
+      try {
+        const { error } = await supabase
+          .from('results')
+          .update({ published: publish })
+          .eq('item_id', numItemId);
 
-      if (error) {
-        console.error('Database publishResult error:', error.message);
-        return false;
+        if (error) {
+          console.error('Database publishResult error:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('Supabase publishResult notice:', err.message);
       }
     }
 
     const results = this.getStorage<Result[]>('results', []);
     results.forEach(r => {
-      if (r.item_id === itemId) {
+      if (Number(r.item_id) === numItemId) {
         r.published = publish;
       }
     });

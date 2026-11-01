@@ -10,11 +10,11 @@ import { Badge, CategoryBadge, StageStatusBadge } from '../ui/badge';
 import { Button } from '../ui/button';
 import {
   GraduationCap,
-  Printer,
+  Share2,
   Calendar,
   Award,
   Clock,
-  QrCode,
+  Download,
   Trophy,
   Star,
   Building2,
@@ -23,8 +23,8 @@ import {
   ChevronRight,
   Radio,
   FileText,
-  ShieldAlert,
-  Send,
+  Search,
+  Sliders,
   CheckCircle2,
   AlertCircle,
   Sparkles,
@@ -32,14 +32,15 @@ import {
   Users,
   Compass
 } from 'lucide-react';
-import { Student, Result, College, Item, Appeal } from '@/lib/types/fest';
+import { Student, Result, College, Item, formatStudentCategory } from '@/lib/types/fest';
+import { ResultPosterModal, PosterInitialData } from '@/components/student/ResultPosterModal';
 import {
   findStudentByIdentifier,
   getCanonicalChestNo,
   registrationContainsStudent
 } from '@/lib/utils/studentIdentity';
 
-export type StudentTab = 'dashboard' | 'schedule' | 'admit_card' | 'results' | 'appeals';
+export type StudentTab = 'dashboard' | 'schedule' | 'my_results' | 'results';
 
 interface StudentViewProps {
   activeTab?: StudentTab;
@@ -89,12 +90,22 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const [activeSlide, setActiveSlide] = useState(0);
   const [resultsDisplayCount, setResultsDisplayCount] = useState(5);
 
-  // Appeal Form State
-  const [appealItemId, setAppealItemId] = useState<string>('');
-  const [appealReason, setAppealReason] = useState<string>('');
-  const [appealSubmitting, setAppealSubmitting] = useState(false);
-  const [appealSuccess, setAppealSuccess] = useState<string | null>(null);
-  const [appealError, setAppealError] = useState<string | null>(null);
+  // Poster Modal & Guest Lookup State
+  const [isPosterOpen, setIsPosterOpen] = useState(false);
+  const [selectedPosterData, setSelectedPosterData] = useState<PosterInitialData>({
+    studentName: '',
+    itemEnglish: '',
+    phase: '',
+    prize: '',
+    collegeName: '',
+    chestNo: ''
+  });
+  const [guestSearchQuery, setGuestSearchQuery] = useState('');
+  const [guestStudent, setGuestStudent] = useState<Student | null>(null);
+
+
+
+
 
   // Auto-advance slides every 6 seconds
   useEffect(() => {
@@ -142,7 +153,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     return undefined;
   }, [loggedInStudent, students]);
 
-  const targetStu = currentStudent;
+  const targetStu = currentStudent || guestStudent || undefined;
   const userAfflNo = targetStu?.college_affl_no || (loggedInStudent?.college_affl_no) || currentCollegeAfflNo || 1;
   const studentCollege: College | undefined = colleges.find(
     c => c.affl_no === userAfflNo || c.id === targetStu?.college_id
@@ -224,48 +235,146 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     return { list: top3, isUserInTop3: true, userEntry: null };
   }, [leaderboard, userAfflNo]);
 
-  // Handle Appeal Submission
-  const handleAppealSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAppealError(null);
-    setAppealSuccess(null);
-    setAppealSubmitting(true);
+    // Matching wins / results for the target student
+  const myResults = useMemo(() => {
+    if (!targetStu) return [];
+    const chestNo = getCanonicalChestNo(targetStu).toLowerCase();
+    const stuId = String(targetStu.id || '').toLowerCase();
+    const cicNo = String(targetStu.admission_no || targetStu.cic_no || '').toLowerCase();
+    const targetName = (targetStu.full_name || targetStu.name || '').trim().toLowerCase();
 
-    if (!appealItemId) {
-      setAppealError('Please select a competition event.');
-      setAppealSubmitting(false);
-      return;
-    }
+    const matchesStu = (s?: any) => {
+      if (!s) return false;
+      const sChest = String(s.chest_no || '').toLowerCase();
+      const sId = String(s.id || '').toLowerCase();
+      const sCic = String(s.cic_no || s.admission_no || '').toLowerCase();
+      const sName = String(s.full_name || s.name || '').trim().toLowerCase();
+      if (chestNo && sChest && chestNo === sChest) return true;
+      if (stuId && sId && stuId === sId) return true;
+      if (cicNo && sCic && cicNo === sCic) return true;
+      if (targetName && sName && (targetName === sName || sName.includes(targetName) || targetName.includes(sName))) return true;
+      return false;
+    };
 
-    if (!appealReason.trim()) {
-      setAppealError('Please provide specific grounds for your appeal.');
-      setAppealSubmitting(false);
-      return;
-    }
-
-    try {
-      const resp = await festService.submitAppeal({
-        college_affl_no: userAfflNo,
-        item_id: Number(appealItemId),
-        participant_name: targetStu?.full_name || targetStu?.name,
-        chest_no: getCanonicalChestNo(targetStu),
-        appeal_description: appealReason.trim(),
-        reason_for_appeal: appealReason.trim(),
-        payment_mode: 'Cash',
-        current_status: 'Pending'
-      });
-
-      if (resp.success) {
-        setAppealSuccess('Your appeal has been submitted successfully to the Fest Executive Committee.');
-        setAppealReason('');
-        setAppealItemId('');
-      } else {
-        setAppealError(resp.error || 'Failed to submit appeal. Please try again.');
+    const matchesReg = (reg?: any) => {
+      if (!reg) return false;
+      if (reg.participants && Array.isArray(reg.participants)) {
+        return reg.participants.some((p: any) => matchesStu(p));
       }
-    } catch (err: any) {
-      setAppealError(err?.message || 'Error communicating with appeals server.');
-    } finally {
-      setAppealSubmitting(false);
+      return matchesStu(reg.student);
+    };
+
+    const list: Array<{
+      id: string;
+      item: Item | undefined;
+      rank: number | null;
+      grade?: string | null;
+      prize: string;
+      points?: number | null;
+      date?: string;
+    }> = [];
+
+    // Check individual and team results
+    results.forEach(res => {
+      if (!res.published) return;
+
+      // 1. Direct chest / student match
+      const directMatch = (res.chest_no && chestNo && res.chest_no.toLowerCase() === chestNo) ||
+        (res.student && matchesStu(res.student));
+
+      if (directMatch) {
+        const prizeLabel = res.rank === 1 ? 'First Prize' :
+          res.rank === 2 ? 'Second Prize' :
+          res.rank === 3 ? 'Third Prize' :
+          res.grade ? `Grade ${res.grade}` : 'Participant';
+        
+        list.push({
+          id: res.id,
+          item: res.item,
+          rank: res.rank || null,
+          grade: res.grade,
+          prize: prizeLabel,
+          points: res.points,
+          date: res.created_at
+        });
+        return;
+      }
+
+      // 2. Event-level result with first_reg, second_reg, third_reg
+      if (res.first_reg && matchesReg(res.first_reg)) {
+        list.push({
+          id: `${res.id}-1`,
+          item: res.item,
+          rank: 1,
+          prize: 'First Prize',
+          points: 5,
+          date: res.created_at
+        });
+      } else if (res.second_reg && matchesReg(res.second_reg)) {
+        list.push({
+          id: `${res.id}-2`,
+          item: res.item,
+          rank: 2,
+          prize: 'Second Prize',
+          points: 3,
+          date: res.created_at
+        });
+      } else if (res.third_reg && matchesReg(res.third_reg)) {
+        list.push({
+          id: `${res.id}-3`,
+          item: res.item,
+          rank: 3,
+          prize: 'Third Prize',
+          points: 1,
+          date: res.created_at
+        });
+      }
+    });
+
+    return list;
+  }, [results, targetStu]);
+
+  const openPosterForResult = (res: {
+    item?: Item;
+    prize: string;
+    rank?: number | null;
+  }) => {
+    setSelectedPosterData({
+      studentName: targetStu?.full_name || targetStu?.name || 'Student Participant',
+      itemEnglish: res.item?.name_eng || res.item?.name || 'Competition Event',
+      phase: formatStudentCategory(res.item?.phase || res.item?.category || targetStu?.category || 'General'),
+      prize: res.prize || (res.rank === 1 ? 'First Prize' : res.rank === 2 ? 'Second Prize' : res.rank === 3 ? 'Third Prize' : 'Special Mention'),
+      collegeName: studentCollege?.name || studentCollege?.short_name || '',
+      chestNo: getCanonicalChestNo(targetStu)
+    });
+    setIsPosterOpen(true);
+  };
+
+  const openCustomPoster = () => {
+    setSelectedPosterData({
+      studentName: targetStu?.full_name || targetStu?.name || '',
+      itemEnglish: '',
+      phase: formatStudentCategory(targetStu?.category || 'General'),
+      prize: 'First Prize',
+      collegeName: studentCollege?.name || studentCollege?.short_name || '',
+      chestNo: getCanonicalChestNo(targetStu)
+    });
+    setIsPosterOpen(true);
+  };
+
+  const handleGuestLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guestSearchQuery.trim()) return;
+    const q = guestSearchQuery.trim().toLowerCase();
+    const found = students.find(s => 
+      String(s.chest_no || '').toLowerCase() === q ||
+      String(s.cic_no || s.admission_no || '').toLowerCase() === q ||
+      String(s.full_name || s.name || '').toLowerCase().includes(q)
+    );
+    if (found) {
+      setGuestStudent(found);
+    } else {
+      alert(`No student found matching "${guestSearchQuery}". Please check the chest or CIC number.`);
     }
   };
 
@@ -323,11 +432,11 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setActiveTab('admit_card')}
-                className="text-xs flex items-center gap-1.5"
+                onClick={() => setActiveTab('my_results')}
+                className="text-xs flex items-center gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Admit Card</span>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>My Results & Poster</span>
               </Button>
               <button
                 onClick={handleStudentSignOut}
@@ -353,9 +462,8 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
         {[
           { id: 'dashboard', label: 'Fest Highlights & Overview' },
           { id: 'schedule', label: `My Schedule (${studentSchedules.length})` },
-          { id: 'admit_card', label: 'Official Admit Card' },
-          { id: 'results', label: 'Results & Leaderboard' },
-          { id: 'appeals', label: 'File Appeal' }
+          { id: 'my_results', label: 'My Results & Poster' },
+          { id: 'results', label: 'Results & Leaderboard' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -482,18 +590,18 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
             )}
 
             <button
-              onClick={() => setActiveTab('appeals')}
-              className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-rose-500/40 shadow-card flex items-center justify-between group transition-all text-left cursor-pointer"
+              onClick={() => setActiveTab('my_results')}
+              className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-amber-500/40 shadow-card flex items-center justify-between group transition-all text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                  <Award className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-rose-500 transition-colors">
-                    Official Appeal Form
+                  <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-amber-500 transition-colors">
+                    My Results & Social Poster
                   </div>
-                  <div className="text-[11px] text-[var(--text-muted)]">File judgement review petition</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">Download & share achievement poster</div>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:translate-x-0.5 transition-transform" />
@@ -882,128 +990,227 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 3. OFFICIAL ADMIT CARD VIEW                                        */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'admit_card' && (
-        !loggedInStudent || !targetStu ? (
-          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 max-w-xl mx-auto shadow-card rounded-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-500 mx-auto flex items-center justify-center">
-              <Printer className="w-7 h-7" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-[var(--text-primary)]">Student Authentication Required</h3>
-              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
-                Please log in with your CIC Number & password to generate and print your official 14th Wafy Arts Fest Student Participant Admit Card.
-              </p>
-            </div>
-            <div>
-              <Link
-                href="/student-login"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
-              >
-                <GraduationCap className="w-4 h-4" />
-                <span>Sign In to Access Admit Card</span>
-              </Link>
-            </div>
-          </Card>
-        ) : (
-          <div className="max-w-xl mx-auto space-y-4">
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 text-xs">
-                <Printer className="w-3.5 h-3.5" /> Print Admit Card
-              </Button>
-            </div>
-
-          <div className="bg-white text-slate-900 rounded-3xl border-2 border-slate-300 p-6 shadow-elevated print:border-black print:shadow-none space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-slate-100 pb-4">
-              <div>
-                <span className="text-[11px] uppercase font-bold tracking-wider text-slate-400">
-                  14TH WAFY ARTS FEST
-                </span>
-                <h3 className="text-base font-extrabold text-[#132238]">STUDENT PARTICIPANT PASS</h3>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-500 font-mono uppercase block">CHEST NO</span>
-                <div className="font-mono text-xl font-black px-3 py-1 rounded-xl bg-[#132238] text-white inline-block">
-                  {getCanonicalChestNo(targetStu)}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* 3. MY RESULTS & SOCIAL POSTER VIEW                                */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {activeTab === 'my_results' && (
+        <div className="space-y-6">
+          {/* Header Action Banner */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-950 via-slate-900 to-emerald-950 p-6 text-white border border-amber-500/20 shadow-card">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Social Media Poster Generator</span>
                 </div>
+                <h2 className="text-xl font-extrabold tracking-tight">My Fest Results & Celebration Posters</h2>
+                <p className="text-xs text-slate-300 max-w-xl">
+                  Download high-resolution official achievement posters tailored with your name, English event title, category phase, and prize won to share directly on WhatsApp and Instagram status.
+                </p>
               </div>
-            </div>
 
-            {/* Profile Info */}
-            <div className="flex gap-4 items-center">
-              {targetStu.photo_url ? (
-                <img
-                  src={targetStu.photo_url}
-                  alt={targetStu.full_name || targetStu.name || 'Participant portrait photograph'}
-                  className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shrink-0"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold shrink-0">
-                  PHOTO
-                </div>
-              )}
-              <div className="space-y-1 text-xs">
-                <h4 className="text-base font-bold text-[#132238]">{targetStu.full_name || targetStu.name}</h4>
-                <div className="text-slate-600">Institution: <strong className="text-slate-800">{studentCollege?.name}</strong></div>
-                <div className="text-slate-600">Admission No: <span className="font-mono">{targetStu.admission_no}</span></div>
-                <div className="pt-1">
-                  <CategoryBadge category={targetStu.category || targetStu.phase || 'Senior'} />
-                </div>
-              </div>
-            </div>
-
-            {/* Registered Events */}
-            <div className="border-t border-slate-100 pt-3">
-              <span className="text-[11px] font-bold uppercase text-slate-500 block mb-2">
-                Authorized Competitions & Stages:
-              </span>
-              <div className="space-y-1.5">
-                {studentRegistrations.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No registrations recorded.</p>
-                ) : (
-                  studentRegistrations.map(r => {
-                    const sch = schedules.find(s => s.item_id === r.item_id);
-                    return (
-                      <div
-                        key={r.id}
-                        className="text-xs flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100"
-                      >
-                        <div>
-                          <div className="font-semibold text-slate-900">{r.item?.name}</div>
-                          <span className="text-[10px] text-slate-500 font-mono">{r.item?.code || r.item?.item_code}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium text-slate-800">{sch?.stage?.name.split(':')[0] || 'TBA'}</div>
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            {sch ? new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Footer Barcode Simulation */}
-            <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-[11px] text-slate-400">
-              <div className="flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-slate-700" />
-                <span className="font-mono">VERIFIED: {targetStu.id.slice(0, 8)}</span>
-              </div>
-              <div className="text-right">
-                <span className="block font-medium text-slate-700">Wafy Students Federation (WSF)</span>
-                <span className="text-[10px]">Valid with official student ID card</span>
+              <div className="flex items-center gap-3 shrink-0">
+                <Button
+                  onClick={openCustomPoster}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-md flex items-center gap-2 cursor-pointer border-0"
+                >
+                  <Sliders className="w-4 h-4 text-slate-950" />
+                  <span>Custom Poster Designer</span>
+                </Button>
               </div>
             </div>
           </div>
+
+          {/* Guest Search Lookup */}
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+            <form onSubmit={handleGuestLookup} className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Lookup by Chest No, Admission/CIC No or Student Name..."
+                  value={guestSearchQuery}
+                  onChange={e => setGuestSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-[var(--bg-subtle)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <Button type="submit" size="sm" className="w-full sm:w-auto text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+                <Search className="w-3.5 h-3.5 mr-1.5" />
+                Find Student
+              </Button>
+            </form>
+
+            {targetStu && (
+              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--text-muted)]">Active Profile:</span>
+                  <span className="font-bold text-[var(--text-primary)]">{targetStu.full_name || targetStu.name}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[11px] font-semibold border border-emerald-500/20">
+                    Chest #{getCanonicalChestNo(targetStu)}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-[var(--text-secondary)] text-[11px]">
+                    Phase: {formatStudentCategory(targetStu.category || 'General')}
+                  </span>
+                </div>
+                {guestStudent && (
+                  <button
+                    onClick={() => { setGuestStudent(null); setGuestSearchQuery(''); }}
+                    className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Results Grid */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <Medal className="w-4 h-4 text-amber-500" />
+                <span>Published Honors & Prizes</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-mono">
+                  {myResults.length}
+                </span>
+              </h3>
+            </div>
+
+            {myResults.length === 0 ? (
+              <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center">
+                  <Award className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-[var(--text-primary)]">
+                    No Published Results Yet for {targetStu?.full_name || targetStu?.name || 'this participant'}
+                  </h4>
+                  <p className="text-xs text-[var(--text-muted)] max-w-md mx-auto">
+                    Evaluation results are announced live once judge score sheets are submitted. You can still generate and preview your celebration poster anytime using the designer below.
+                  </p>
+                </div>
+                <div>
+                  <Button
+                    onClick={openCustomPoster}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs inline-flex items-center gap-2 cursor-pointer"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Open Poster Designer</span>
+                  </Button>
+                </div>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {myResults.map(res => {
+                  const isFirst = res.rank === 1;
+                  const isSecond = res.rank === 2;
+                  const isThird = res.rank === 3;
+                  const rankColor = isFirst
+                    ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/5 to-transparent'
+                    : isSecond
+                    ? 'border-slate-400/40 bg-gradient-to-b from-slate-400/5 to-transparent'
+                    : isThird
+                    ? 'border-orange-500/40 bg-gradient-to-b from-orange-500/5 to-transparent'
+                    : 'border-emerald-500/30 bg-gradient-to-b from-emerald-500/5 to-transparent';
+
+                  return (
+                    <Card
+                      key={res.id}
+                      className={`border ${rankColor} bg-[var(--bg-surface)] hover:shadow-md transition-all flex flex-col justify-between overflow-hidden`}
+                    >
+                      <div className="p-5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1.5 ${
+                              isFirst
+                                ? 'bg-amber-500 text-slate-950 shadow-xs'
+                                : isSecond
+                                ? 'bg-slate-300 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
+                                : isThird
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            <Trophy className="w-3.5 h-3.5" />
+                            {res.prize}
+                          </span>
+                          {res.points && (
+                            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                              +{res.points} Pts
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="text-xs text-[var(--text-muted)] font-mono">
+                            {res.item?.item_code || `ITEM #${res.item?.item_id || ''}`}
+                          </div>
+                          <h4 className="text-sm font-bold text-[var(--text-primary)] mt-0.5">
+                            {res.item?.name_eng || res.item?.name || 'Competition Event'}
+                          </h4>
+                          {res.item?.name_eng && res.item?.name && res.item.name !== res.item.name_eng && (
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">
+                              {res.item.name}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold">
+                            {formatStudentCategory(res.item?.phase || res.item?.category || 'General')}
+                          </span>
+                          {res.grade && (
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold font-mono">
+                              Grade {res.grade}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-[var(--bg-subtle)] border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                        <Button
+                          onClick={() => openPosterForResult(res)}
+                          className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-xs flex items-center justify-center gap-2 border-0 cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Generate & Download Poster</span>
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Poster Specifications Card */}
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5">
+            <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Poster Specifications & Sharing Guide</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs text-[var(--text-secondary)]">
+              <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                <div className="font-bold text-[var(--text-primary)] mb-1">1. Student Name</div>
+                <p className="text-[11px] text-[var(--text-muted)]">Placed front and center in elegant gold typography.</p>
+              </div>
+              <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                <div className="font-bold text-[var(--text-primary)] mb-1">2. Item Name (English)</div>
+                <p className="text-[11px] text-[var(--text-muted)]">Official English title of the participated event.</p>
+              </div>
+              <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                <div className="font-bold text-[var(--text-primary)] mb-1">3. Phase Category</div>
+                <p className="text-[11px] text-[var(--text-muted)]">Category level (Senior, Junior, Sub-Junior, General).</p>
+              </div>
+              <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                <div className="font-bold text-[var(--text-primary)] mb-1">4. Prize Won</div>
+                <p className="text-[11px] text-[var(--text-muted)]">Distinctive ribbon badge: First, Second, Third or Grade.</p>
+              </div>
+            </div>
+          </Card>
         </div>
-        )
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* 4. RESULTS & LEADERBOARD TAB                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'results' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1129,145 +1336,12 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 5. OFFICIAL APPEAL SUBMISSION FORM                                 */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'appeals' && (
-        !loggedInStudent || !targetStu ? (
-          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] p-8 text-center space-y-4 max-w-xl mx-auto shadow-card rounded-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
-              <ShieldAlert className="w-7 h-7" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-[var(--text-primary)]">Sign In Required to File Appeal</h3>
-              <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
-                Only authenticated participants can submit formal evaluation appeals to the Arts Fest Appellate Board.
-              </p>
-            </div>
-            <div>
-              <Link
-                href="/student-login"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
-              >
-                <GraduationCap className="w-4 h-4" />
-                <span>Sign In with CIC Number</span>
-              </Link>
-            </div>
-          </Card>
-        ) : (
-          <div className="max-w-2xl mx-auto">
-            <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-              <CardHeader>
-                <div>
-                  <CardTitle className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-rose-500" />
-                    <span>File Competition Result Appeal</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-1">
-                    Students may petition the Appellate Board regarding evaluation disputes within the designated review window.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-
-            <CardContent>
-              {appealSuccess && (
-                <div className="mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{appealSuccess}</span>
-                </div>
-              )}
-
-              {appealError && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{appealError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAppealSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                      Participant Name
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={targetStu?.full_name || targetStu?.name || ''}
-                      className="w-full px-3 py-2 text-xs bg-[var(--bg-subtle)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                      Chest Number
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={getCanonicalChestNo(targetStu)}
-                      className="w-full px-3 py-2 text-xs bg-[var(--bg-subtle)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono font-semibold"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                    Select Disputed Competition Event *
-                  </label>
-                  <select
-                    value={appealItemId}
-                    onChange={e => setAppealItemId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">-- Choose competition event --</option>
-                    {studentRegistrations.map(r => (
-                      <option key={r.id} value={r.item_id}>
-                        {r.item?.name} ({r.item?.item_code || r.item?.code || `ID:${r.item_id}`})
-                      </option>
-                    ))}
-                    {studentRegistrations.length === 0 && (
-                      items.map(item => (
-                        <option key={item.item_id} value={item.item_id}>
-                          {item.name} ({item.item_code})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                    Detailed Grounds for Appeal *
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={appealReason}
-                    onChange={e => setAppealReason(e.target.value)}
-                    placeholder="Specify discrepancies in timing, criteria, rules infraction, or scoring disparity..."
-                    required
-                    className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    Formal statutory appeal fee of ₹500 applies as per the official Fest Manual.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex justify-end">
-                  <Button
-                    type="submit"
-                    disabled={appealSubmitting}
-                    className="flex items-center gap-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{appealSubmitting ? 'Submitting Petition...' : 'Submit Appeal to Executive Board'}</span>
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-        )
-      )}
+      {/* Result Poster Generation Modal */}
+      <ResultPosterModal
+        isOpen={isPosterOpen}
+        onClose={() => setIsPosterOpen(false)}
+        initialData={selectedPosterData}
+      />
     </div>
   );
 }

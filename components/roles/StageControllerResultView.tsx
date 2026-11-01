@@ -1,16 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge, StageStatusBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Item, Stage, Schedule, Registration, Student, College, StageStatus } from '@/lib/types/fest';
+import { StageStatus } from '@/lib/types/fest';
 import { getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import {
-  Shuffle,
   Dices,
   ArrowLeft,
   Calendar,
@@ -19,14 +18,11 @@ import {
   Users,
   CheckCircle2,
   Sparkles,
-  Trophy,
-  ChevronRight,
-  Hash,
-  Building2,
-  User,
-  RotateCcw,
   Radio,
-  FileCheck2
+  UserCheck,
+  X,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
 interface StageControllerResultViewProps {
@@ -48,21 +44,13 @@ export function StageControllerResultView({
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const codeLetters = useMemo(() => festService.getCodeLetters(), [refreshKey]);
+  const chestNosMapping = useMemo(() => festService.getChestNos(), [refreshKey]);
 
   // Stage selection state
   const [internalStageNumber, setInternalStageNumber] = useState<number>(() => {
     return stages[0] ? stages[0].stage_number : 1;
   });
   const currentStageNumber = controlledStageNumber ?? internalStageNumber;
-
-  const handleStageSelect = (num: number) => {
-    setSelectedEventId(null);
-    if (onSelectStageNumber) {
-      onSelectStageNumber(num);
-    } else {
-      setInternalStageNumber(num);
-    }
-  };
 
   // Selected stage object
   const currentStage = stages.find(s => s.stage_number === currentStageNumber) || stages[0];
@@ -74,7 +62,12 @@ export function StageControllerResultView({
       .map(s => {
         const item = s.item || allItems.find(i => Number(i.item_id) === Number(s.item_id));
         const regs = allRegistrations.filter(r => Number(r.item_id) === Number(s.item_id));
-        const allocatedCount = regs.filter(r => Boolean(r.code_letter)).length;
+        const itemCodeLetters = codeLetters.filter(cl => Number(cl.item_id) === Number(s.item_id));
+        const allocatedCount = regs.filter(r => {
+          const cleanChest = (r.chest_no || '').trim().toUpperCase();
+          return Boolean(r.code_letter) || itemCodeLetters.some(cl => (cl.chest_no || '').trim().toUpperCase() === cleanChest);
+        }).length;
+
         return {
           ...s,
           item,
@@ -83,12 +76,34 @@ export function StageControllerResultView({
         };
       })
       .sort((a, b) => new Date(a.starting).getTime() - new Date(b.starting).getTime());
-  }, [schedules, currentStageNumber, allItems, allRegistrations]);
+  }, [schedules, currentStageNumber, allItems, allRegistrations, codeLetters]);
 
   // Selected event state for detail view
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const selectedSchedule = stageSchedules.find(s => Number(s.item_id) === Number(selectedEventId));
   const selectedItem = selectedSchedule?.item || allItems.find(i => Number(i.item_id) === Number(selectedEventId));
+
+  // Live per-event loading state
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState<boolean>(false);
+
+  // Fetch event-specific registrations, chest numbers, and code letters when event is selected
+  useEffect(() => {
+    if (!selectedEventId) return;
+    let isCancelled = false;
+    setIsLoadingParticipants(true);
+
+    festService
+      .fetchEventParticipantsData(selectedEventId)
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingParticipants(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedEventId, refreshKey]);
 
   // Registered participants for selected event
   const eventParticipants = useMemo(() => {
@@ -98,10 +113,16 @@ export function StageControllerResultView({
     return eventRegs.map(reg => {
       const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
       const stu = reg.student || findStudentByIdentifier(students, reg.chest_no, reg.college_affl_no);
+      const cleanChest = (reg.chest_no || '').trim().toUpperCase();
       const letterEntry = codeLetters.find(
-        cl => Number(cl.item_id) === Number(selectedEventId) && cl.chest_no === reg.chest_no
+        cl => Number(cl.item_id) === Number(selectedEventId) && (cl.chest_no || '').trim().toUpperCase() === cleanChest
       );
       const activeCodeLetter = reg.code_letter || letterEntry?.code_letter || null;
+
+      // Chest mapping lookup for cic_no
+      const chestMapping = chestNosMapping.find(
+        (cm: any) => (cm.chest_no || '').trim().toUpperCase() === cleanChest
+      );
 
       return {
         registration: reg,
@@ -109,79 +130,49 @@ export function StageControllerResultView({
         student: stu,
         chestNo: reg.chest_no,
         canonicalChestNo: stu ? getCanonicalChestNo(stu) : (reg.chest_no || 'ST-N/A'),
+        admissionNo: stu?.admission_no || stu?.cic_no || chestMapping?.cic_no || 'N/A',
         codeLetter: activeCodeLetter
       };
     });
-  }, [selectedEventId, allRegistrations, colleges, students, codeLetters]);
+  }, [selectedEventId, allRegistrations, colleges, students, codeLetters, chestNosMapping]);
 
   // Loading/busy feedback for code generation
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+
+  // Modal verification state
+  const [verifyingParticipant, setVerifyingParticipant] = useState<any | null>(null);
+
+  // Keep active verifying participant synced with live state
+  const activeVerifyingParticipant = useMemo(() => {
+    if (!verifyingParticipant) return null;
+    const fresh = eventParticipants.find(
+      p => (p.chestNo || '').trim().toUpperCase() === (verifyingParticipant.chestNo || '').trim().toUpperCase()
+    );
+    return fresh || verifyingParticipant;
+  }, [verifyingParticipant, eventParticipants]);
 
   const showTemporaryMessage = (msg: string) => {
     setActionSuccessMessage(msg);
     setTimeout(() => setActionSuccessMessage(null), 3000);
   };
 
-  // Random single participant code letter allocation
+  // Random single participant code letter allocation (One-time only)
   const handleAssignRandomCode = async (chestNo: string, collegeAfflNo: number) => {
     if (!selectedEventId) return;
     setIsProcessing(true);
     try {
       const res = await festService.assignRandomCodeLetter(selectedEventId, collegeAfflNo, chestNo);
-      if (res.success) {
+      if (res.success && res.codeLetter) {
         showTemporaryMessage(`Assigned Code Letter "${res.codeLetter}" to Chest ${chestNo}!`);
         triggerRefresh();
+        // Update verifying participant state
+        setVerifyingParticipant((prev: any) => (prev ? { ...prev, codeLetter: res.codeLetter } : null));
       } else {
         alert(res.error || 'Failed to assign code letter');
       }
     } catch (err: any) {
       alert(err.message || 'Error assigning random code letter');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Randomize all participants for this event
-  const handleRandomizeAll = async () => {
-    if (!selectedEventId) return;
-    if (eventParticipants.length === 0) {
-      alert('No participants registered for this event to allocate.');
-      return;
-    }
-    if (
-      eventParticipants.some(p => Boolean(p.codeLetter)) &&
-      !confirm('Some participants already have code letters assigned. Do you want to re-shuffle and randomize all code letters for this event?')
-    ) {
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const res = await festService.randomizeAllCodeLetters(selectedEventId);
-      if (res.success) {
-        showTemporaryMessage(`Successfully randomized all ${eventParticipants.length} code letters!`);
-        triggerRefresh();
-      } else {
-        alert(res.error || 'Failed to randomize code letters');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Error randomizing all code letters');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Remove code letter for single participant
-  const handleRemoveCode = async (chestNo: string) => {
-    if (!selectedEventId) return;
-    setIsProcessing(true);
-    try {
-      await festService.removeCodeLetter(selectedEventId, chestNo);
-      showTemporaryMessage(`Reset code letter for Chest ${chestNo}.`);
-      triggerRefresh();
-    } catch (err: any) {
-      alert(err.message || 'Error removing code letter');
     } finally {
       setIsProcessing(false);
     }
@@ -270,7 +261,7 @@ export function StageControllerResultView({
                   Scheduled Events on {currentStage?.name}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Select an event to view registered participants and allocate anonymous blind code letters (A, B, C...)
+                  Click on any event row to view registered participants and allocate anonymous blind code letters (A, B, C...)
                 </CardDescription>
               </div>
             </CardHeader>
@@ -287,15 +278,13 @@ export function StageControllerResultView({
                     <TableHead>Time Start</TableHead>
                     <TableHead>Time End</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Registrations</TableHead>
                     <TableHead className="text-center">Code Letters</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {stageSchedules.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-12 text-[var(--text-muted)] text-sm">
+                      <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-sm">
                         No events are currently scheduled for this stage in the schedule table.
                       </TableCell>
                     </TableRow>
@@ -353,36 +342,21 @@ export function StageControllerResultView({
                             </select>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-mono font-bold text-xs text-[var(--text-primary)]">
-                              {sch.registrationsCount}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
                             {sch.registrationsCount === 0 ? (
-                              <span className="text-[11px] text-[var(--text-muted)]">No roster</span>
+                              <span className="text-[11px] text-[var(--text-muted)] font-mono">0/0</span>
                             ) : isComplete ? (
-                              <Badge variant="success" size="sm" className="font-mono">
-                                {sch.allocatedCount}/{sch.registrationsCount} Done
+                              <Badge variant="success" size="sm" className="font-mono font-bold">
+                                {sch.allocatedCount}/{sch.registrationsCount}
                               </Badge>
                             ) : sch.allocatedCount > 0 ? (
-                              <Badge variant="amber" size="sm" className="font-mono">
-                                {sch.allocatedCount}/{sch.registrationsCount} Partial
+                              <Badge variant="amber" size="sm" className="font-mono font-bold">
+                                {sch.allocatedCount}/{sch.registrationsCount}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" size="sm" className="text-[var(--text-muted)] font-mono">
-                                0/{sch.registrationsCount} Pending
+                              <Badge variant="outline" size="sm" className="text-[var(--text-muted)] font-mono font-bold">
+                                0/{sch.registrationsCount}
                               </Badge>
                             )}
-                          </TableCell>
-                          <TableCell className="text-right" onClick={e => e.stopPropagation()}>
-                            <Button
-                              size="xs"
-                              variant="primary"
-                              onClick={() => setSelectedEventId(Number(sch.item_id))}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                            >
-                              Manage Codes →
-                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -408,18 +382,23 @@ export function StageControllerResultView({
               <span>Back to {currentStage?.name} Events</span>
             </button>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRandomizeAll}
-                disabled={isProcessing || eventParticipants.length === 0}
-                className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/50 dark:text-indigo-400 dark:hover:bg-indigo-950/40 font-semibold"
-              >
-                <Shuffle className="w-4 h-4 text-indigo-600" />
-                <span>Shuffle & Randomize All</span>
-              </Button>
-            </div>
+            <button
+              onClick={() => {
+                if (selectedEventId) {
+                  setIsLoadingParticipants(true);
+                  festService.fetchEventParticipantsData(selectedEventId).finally(() => {
+                    setIsLoadingParticipants(false);
+                    triggerRefresh();
+                  });
+                }
+              }}
+              disabled={isLoadingParticipants}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-600 bg-[var(--bg-surface)] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
+              title="Refresh participants and code letters"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingParticipants ? 'animate-spin text-emerald-500' : ''}`} />
+              <span>Refresh Roster</span>
+            </button>
           </div>
 
           {/* Event Header Card */}
@@ -497,7 +476,7 @@ export function StageControllerResultView({
             </div>
           </div>
 
-          {/* Participants Table with Individual Random Selection */}
+          {/* Participants Table with Individual Random Selection & Verification Modal */}
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
               <div>
@@ -506,116 +485,267 @@ export function StageControllerResultView({
                   Registered Participants & Code Letters
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Every student can be assigned an anonymous random code letter for blind evaluation. Letters are recorded in the code_letters table.
+                  Click on a student row or the &quot;Draw Code&quot; button to verify participant credentials and allocate their anonymous blind code letter.
                 </CardDescription>
               </div>
             </CardHeader>
 
             <CardContent className="p-0 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12 text-center">#</TableHead>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>College / Institution</TableHead>
-                    <TableHead>Chest No</TableHead>
-                    <TableHead>Adm / CIC No</TableHead>
-                    <TableHead className="text-center">Assigned Code Letter</TableHead>
-                    <TableHead className="text-right w-44">Random Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eventParticipants.length === 0 ? (
+              {isLoadingParticipants ? (
+                <div className="py-16 text-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto" />
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Loading registered participants and code letters from Supabase database...
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-[var(--text-muted)] text-sm">
-                        No students are currently registered for this event.
-                      </TableCell>
+                      <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>College / Institution</TableHead>
+                      <TableHead>Chest No</TableHead>
+                      <TableHead>Adm / CIC No</TableHead>
+                      <TableHead className="text-center">Assigned Code Letter</TableHead>
+                      <TableHead className="text-right w-44">Action</TableHead>
                     </TableRow>
-                  ) : (
-                    eventParticipants.map((p, idx) => {
-                      const student = p.student;
-                      const college = p.college;
-                      const hasCode = Boolean(p.codeLetter);
+                  </TableHeader>
+                  <TableBody>
+                    {eventParticipants.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12 text-[var(--text-muted)] text-sm">
+                          No students are currently registered for this event in the registrations table.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      eventParticipants.map((p, idx) => {
+                        const student = p.student;
+                        const college = p.college;
+                        const hasCode = Boolean(p.codeLetter);
 
-                      return (
-                        <TableRow key={p.registration.id || p.chestNo} className="hover:bg-[var(--bg-hover)]">
-                          <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
-                            {idx + 1}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-semibold text-[var(--text-primary)]">
-                              {student?.full_name || student?.name || 'Registered Student'}
-                            </div>
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              {student?.category || student?.phase || 'Senior'}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium text-xs text-[var(--text-primary)]">
-                              {college?.name || `College ${p.registration.college_affl_no}`}
-                            </div>
-                            <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                              Affl No: {p.registration.college_affl_no}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300">
-                            {p.canonicalChestNo}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-[var(--text-secondary)]">
-                            {student?.admission_no || student?.cic_no || 'N/A'}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {hasCode ? (
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                <span className="font-mono text-base font-extrabold tracking-wider">
-                                  {p.codeLetter}
-                                </span>
+                        return (
+                          <TableRow
+                            key={p.registration.id || p.chestNo}
+                            className="hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
+                            onClick={() => setVerifyingParticipant(p)}
+                          >
+                            <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
+                              {idx + 1}
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-semibold text-[var(--text-primary)]">
+                                {student?.full_name || student?.name || `Participant (${p.canonicalChestNo || p.chestNo})`}
                               </div>
-                            ) : (
-                              <span className="text-xs font-mono text-[var(--text-muted)] italic">
-                                Unassigned
+                              <span className="text-[11px] text-[var(--text-muted)]">
+                                {student?.category || student?.phase || selectedItem.phase || 'Senior'}
                               </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                size="xs"
-                                variant={hasCode ? 'outline' : 'primary'}
-                                disabled={isProcessing}
-                                onClick={() => handleAssignRandomCode(p.chestNo, p.registration.college_affl_no)}
-                                title={hasCode ? 'Re-roll random code letter' : 'Assign random code letter (A-N)'}
-                                className={`gap-1.5 font-semibold ${
-                                  hasCode
-                                    ? 'border-slate-300 dark:border-slate-700 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
-                                }`}
-                              >
-                                <Dices className="w-3.5 h-3.5" />
-                                <span>{hasCode ? 'Re-roll' : 'Random Code'}</span>
-                              </Button>
-
-                              {hasCode && (
-                                <button
-                                  onClick={() => handleRemoveCode(p.chestNo)}
-                                  disabled={isProcessing}
-                                  title="Reset code letter"
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                </button>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium text-xs text-[var(--text-primary)]">
+                                {college?.name || `College #${p.registration.college_affl_no}`}
+                              </div>
+                              <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                                Affl No: {p.registration.college_affl_no}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300">
+                              {p.canonicalChestNo}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-[var(--text-secondary)]">
+                              {p.admissionNo}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {hasCode ? (
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                  <span className="font-mono text-base font-extrabold tracking-wider">
+                                    {p.codeLetter}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs font-mono text-[var(--text-muted)] italic">
+                                  Unassigned
+                                </span>
                               )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                            </TableCell>
+                            <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {hasCode ? (
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    onClick={() => setVerifyingParticipant(p)}
+                                    className="gap-1.5 font-semibold border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span>Verified ({p.codeLetter})</span>
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="xs"
+                                    variant="primary"
+                                    disabled={isProcessing}
+                                    onClick={() => setVerifyingParticipant(p)}
+                                    className="gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs cursor-pointer"
+                                  >
+                                    <Dices className="w-3.5 h-3.5" />
+                                    <span>Draw Code</span>
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Participant Verification & Single Lot Draw Modal Popup */}
+      {activeVerifyingParticipant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-subtle)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                    Participant Verification
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Confirm scholar identity before drawing random code letter
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setVerifyingParticipant(null)}
+                className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body: Verified Credentials */}
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs">
+                <div>
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Candidate Name</span>
+                  <span className="font-bold text-[var(--text-primary)] text-sm mt-0.5 block">
+                    {activeVerifyingParticipant.student?.full_name || activeVerifyingParticipant.student?.name || `Participant (${activeVerifyingParticipant.canonicalChestNo})`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">College / Institution</span>
+                  <span className="font-semibold text-[var(--text-primary)] mt-0.5 block truncate">
+                    {activeVerifyingParticipant.college?.name || `College #${activeVerifyingParticipant.registration.college_affl_no}`}
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                    Affiliation: #{activeVerifyingParticipant.registration.college_affl_no}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Chest Number</span>
+                  <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                    {activeVerifyingParticipant.canonicalChestNo || activeVerifyingParticipant.chestNo}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">CIC / Admission No</span>
+                  <span className="font-mono font-semibold text-[var(--text-primary)] mt-0.5 block">
+                    {activeVerifyingParticipant.admissionNo || 'N/A'}
+                  </span>
+                </div>
+                <div className="col-span-2 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Event</span>
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      {selectedItem?.item_code}: {selectedItem?.name_eng || selectedItem?.name}
+                    </span>
+                  </div>
+                  <CategoryBadge category={selectedItem?.phase || selectedItem?.category || 'General'} />
+                </div>
+              </div>
+
+              {/* Status Section */}
+              {activeVerifyingParticipant.codeLetter ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-600 text-white font-mono font-extrabold text-2xl shadow-sm">
+                    {activeVerifyingParticipant.codeLetter}
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                      Code Letter Allotted: {activeVerifyingParticipant.codeLetter}
+                    </span>
+                    <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                      This participant has drawn their lot. Code letters are saved to the database. Re-rolls and resets are disabled.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <span className="font-bold text-amber-800 dark:text-amber-300 block">
+                        One-Time Random Lot Draw
+                      </span>
+                      <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                        Verify the candidate credentials above before drawing. A single random letter from the unused pool (A - N) will be drawn and saved to the database.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-[var(--bg-subtle)] border-t border-[var(--border-subtle)] flex items-center justify-end gap-2.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVerifyingParticipant(null)}
+                className="text-xs"
+              >
+                {activeVerifyingParticipant.codeLetter ? 'Done' : 'Cancel'}
+              </Button>
+
+              {!activeVerifyingParticipant.codeLetter && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={isProcessing}
+                  onClick={() =>
+                    handleAssignRandomCode(
+                      activeVerifyingParticipant.chestNo,
+                      activeVerifyingParticipant.registration.college_affl_no
+                    )
+                  }
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs font-semibold shadow-sm cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Drawing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Dices className="w-4 h-4" />
+                      <span>Confirm & Draw Random Code</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
