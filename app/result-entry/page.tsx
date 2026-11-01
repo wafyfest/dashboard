@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import React, { useState, useEffect } from 'react';
 import {
+  Radio,
   ClipboardPen,
   Globe,
   FileCheck2
@@ -35,7 +35,6 @@ export default function ResultEntryPage() {
         navItems={navItems}
         activeItemId={activeTab}
         onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
-        onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
       >
         <div className="max-w-7xl mx-auto space-y-4">
           <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
@@ -52,7 +51,6 @@ export default function ResultEntryPage() {
         roleBadge="Result Entry"
         navItems={navItems}
         activeItemId={activeTab}
-        onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
         onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
       >
         <div className="max-w-7xl mx-auto">

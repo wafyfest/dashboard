@@ -2883,7 +2883,13 @@ class FestService {
       });
 
       const cleanChest = s.chest_no || matchingCodeLetter?.chest_no || matchingReg?.chest_no || null;
-      const afflNo = s.college_affl_no || matchingCodeLetter?.college_affl_no || matchingReg?.college_affl_no || null;
+      let afflNo = s.college_affl_no || matchingCodeLetter?.college_affl_no || matchingReg?.college_affl_no || null;
+      if (!afflNo && cleanChest) {
+        const stu = findStudentByIdentifier(this.getStudents(), cleanChest);
+        if (stu && stu.college_affl_no) {
+          afflNo = Number(stu.college_affl_no);
+        }
+      }
 
       const marks = s.mark_percentage !== undefined ? s.mark_percentage : (s.total !== undefined ? s.total : 75);
       const calculatedGrade = s.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : marks >= 70 ? 'B' : 'C');
