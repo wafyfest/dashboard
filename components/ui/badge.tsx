@@ -3,7 +3,21 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'navy' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'purple' | 'amber';
+  variant?:
+    | 'default'
+    | 'navy'
+    | 'secondary'
+    | 'success'
+    | 'warning'
+    | 'destructive'
+    | 'outline'
+    | 'purple'
+    | 'amber'
+    | 'category-foundation'
+    | 'category-thamheediyya'
+    | 'category-aliya'
+    | 'category-pg'
+    | 'category-general';
   size?: 'sm' | 'md';
 }
 
@@ -30,6 +44,13 @@ export function Badge({
     outline:     'text-[var(--text-primary)] border border-[var(--border-medium)] bg-[var(--bg-subtle)]/75 font-medium',
     purple:      'bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60',
     amber:       'bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
+
+    // Phase Categories (designed in the theme of Aliya: dark solid backdrop, high-contrast white text, subtle dark border & shadow-xs)
+    'category-foundation':   'bg-sky-950 text-white border border-sky-800/80 dark:bg-sky-950 dark:text-white dark:border-sky-700 shadow-xs',
+    'category-thamheediyya': 'bg-indigo-950 text-white border border-indigo-800/80 dark:bg-indigo-950 dark:text-white dark:border-indigo-700 shadow-xs',
+    'category-aliya':        'bg-black text-white border border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700 shadow-xs',
+    'category-pg':           'bg-amber-950 text-white border border-amber-800/80 dark:bg-amber-950 dark:text-white dark:border-amber-700 shadow-xs',
+    'category-general':      'bg-zinc-800 text-white border border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-600 shadow-xs',
   };
 
   return (
@@ -79,29 +100,44 @@ export function StageStatusBadge({ status }: { status: string }) {
   }
 }
 
-export function CategoryBadge({ category }: { category: string }) {
+export function CategoryBadge({
+  category,
+  size = 'md',
+  className,
+}: {
+  category: string;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
   const norm = (category || '').toLowerCase().trim();
   switch (norm) {
     case 'foundation':
-      return <Badge variant="secondary">Foundation</Badge>;
-    case 'thamheediyya':
-    case 'thamheediya':
-      return <Badge variant="purple">Thamheediyya</Badge>;
-    case 'aliya':
-      return <Badge variant="navy">Aliya</Badge>;
-    case 'pg':
-      return <Badge variant="amber">PG</Badge>;
-    case 'general':
-      return <Badge variant="default">General</Badge>;
     case 'sub_junior':
     case 'sub junior':
-      return <Badge variant="secondary">Foundation</Badge>;
+    case 'sub-junior':
+    case 'fd':
+    case 'pre foundation':
+    case 'pre-foundation':
+      return <Badge variant="category-foundation" size={size} className={className}>Foundation</Badge>;
+    case 'thamheediyya':
+    case 'thamheediya':
+    case 'thamheed':
+    case 'th':
     case 'junior':
-      return <Badge variant="purple">Thamheediyya</Badge>;
+      return <Badge variant="category-thamheediyya" size={size} className={className}>Thamheediyya</Badge>;
+    case 'aliya':
+    case 'al':
     case 'senior':
-      return <Badge variant="navy">Aliya</Badge>;
+      return <Badge variant="navy" size={size} className={className}>Aliya</Badge>;
+    case 'pg':
+    case 'post graduate':
+    case 'post-graduate':
+      return <Badge variant="category-pg" size={size} className={className}>PG</Badge>;
+    case 'general':
+    case 'gen':
+      return <Badge variant="category-general" size={size} className={className}>General</Badge>;
     default:
-      return <Badge variant="default">{category || 'General'}</Badge>;
+      return <Badge variant="category-general" size={size} className={className}>{category || 'General'}</Badge>;
   }
 }
 
@@ -130,11 +166,11 @@ export function ItemModeBadge({
   if (norm === 'onstage' || norm === 'on_stage' || norm === 'on stage') {
     return (
       <Badge
-        variant="navy"
+        variant="success"
         size={size}
         className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
         On Stage
       </Badge>
     );
@@ -146,7 +182,7 @@ export function ItemModeBadge({
         size={size}
         className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
         Off Stage
       </Badge>
     );
@@ -158,7 +194,7 @@ export function ItemModeBadge({
         size={size}
         className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
         Submission
       </Badge>
     );
@@ -191,20 +227,20 @@ export function ItemTypeBadge({
 
   const normMode = (mode || '').toLowerCase().trim();
   let modeLabel = 'Offstage';
-  let dotColor = 'bg-sky-400';
-  let variant: 'navy' | 'purple' | 'secondary' = 'secondary';
+  let dotColor = 'bg-sky-500';
+  let variant: 'success' | 'purple' | 'secondary' = 'secondary';
 
   if (normMode === 'onstage' || normMode === 'on_stage' || normMode === 'on stage') {
     modeLabel = 'Onstage';
-    dotColor = 'bg-emerald-400';
-    variant = isGroup ? 'purple' : 'navy';
+    dotColor = 'bg-emerald-500';
+    variant = isGroup ? 'purple' : 'success';
   } else if (normMode === 'submission') {
     modeLabel = 'Submission';
-    dotColor = 'bg-indigo-400';
+    dotColor = 'bg-indigo-500';
     variant = 'purple';
   } else {
     modeLabel = 'Offstage';
-    dotColor = 'bg-sky-400';
+    dotColor = 'bg-sky-500';
     variant = isGroup ? 'purple' : 'secondary';
   }
 

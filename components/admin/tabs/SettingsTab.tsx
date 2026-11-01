@@ -92,7 +92,7 @@ export function SettingsTab() {
 
   // Per-Event Filter & Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'extended' | 'default' | 'onstage' | 'offstage'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'extended' | 'default' | 'onstage' | 'offstage' | 'submission'>('all');
   const [selectedPhase, setSelectedPhase] = useState<string>('all');
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
 
@@ -129,6 +129,7 @@ export function SettingsTab() {
       if (filterMode === 'default' && hasCustomExtension) return false;
       if (filterMode === 'onstage' && item.mode !== 'onstage') return false;
       if (filterMode === 'offstage' && item.mode !== 'offstage') return false;
+      if (filterMode === 'submission' && item.mode !== 'submission') return false;
 
       // Search query match
       if (searchQuery.trim()) {
@@ -771,8 +772,9 @@ export function SettingsTab() {
               {[
                 { id: 'all', label: 'All Events' },
                 { id: 'extended', label: `Extended (${metrics.customCount})` },
+                { id: 'onstage', label: 'On-Stage' },
                 { id: 'offstage', label: 'Off-Stage' },
-                { id: 'onstage', label: 'On-Stage' }
+                { id: 'submission', label: 'Submission' }
               ].map(tab => (
                 <button
                   key={tab.id}
