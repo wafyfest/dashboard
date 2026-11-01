@@ -3,6 +3,7 @@
 import React from 'react';
 import { College, FestSettings } from '@/lib/types/fest';
 import { Zap, User, Mail, MapPin, Phone, MessageSquare, BookOpen, Layers } from 'lucide-react';
+import { formatIstDisplay } from '@/lib/utils/istDate';
 
 interface CollegeDashboardTabProps {
   college?: College;
@@ -29,12 +30,12 @@ export function CollegeDashboardTab({
           <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
           <span className="font-medium">
             <strong className="font-bold">Key Deadlines:</strong> Regular Registration closes{' '}
-            <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-              {new Date(festSettings.reg_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold" suppressHydrationWarning>
+              {formatIstDisplay(festSettings.reg_deadline)}
             </span>{' '}
             • Late Fine Period ends:{' '}
-            <span className="font-mono text-amber-600 dark:text-amber-400 font-semibold">
-              {new Date(festSettings.fine_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <span className="font-mono text-amber-600 dark:text-amber-400 font-semibold" suppressHydrationWarning>
+              {formatIstDisplay(festSettings.fine_deadline)}
             </span>
           </span>
         </div>

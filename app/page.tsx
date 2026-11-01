@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
+import { formatIstDisplay } from '@/lib/utils/istDate';
 
 export default function LandingPage() {
   const { festSettings, theme, toggleTheme, isAuthenticated, currentRole } = useFest();
@@ -333,8 +334,8 @@ export default function LandingPage() {
                 <Clock className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="text-xs">
                   <div className="font-semibold text-[var(--text-primary)]">Registration Deadline</div>
-                  <div className="text-[var(--text-muted)] font-mono mt-0.5">
-                    {festSettings.reg_deadline ? new Date(festSettings.reg_deadline).toLocaleDateString() : 'Active'}
+                  <div className="text-[var(--text-muted)] font-mono mt-0.5" suppressHydrationWarning>
+                    {festSettings.reg_deadline ? formatIstDisplay(festSettings.reg_deadline, { showDateOnly: true, includeTzLabel: false }) : 'Active'}
                   </div>
                 </div>
               </div>
@@ -343,8 +344,8 @@ export default function LandingPage() {
                 <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="text-xs">
                   <div className="font-semibold text-[var(--text-primary)]">Late Entry Fine Window</div>
-                  <div className="text-[var(--text-muted)] font-mono mt-0.5">
-                    {festSettings.fine_deadline ? new Date(festSettings.fine_deadline).toLocaleDateString() : 'Upcoming'}
+                  <div className="text-[var(--text-muted)] font-mono mt-0.5" suppressHydrationWarning>
+                    {festSettings.fine_deadline ? formatIstDisplay(festSettings.fine_deadline, { showDateOnly: true, includeTzLabel: false }) : 'Upcoming'}
                   </div>
                 </div>
               </div>
