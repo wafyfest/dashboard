@@ -22,7 +22,8 @@ import {
   UserCheck,
   X,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 interface StageControllerResultViewProps {
@@ -204,6 +205,12 @@ export function StageControllerResultView({
     if (!dateStr) return 'TBD';
     const d = new Date(dateStr);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  // Check if an event has overrun its scheduled ending time
+  const checkIsOverrun = (endingTime?: string | null, status?: string) => {
+    if (!endingTime || status === 'Ended') return false;
+    return new Date(endingTime).getTime() < Date.now();
   };
 
   return (
