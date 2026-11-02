@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
-import { Sparkles } from 'lucide-react';
-import { useInView } from '@/lib/hooks/useInView';
+import React, { useState } from 'react';
+import { Star } from './FestivalPattern';
+import { Calendar, Search, Sparkles, Trophy } from 'lucide-react';
 
 interface Edition {
   edition: number;
@@ -13,260 +13,185 @@ interface Edition {
 }
 
 const EDITIONS: Edition[] = [
-  {
-    edition: 1,
-    year: '1997',
-    highlight:
-      'The inaugural Wafy Arts Fest — establishing a legacy of inter-collegiate cultural excellence under CIC.',
-  },
-  {
-    edition: 2,
-    year: '1999',
-    highlight:
-      'Growing participation as more affiliated colleges joined the expanding Wafy network.',
-  },
-  {
-    edition: 3,
-    year: '2001',
-    highlight:
-      'Introduction of formal blind-judging protocols to ensure fair and impartial competition.',
-  },
-  {
-    edition: 4,
-    year: '2003',
-    highlight:
-      'Expansion of literary categories — Quranic recitation and Arabic oratory formally added.',
-  },
-  {
-    edition: 5,
-    year: '2005',
-    highlight:
-      'First edition to feature offstage and submission-based events alongside live performances.',
-  },
-  {
-    edition: 6,
-    year: '2007',
-    highlight:
-      'Pan-Kerala reach achieved with 15+ colleges competing across all four academic phases.',
-  },
-  {
-    edition: 7,
-    year: '2009',
-    highlight:
-      'Aliya (Senior) category introduced as a fully independent competitive tier.',
-  },
-  {
-    edition: 8,
-    year: '2011',
-    highlight:
-      'Digital tabulation system piloted for real-time result processing and score transparency.',
-  },
-  {
-    edition: 9,
-    year: '2013',
-    highlight:
-      'Record 1,000+ participants across Foundation, Junior, and Senior phases in a single edition.',
-  },
-  {
-    edition: 10,
-    year: '2015',
-    highlight:
-      'Decade milestone — celebrated with expanded stage count, grand ceremony, and special awards.',
-  },
-  {
-    edition: 11,
-    year: '2017',
-    highlight:
-      'PG / General category formalized with dedicated events for postgraduate scholars.',
-  },
-  {
-    edition: 12,
-    year: '2019',
-    highlight:
-      'Online registration system launched, streamlining coordination across all affiliated colleges.',
-  },
-  {
-    edition: 13,
-    year: '2022',
-    highlight:
-      'Post-pandemic return with hybrid formats, heightened participation energy, and digital broadcasts.',
-  },
+  { edition: 1, year: '1997', highlight: 'The inaugural Wafy Arts Fest, establishing a legacy of inter-collegiate cultural excellence under CIC.' },
+  { edition: 2, year: '1999', highlight: 'Growing participation as more affiliated colleges joined the expanding Wafy network across Kerala.' },
+  { edition: 3, year: '2001', highlight: 'Introduction of formal blind-judging protocols to ensure impeccable fairness and academic impartiality.' },
+  { edition: 4, year: '2003', highlight: 'Expansion of literary categories: Quranic recitation and Arabic classical oratory formally incorporated.' },
+  { edition: 5, year: '2005', highlight: 'First edition to feature specialized offstage and research submission categories alongside live stage events.' },
+  { edition: 6, year: '2007', highlight: 'Pan-Kerala reach achieved with 15+ colleges competing across all four progressive academic tiers.' },
+  { edition: 7, year: '2009', highlight: 'Aliya (Senior Undergraduate) tier introduced as a fully independent competitive category.' },
+  { edition: 8, year: '2011', highlight: 'Digital tabulation system piloted for real-time score processing and transparent public reporting.' },
+  { edition: 9, year: '2013', highlight: 'Record milestone of 1,000+ competitors across Foundation, Junior, and Senior academic streams.' },
+  { edition: 10, year: '2015', highlight: 'Decade anniversary, celebrated with multi-stage synchronized tracks, grand honors, and special trophies.' },
+  { edition: 11, year: '2017', highlight: 'PG / General postgraduate stream formalized with dedicated research competitions and mentorship.' },
+  { edition: 12, year: '2019', highlight: 'Online portal registration system inaugurated, connecting all affiliated colleges digitally.' },
+  { edition: 13, year: '2022', highlight: 'Grand post-pandemic resurgence featuring hybrid stage broadcasts, digital scoring, and record crowds.' },
   {
     edition: 14,
     year: '2024–2025',
     highlight:
-      'The 14th edition — the most technologically advanced fest yet, with live stage tracking, automated blind tabulation, admit cards, and the official digital management portal.',
+      'The most technologically advanced edition yet: automated digital tabulation, QR-enabled student admit cards, and full public festival portal.',
     isCurrent: true,
   },
 ];
 
-// ── Single edition card ───────────────────────────────────────────────
-function EditionCard({
-  edition,
-  align,
-}: {
-  edition: Edition;
-  align: 'left' | 'right';
-}) {
-  return (
-    <div
-      className={`
-        glass-card p-4 sm:p-5 rounded-2xl w-full max-w-sm
-        ${align === 'right' ? 'ml-auto text-right' : 'mr-auto text-left'}
-        ${edition.isCurrent
-          ? 'border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.12)]'
-          : ''
-        }
-      `}
-    >
-      <div
-        className={`flex items-center gap-2 mb-2 ${align === 'right' ? 'justify-end' : ''}`}
-      >
-        <span
-          className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${edition.isCurrent
-            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-            : 'bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
-            }`}
-        >
-          {edition.isCurrent && <Sparkles className="w-3 h-3 inline mr-1" />}
-          Edition {edition.edition}
-        </span>
-        {edition.isCurrent && (
-          <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
-            Current
-          </span>
-        )}
-      </div>
-      {edition.host && (
-        <p className="text-[10px] text-[var(--text-muted)] mb-1.5 font-medium">
-          {edition.host}
-        </p>
-      )}
-      <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-        {edition.highlight}
-      </p>
-    </div>
-  );
-}
-
-// ── Single timeline node ──────────────────────────────────────────────
-function TimelineNode({
-  edition,
-  index,
-}: {
-  edition: Edition;
-  index: number;
-}) {
-  const isLeft = index % 2 === 0;
-  const [nodeRef, nodeInView] = useInView<HTMLDivElement>({ threshold: 0.2 });
-
-  return (
-    <div ref={nodeRef} className="relative flex items-center justify-center">
-
-      {/* ── Desktop: alternating left / right ── */}
-      <div className="hidden lg:grid lg:grid-cols-[1fr_auto_1fr] w-full items-center gap-6">
-
-        {/* Left slot */}
-        <div className={isLeft ? `reveal-left ${nodeInView ? 'in-view' : ''}` : ''}>
-          {isLeft ? <EditionCard edition={edition} align="right" /> : <div />}
-        </div>
-
-        {/* Center dot + year */}
-        <div className="flex flex-col items-center gap-1.5 shrink-0">
-          <div
-            className={`w-4 h-4 rounded-full border-2 z-10 relative transition-colors duration-300 ${edition.isCurrent
-              ? 'bg-emerald-500 border-emerald-400 pulse-dot'
-              : 'bg-[var(--bg-elevated)] border-[var(--border-medium)]'
-              }`}
-          />
-          <span
-            className={`text-[10px] font-mono font-bold ${edition.isCurrent ? 'text-emerald-500' : 'text-[var(--text-muted)]'
-              }`}
-          >
-            {edition.year}
-          </span>
-        </div>
-
-        {/* Right slot */}
-        <div className={!isLeft ? `reveal-right ${nodeInView ? 'in-view' : ''}` : ''}>
-          {!isLeft ? <EditionCard edition={edition} align="left" /> : <div />}
-        </div>
-      </div>
-
-      {/* ── Mobile: all left-aligned ── */}
-      <div className={`lg:hidden w-full pl-8 reveal-right ${nodeInView ? 'in-view' : ''}`}>
-        <div
-          className={`absolute left-0 top-2 w-3 h-3 rounded-full border-2 z-10 ${edition.isCurrent
-            ? 'bg-emerald-500 border-emerald-400 pulse-dot'
-            : 'bg-[var(--bg-elevated)] border-[var(--border-medium)]'
-            }`}
-        />
-        <EditionCard edition={edition} align="left" />
-      </div>
-    </div>
-  );
-}
-
-// ── Main FestHistory component ────────────────────────────────────────
 export function FestHistory() {
-  const [headerRef, headerInView] = useInView<HTMLDivElement>({ threshold: 0.1 });
-  const [lineRef, lineInView] = useInView<HTMLDivElement>({ threshold: 0.05 });
+  const [filterMode, setFilterMode] = useState<'all' | 'recent' | 'early'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const current = EDITIONS.find((e) => e.isCurrent) ?? EDITIONS[EDITIONS.length - 1];
+  const allPast = EDITIONS.filter((e) => !e.isCurrent).reverse();
+
+  const filteredPast = allPast.filter((item) => {
+    const matchesSearch =
+      item.year.includes(searchQuery) ||
+      item.edition.toString().includes(searchQuery) ||
+      item.highlight.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (filterMode === 'recent') {
+      return item.edition >= 10;
+    }
+    if (filterMode === 'early') {
+      return item.edition < 10;
+    }
+    return true;
+  });
 
   return (
-    <section id="history" className="relative py-24 sm:py-32 overflow-hidden">
-      {/* Top rule */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-[var(--border-subtle)]" />
-      {/* Right-edge color bar */}
-      <div className="absolute right-0 top-1/4 bottom-1/4 w-1 bg-gradient-to-b from-transparent via-amber-500 to-transparent rounded-full" />
-
-      <div className="max-w-5xl mx-auto px-6 sm:px-10 lg:px-16">
-
-        {/* Section header — editorial, left-aligned on desktop */}
-        <div
-          ref={headerRef}
-          className={`reveal-up ${headerRef ? 'in-view' : ''} mb-14 sm:mb-20`}
-        >
-          <p className="text-amber-500 text-xs font-bold tracking-[0.2em] uppercase mb-3">
-            Since 1997
-          </p>
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[var(--text-primary)] font-heading leading-[1.05]">
-              A Legacy of<br className="hidden sm:block" /> 14 Editions
+    <section
+      id="history"
+      className="f-sans relative scroll-mt-16 bg-[var(--f-chalk)] py-20 text-[var(--f-ink)] sm:py-28"
+    >
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+        {/* ── Section Header ── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-lapis)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--f-lapis)]" />
+              <span>Historic Retrospective</span>
+            </div>
+            <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              Fourteen Editions
+              <br />
+              Since 1997
             </h2>
-            <p className="text-sm text-[var(--text-secondary)] sm:text-right sm:max-w-xs leading-relaxed">
-              From a humble gathering of scholars to a premier inter-collegiate cultural institution — growing edition by edition.
-            </p>
           </div>
-          <div className="mt-6 h-px bg-gradient-to-r from-amber-500/60 via-[var(--border-medium)] to-transparent" />
+          <p className="max-w-xs text-sm sm:text-base leading-relaxed text-[var(--f-ink)]/75 sm:text-right">
+            Tracing the evolution from a humble campus gathering to South India&apos;s premier collegiate cultural festival.
+          </p>
         </div>
 
-        {/* Timeline */}
-        <div className="relative">
+        {/* ── Current Edition Feature Card ── */}
+        <div className="relative mt-12 grid gap-6 overflow-hidden rounded-2xl bg-[var(--f-ink)] p-7 sm:p-10 text-white shadow-xl sm:grid-cols-[auto_1fr] sm:items-center sm:gap-12">
+          <Star className="pointer-events-none absolute -right-8 -top-8 h-64 w-64 text-white/[0.04]" />
 
-          {/* Desktop center gradient line */}
-          <div
-            ref={lineRef}
-            className="hidden lg:block absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px overflow-hidden"
-          >
-            <div
-              className={`w-full h-full draw-line ${lineInView ? 'in-view' : ''}`}
-              style={{
-                background:
-                  'linear-gradient(to bottom, transparent 0%, #10B981 10%, #F59E0B 50%, #A855F7 90%, transparent 100%)',
-              }}
+          <div className="flex items-center gap-4 sm:flex-col sm:items-start">
+            <div className="f-kufi text-7xl sm:text-9xl font-extrabold leading-none text-[var(--f-saffron)]">
+              {current.edition}
+            </div>
+            <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-[var(--f-saffron)] tracking-wider uppercase">
+              Current Edition
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/70">
+              <Calendar className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
+              <span>{current.year} Academic Cycle</span>
+            </div>
+            <p className="mt-2.5 max-w-[56ch] text-lg sm:text-2xl font-bold leading-snug">
+              {current.highlight}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/90">
+                100% Digital Tabulation
+              </span>
+              <span className="rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/90">
+                Live Public Dashboards
+              </span>
+              <span className="rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/90">
+                Automated QR Admit Cards
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Filter & Search Toolbar ── */}
+        <div className="mt-12 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--f-ink)]/15 pb-5">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                filterMode === 'all'
+                  ? 'bg-[var(--f-lapis)] text-white shadow-sm'
+                  : 'bg-black/5 hover:bg-black/10 text-[var(--f-ink)]/80 dark:bg-white/5'
+              }`}
+            >
+              All 13 Past Editions
+            </button>
+            <button
+              onClick={() => setFilterMode('recent')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                filterMode === 'recent'
+                  ? 'bg-[var(--f-lapis)] text-white shadow-sm'
+                  : 'bg-black/5 hover:bg-black/10 text-[var(--f-ink)]/80 dark:bg-white/5'
+              }`}
+            >
+              Modern Era (10–13)
+            </button>
+            <button
+              onClick={() => setFilterMode('early')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                filterMode === 'early'
+                  ? 'bg-[var(--f-lapis)] text-white shadow-sm'
+                  : 'bg-black/5 hover:bg-black/10 text-[var(--f-ink)]/80 dark:bg-white/5'
+              }`}
+            >
+              Early Years (1–9)
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--f-ink)]/50" />
+            <input
+              type="text"
+              placeholder="Search year or milestone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-[var(--f-ink)]/20 bg-white/70 py-1.5 pl-9 pr-3 text-xs text-[var(--f-ink)] placeholder-[var(--f-ink)]/50 focus:border-[var(--f-lapis)] focus:outline-none dark:bg-black/20"
             />
           </div>
-
-          {/* Mobile left line */}
-          <div className="lg:hidden absolute left-1.5 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-emerald-500/40 to-transparent" />
-
-          {/* Edition nodes */}
-          <div className="space-y-6 sm:space-y-8">
-            {EDITIONS.map((ed, i) => (
-              <TimelineNode key={ed.edition} edition={ed} index={i} />
-            ))}
-          </div>
         </div>
+
+        {/* ── Past Editions Interactive Grid ── */}
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredPast.map((ed) => (
+            <div
+              key={ed.edition}
+              className="group rounded-xl border border-[var(--f-ink)]/15 bg-white/70 p-5 transition-all duration-200 hover:border-[var(--f-lapis)] hover:bg-white hover:shadow-md dark:bg-white/5 dark:hover:bg-[#151515]"
+            >
+              <div className="flex items-baseline justify-between border-b border-[var(--f-ink)]/10 pb-2.5">
+                <span className="f-kufi text-2xl font-black text-[var(--f-lapis)] dark:text-sky-400">
+                  {ed.year}
+                </span>
+                <span className="rounded-md bg-black/5 px-2 py-0.5 text-[10px] font-bold text-[var(--f-ink)]/70 dark:bg-white/10">
+                  Edition {ed.edition}
+                </span>
+              </div>
+              <p className="mt-3 text-xs sm:text-sm leading-relaxed text-[var(--f-ink)]/80">
+                {ed.highlight}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {filteredPast.length === 0 && (
+          <div className="py-12 text-center text-xs text-[var(--f-ink)]/60">
+            No festival editions matched your search criteria.
+          </div>
+        )}
       </div>
     </section>
   );

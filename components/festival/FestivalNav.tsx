@@ -12,7 +12,6 @@ const SECTIONS: NavSection[] = [
   { id: 'cic', label: 'About CIC' },
   { id: 'wsf', label: 'About WSF' },
   { id: 'wafy', label: 'Wafy Stream' },
-  { id: 'history', label: 'History' },
   { id: 'committee', label: 'Committee' },
 ];
 
@@ -20,33 +19,55 @@ export function FestivalNav() {
   const [activeId, setActiveId] = useState('hero');
 
   useEffect(() => {
-    const observers: IntersectionObserver[] = [];
+    const handleScroll = () => {
+      // Offset calculation for reading zone (120px below top of viewport)
+      const scrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
 
-    SECTIONS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+      // If at bottom of page, activate last section
+      if (scrollY + windowHeight >= documentHeight - 50) {
+        setActiveId(SECTIONS[SECTIONS.length - 1].id);
+        return;
+      }
 
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) setActiveId(id);
-        },
-        { threshold: 0.4 }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
+      // Check sections from bottom to top
+      for (let i = SECTIONS.length - 1; i >= 0; i--) {
+        const el = document.getElementById(SECTIONS[i].id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // Element is active if its top is near or above reading line (120px)
+          if (rect.top <= 140) {
+            setActiveId(SECTIONS[i].id);
+            break;
+          }
+        }
+      }
+    };
 
-    return () => observers.forEach(o => o.disconnect());
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Trigger on mount
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    const el = document.getElementById(id);
+    if (!el) return;
+    const navHeight = 56; // 14rem / 56px navbar
+    const elementPosition = el.getBoundingClientRect().top + window.scrollY;
+    const offsetPosition = Math.max(0, elementPosition - navHeight);
+
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: 'smooth',
+    });
   };
 
   return (
     <nav
-      className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-50 flex-col items-center gap-3"
-      aria-label="Page sections"
+      className="hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 z-50 flex-col items-center gap-2 select-none pointer-events-auto"
+      aria-label="Section navigation"
     >
       {SECTIONS.map(({ id, label }) => {
         const isActive = activeId === id;
@@ -55,29 +76,37 @@ export function FestivalNav() {
             key={id}
             onClick={() => scrollTo(id)}
             title={label}
-            aria-label={`Go to ${label} section`}
-            className="group relative flex items-center justify-end gap-2 cursor-pointer bg-transparent border-none p-0"
+            aria-label={`Scroll to ${label}`}
+            className="group relative flex items-center justify-end cursor-pointer bg-transparent border-none p-1 focus:outline-none"
           >
-            {/* Tooltip label */}
-            <span className="
-              absolute right-full mr-3 px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap
-              bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)]
-              opacity-0 group-hover:opacity-100 pointer-events-none
-              transition-opacity duration-150 shadow-card font-heading
-            ">
+            {/* Tooltip label on hover */}
+            <span
+              className="
+                absolute right-full mr-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold whitespace-nowrap
+                bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-primary)]
+                opacity-0 group-hover:opacity-100 pointer-events-none shadow-sm
+                transition-all duration-150 transform translate-x-1 group-hover:translate-x-0 font-heading
+              "
+            >
               {label}
             </span>
-            {/* Dot */}
-            <div className={`
-              rounded-full border transition-all duration-300
-              ${isActive
-                ? 'w-3 h-3 bg-emerald-500 border-emerald-400 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)]'
-                : 'w-2 h-2 bg-[var(--bg-hover)] border-[var(--border-medium)] hover:border-emerald-400 hover:bg-emerald-500/30'
-              }
-            `} />
+
+            {/* Micro Indicator Dot */}
+            <div
+              className={`
+                rounded-full transition-all duration-200
+                ${
+                  isActive
+                    ? 'w-2 h-2 bg-emerald-500 ring-2 ring-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                    : 'w-1.5 h-1.5 bg-slate-400 dark:bg-zinc-600 hover:bg-emerald-400 hover:scale-125'
+                }
+              `}
+            />
           </button>
         );
       })}
     </nav>
   );
 }
+
+

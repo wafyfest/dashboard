@@ -1,254 +1,249 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  Users,
   BookOpen,
   Megaphone,
   Trophy,
   HeartHandshake,
   ArrowRight,
+  ShieldCheck,
+  Compass,
+  FileText,
+  Activity,
+  Award,
+  Radio,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
-import { useInView } from '@/lib/hooks/useInView';
 
-// ── What WSF does — shown as a horizontal feature strip ──────────────
-const WSF_PILLARS = [
-  {
-    icon: Trophy,
-    title: 'Arts & Culture',
-    desc: 'Organises the biennial Wafy Arts Fest — the flagship inter-collegiate cultural competition for 25+ institutions.',
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/8',
-    border: 'border-emerald-500/20',
-  },
-  {
-    icon: BookOpen,
-    title: 'Academic Publishing',
-    desc: 'Produces journals, magazines, and research publications that amplify the scholarly voice of the Wafy student community.',
-    color: 'text-sky-500',
-    bg: 'bg-sky-500/8',
-    border: 'border-sky-500/20',
-  },
-  {
-    icon: Megaphone,
-    title: 'Student Leadership',
-    desc: 'Trains and develops future leaders through workshops, seminars, and cross-college governance programs.',
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/8',
-    border: 'border-amber-500/20',
-  },
-  {
-    icon: HeartHandshake,
-    title: 'Social Engagement',
-    desc: 'Drives community outreach, charitable initiatives, and welfare activities that extend scholarship into service.',
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/8',
-    border: 'border-purple-500/20',
-  },
+const WSF_STATS = [
+  { value: '54', label: 'Affiliated Colleges', detail: 'Owned by or affiliated to CIC' },
+  { value: '15+', label: 'Years Operational', detail: 'Legacy of youth empowerment' },
+  { value: '14', label: 'Arts Fests Held', detail: 'State-level cultural flagship' },
+  { value: '2', label: 'Years Cycle', detail: 'Biennial Arts Fest & Sports Meet' },
 ];
 
-// ── Quick-stat row ────────────────────────────────────────────────────
-const WSF_STATS = [
-  { value: '25+',  label: 'Member Colleges' },
-  { value: '14',   label: 'Arts Fests Conducted' },
-  { value: '5K+',  label: 'Active Members' },
-  { value: '2',    label: 'Streams (Wafy & Wafiyya)' },
+const FACTS = [
+  { label: 'Parent Body', value: 'Coordination of Islamic Colleges (CIC)' },
+  { label: 'Headquarters', value: 'Wafa Campus, Pang South PO, Kolathur VIA, Malappuram, Kerala' },
+  { label: 'Colleges Represented', value: '54 Colleges across Kerala & beyond' },
+  { label: 'Community Network', value: 'Wafy Orbit System' },
+  { label: 'Current Edition', value: '14th Wafy Arts Fest' },
+  { label: 'Flagship Gatherings', value: 'Arts Fest, Sports Meet, Leaders’ Summit' },
+];
+
+const MAJOR_ACTIVITIES = [
+  {
+    title: 'The Leaders’ Summit',
+    theme: 'Visionary Leadership, Revolutionary Progress',
+    desc: 'Flagship leadership conference empowering student leaders with strategic governance and administrative foresight.',
+    icon: Compass,
+    category: 'Leadership',
+  },
+  {
+    title: 'Comprehensive Research Programmes',
+    theme: 'Beacon of Truth · Thahdīr · Al Mad’hab',
+    desc: 'Rigorous multi-disciplinary academic research initiatives encouraging analytical scholarship and theological inquiry.',
+    icon: BookOpen,
+    category: 'Research',
+  },
+  {
+    title: 'Discourse: Public Speaking Training',
+    theme: 'Oratory, Rhetoric & Eloquence',
+    desc: 'Structured elocution and public address coaching developing bilingual orators in Malayalam, English, and Arabic.',
+    icon: Megaphone,
+    category: 'Oratory',
+  },
+  {
+    title: 'Wal Qalam Writing Programmes',
+    theme: 'Essay, Poetry & Literary Fiction',
+    desc: 'Dedicated literary writing workshops honing creative expression, essay analysis, and journalistic critique.',
+    icon: FileText,
+    category: 'Literature',
+  },
+  {
+    title: 'College Union Evaluation & Grading',
+    theme: 'Continuous Academic Governance',
+    desc: 'Systematic benchmarking and merit grading of student unions across all 54 affiliated colleges.',
+    icon: Activity,
+    category: 'Governance',
+  },
+  {
+    title: 'Medfoc Media Training',
+    theme: 'Digital Media, Journalism & PR',
+    desc: 'Hands-on media workshops covering modern journalism, broadcast production, and digital advocacy.',
+    icon: Radio,
+    category: 'Media',
+  },
+  {
+    title: 'Magazine & Creative Competitions',
+    theme: 'Campus Magazines, Moral Video & CSS Awards',
+    desc: 'Annual evaluation of college periodicals, short moral film productions, and Community Social Service (CSS) honors.',
+    icon: Award,
+    category: 'Creativity',
+  },
+  {
+    title: 'State-Wide Wafy Sports Meet',
+    theme: 'Athletics & Physical Fitness (Biennial)',
+    desc: 'State-wide athletics, games, and physical endurance championships held every two years.',
+    icon: Trophy,
+    category: 'Sports',
+  },
 ];
 
 export function AboutWSF() {
-  const [headRef,    headInView]    = useInView<HTMLDivElement>({ threshold: 0.1 });
-  const [introRef,   introInView]   = useInView<HTMLDivElement>({ threshold: 0.1 });
-  const [pillarsRef, pillarsInView] = useInView<HTMLDivElement>({ threshold: 0.04 });
-  const [statsRef,   statsInView]   = useInView<HTMLDivElement>({ threshold: 0.15 });
-
   return (
-    <section id="wsf" className="relative py-24 sm:py-32 overflow-hidden">
-      {/* Unique background treatment — deep tinted surface, different from CIC's plain white */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 60% at 100% 50%, rgba(16,185,129,0.05) 0%, transparent 60%), ' +
-            'radial-gradient(ellipse 60% 50% at 0% 100%,  rgba(14,165,233,0.04) 0%, transparent 55%)',
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Right-edge accent — mirrors CIC's left-edge bar but on the opposite side */}
-      <div className="absolute right-0 top-1/4 bottom-1/4 w-1 bg-gradient-to-b from-transparent via-emerald-500 to-transparent rounded-full" />
-
-      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-16">
-
-        {/* ── Section header ─────────────────────────────────────── */}
-        <div
-          ref={headRef}
-          className={`reveal-up ${headInView ? 'in-view' : ''} mb-14 sm:mb-20`}
-        >
-          <p className="text-emerald-500 text-xs font-bold tracking-[0.2em] uppercase mb-3">
-            The Student Federation
-          </p>
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[var(--text-primary)] font-heading leading-[1.05]">
-              Wafy Students<br className="hidden sm:block" /> Federation
-            </h2>
-            <p className="text-[var(--text-muted)] text-sm sm:text-right sm:max-w-xs leading-relaxed">
-              اتحاد طلاب وافي<br />
-              <span className="text-xs opacity-70">Organiser of the 14th Wafy Arts Fest</span>
-            </p>
-          </div>
-          {/* Ruled line with emerald lead */}
-          <div className="mt-6 h-px bg-gradient-to-r from-emerald-500/60 via-[var(--border-medium)] to-transparent" />
-        </div>
-
-        {/* ── Two-column intro ────────────────────────────────────── */}
-        <div
-          ref={introRef}
-          className={`reveal-up ${introInView ? 'in-view' : ''} grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-10 lg:gap-20 mb-16 sm:mb-20`}
-        >
-          {/* Left: long description */}
-          <div className="space-y-5 text-sm sm:text-base text-[var(--text-secondary)] leading-relaxed">
-            <p>
-              The{' '}
-              <strong className="text-[var(--text-primary)]">
-                Wafy Students Federation (WSF)
-              </strong>{' '}
-              is the representative student confederation of the Wafy and Wafiyya academic
-              streams, functioning under the direct auspices of the{' '}
-              <strong className="text-[var(--text-primary)]">
-                Coordination of Islamic Colleges (CIC)
-              </strong>
-              . It is the unified voice and action-body of over 5,000 students across 25+
-              affiliated institutions in Kerala and beyond.
-            </p>
-            <p>
-              WSF is the organisation that conceives, plans, and executes the{' '}
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                Wafy Arts Fest
-              </span>{' '}
-              — the biennial inter-collegiate cultural extravaganza that brings together
-              the finest talents in oratory, literary arts, performing arts, Quranic sciences,
-              and creative expression from all affiliated colleges.
-            </p>
-            <p>
-              Beyond the Arts Fest, WSF drives student leadership development, academic
-              publications, social engagement programmes, and community welfare initiatives
-              — embodying the principle that scholarship and service are inseparable.
-            </p>
-          </div>
-
-          {/* Right: identity panel — WSF monogram + quick details */}
-          <div className="flex flex-col justify-center">
-            <div className="glass-panel rounded-2xl p-6 sm:p-8 space-y-5">
-              {/* Monogram badge */}
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/25">
-                  <Users className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <p className="font-extrabold text-lg text-[var(--text-primary)] font-heading leading-tight">
-                    WSF
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)] leading-snug">
-                    Wafy Students Federation<br />
-                    <span className="text-emerald-500 font-semibold">Affiliated to CIC</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="h-px bg-[var(--border-subtle)]" />
-
-              {/* Quick facts list */}
-              <ul className="space-y-3 text-sm">
-                {[
-                  { label: 'Founded under',     value: 'Coordination of Islamic Colleges (CIC)' },
-                  { label: 'Headquarters',       value: 'Markaz Campus, Karthala, Kerala' },
-                  { label: 'Membership',         value: '25+ Affiliated Institutions' },
-                  { label: 'Current Edition',    value: '14th Wafy Arts Fest (2024–2025)' },
-                  { label: 'Fest Frequency',     value: 'Biennial' },
-                ].map(({ label, value }) => (
-                  <li key={label} className="flex items-start gap-3">
-                    <span className="text-xs text-[var(--text-muted)] w-32 shrink-0 pt-0.5 leading-snug">
-                      {label}
-                    </span>
-                    <span className="text-xs font-medium text-[var(--text-primary)] leading-snug">
-                      {value}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+    <section
+      id="wsf"
+      className="f-sans relative scroll-mt-16 bg-[var(--f-mist)] py-20 text-[var(--f-ink)] sm:py-28"
+    >
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-lapis)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--f-lapis)]" />
+              <span>Official Student Wing of CIC</span>
             </div>
+            <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              Wafy Students
+              <br />
+              Federation
+            </h2>
+          </div>
+          <p
+            lang="ar"
+            dir="rtl"
+            className="f-kufi text-left text-2xl font-bold text-[var(--f-lapis)] sm:text-right sm:text-3xl"
+          >
+            اتحاد طلاب وافي
+          </p>
+        </div>
+
+        {/* ── Intro + Facts Grid ── */}
+        <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:gap-14">
+          <div className="lg:col-span-7 space-y-4 text-sm sm:text-base leading-relaxed text-[var(--f-ink)]/85">
+            <p>
+              <strong>Wafy Students Federation (WSF)</strong> is the student wing of CIC, representing all the
+              students from <strong>54 colleges</strong> owned by or affiliated to CIC.
+            </p>
+            <p>
+              The federation is actively involved in conducting various programmes and social projects. It
+              coordinates curricular and non-curricular activities of the students from all affiliated
+              colleges. Focus areas of its operations include empowering students, developing their
+              organizational and leadership skills, and leveraging their creative potential for various vital
+              social projects.
+            </p>
+            <p>
+              The WSF, which has been operational for over <strong>15 years</strong>, has made its presence felt
+              by conducting tremendously successful state-level events such as the biannual{' '}
+              <strong>State Wafy Arts Fests</strong>, the state-wide <strong>Wafy sports meet</strong> (held
+              every two years), and an international seminar under the theme <em>‘Multiculturalism and world peace’</em>.
+              The organization utilises an effective networking system called the{' '}
+              <strong>‘Wafy Orbit system’</strong> to reach out to the community.
+            </p>
+          </div>
+
+          <div className="lg:col-span-5 rounded-2xl border border-[var(--f-ink)]/15 bg-white/70 p-6 backdrop-blur-sm dark:bg-white/5">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--f-ink)]/70 pb-3 border-b border-[var(--f-ink)]/10">
+              <ShieldCheck className="w-4 h-4 text-[var(--f-saffron)]" />
+              <span>Federation Snapshot</span>
+            </div>
+            <dl className="mt-3 divide-y divide-[var(--f-ink)]/10 text-xs sm:text-sm">
+              {FACTS.map(({ label, value }) => (
+                <div key={label} className="py-2.5 flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <dt className="text-[var(--f-ink)]/65 font-medium">{label}</dt>
+                  <dd className="font-semibold text-[var(--f-ink)] sm:text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
 
-        {/* ── Four pillars — what WSF does ────────────────────────── */}
-        <div
-          ref={pillarsRef}
-          className={`reveal-up ${pillarsInView ? 'in-view' : ''} mb-16 sm:mb-20`}
-        >
-          <p className="text-xs text-[var(--text-muted)] uppercase tracking-[0.15em] font-bold mb-6">
-            What WSF Does
-          </p>
+        {/* ── WSF Scale Strip ── */}
+        <div className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {WSF_STATS.map(({ value, label, detail }) => (
+            <div
+              key={label}
+              className="rounded-xl border border-[var(--f-ink)]/15 bg-white/70 p-4 sm:p-5 text-center backdrop-blur-sm dark:bg-white/5 transition-transform hover:-translate-y-1"
+            >
+              <dd className="f-kufi text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[var(--f-lapis)]">
+                {value}
+              </dd>
+              <dt className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--f-ink)]">
+                {label}
+              </dt>
+              <p className="mt-0.5 text-[10px] text-[var(--f-ink)]/60">{detail}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Major Activities Section ── */}
+        <div className="mt-20 pt-12 border-t border-[var(--f-ink)]/15">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
+            <div>
+              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-lapis)]">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
+                <span>Flagship Operations</span>
+              </div>
+              <h3 className="mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight">
+                Major WSF Activities
+              </h3>
+            </div>
+            <p className="text-xs sm:text-sm text-[var(--f-ink)]/70 max-w-md">
+              Comprehensive student development, academic research, and community networking programmes.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {WSF_PILLARS.map(({ icon: Icon, title, desc, color, bg, border }, i) => (
+            {MAJOR_ACTIVITIES.map(({ title, theme, desc, icon: Icon, category }) => (
               <div
                 key={title}
-                className={`reveal-up ${pillarsInView ? 'in-view' : ''} rounded-2xl p-5 sm:p-6 ${bg} border ${border} flex flex-col gap-3 hover:scale-[1.01] transition-transform duration-300`}
-                style={{ animationDelay: `${i * 80}ms` }}
+                className="group relative flex flex-col justify-between rounded-xl border border-[var(--f-ink)]/15 bg-white/80 p-5 shadow-sm transition-all duration-300 hover:border-[var(--f-lapis)] hover:shadow-md hover:-translate-y-1 dark:bg-white/5"
               >
-                <div className={`w-10 h-10 rounded-xl bg-[var(--bg-page)] border ${border} flex items-center justify-center ${color}`}>
-                  <Icon className="w-5 h-5" />
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--f-lapis)] bg-[var(--f-lapis)]/10 px-2 py-0.5 rounded">
+                      {category}
+                    </span>
+                    <div className="h-8 w-8 rounded-lg bg-[var(--f-ink)]/5 flex items-center justify-center text-[var(--f-ink)] group-hover:bg-[var(--f-saffron)] group-hover:text-[var(--f-ink)] transition-colors">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h4 className="mt-3 text-sm font-bold text-[var(--f-ink)] leading-snug">
+                    {title}
+                  </h4>
+                  <p className="mt-1 text-[11px] font-medium text-[var(--f-lapis)]">
+                    {theme}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--f-ink)]/75">
+                    {desc}
+                  </p>
                 </div>
-                <h3 className={`font-bold text-sm ${color} font-heading`}>{title}</h3>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed flex-1">
-                  {desc}
-                </p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Stats bar ───────────────────────────────────────────── */}
-        <div
-          ref={statsRef}
-          className={`reveal-up ${statsInView ? 'in-view' : ''} grid grid-cols-2 sm:grid-cols-4 border border-[var(--border-subtle)] rounded-2xl overflow-hidden`}
-        >
-          {WSF_STATS.map(({ value, label }, i) => (
-            <div
-              key={label}
-              className={`reveal-scale ${statsInView ? 'in-view' : ''} py-6 sm:py-8 flex flex-col items-center gap-1 bg-[var(--bg-surface)] ${
-                i < WSF_STATS.length - 1 ? 'border-r border-[var(--border-subtle)]' : ''
-              } ${i < 2 ? 'border-b sm:border-b-0 border-[var(--border-subtle)]' : ''}`}
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              <span className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-500 leading-none">
-                {value}
-              </span>
-              <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-[0.15em] text-center px-2">
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* ── CTA strip ───────────────────────────────────────────── */}
-        <div
-          className={`reveal-up ${statsInView ? 'in-view' : ''} mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 py-6 px-6 sm:px-8 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]`}
-          style={{ animationDelay: '200ms' }}
-        >
-          <p className="text-sm text-[var(--text-secondary)] text-center sm:text-left">
-            <span className="font-semibold text-[var(--text-primary)]">Participating in the 14th Wafy Arts Fest?</span>
-            {' '}Log in to access your admit card, stage schedule, and results.
-          </p>
+        {/* ── Student Portal CTA Banner ── */}
+        <div className="mt-16 flex flex-col sm:flex-row items-center justify-between gap-6 rounded-2xl bg-[var(--f-lapis)] p-6 sm:p-8 text-white shadow-xl">
+          <div>
+            <h4 className="text-lg sm:text-xl font-bold">WSF Student Portal Access</h4>
+            <p className="mt-1 text-xs sm:text-sm text-white/80 max-w-xl">
+              Are you an affiliated college participant or candidate? Access candidate schedules, live stage registrations, and scores.
+            </p>
+          </div>
           <Link
             href="/student-login"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all hover:scale-[1.02] active:scale-[0.98] font-heading shrink-0 shadow-sm shadow-emerald-600/20"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--f-saffron)] px-5 py-3 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-md transition-all hover:bg-white hover:scale-105 shrink-0"
           >
-            Student Login
-            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Open Student Portal</span>
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
+
       </div>
     </section>
   );

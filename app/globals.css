@@ -1,4 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Reem+Kufi:wght@400..700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -52,6 +54,17 @@
   --font-heading: var(--font-outfit, 'Outfit'), 'Outfit', system-ui, -apple-system, sans-serif;
   --font-nav: var(--font-outfit, 'Outfit'), 'Outfit', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-mono, 'JetBrains Mono'), 'JetBrains Mono', monospace;
+
+  /* ─── Wafy Arts Fest Landing Tokens ───────────────────────────────── */
+  --f-ink: #0c1244;      /* lapis night: dark sections, body text */
+  --f-lapis: #1f2e9e;    /* tile blue: panels, links, numerals */
+  --f-chalk: #f4f6fd;    /* cool white: light sections */
+  --f-mist: #e3e8f8;     /* pale blue: alternate light section */
+  --f-saffron: #ffb41f;  /* lamp light: the single warm accent */
+  --f-teal: #12a594;     /* glazed-tile green: avatar tone only */
+
+  --f-font: 'Bricolage Grotesque', system-ui, sans-serif;
+  --f-kufi: 'Reem Kufi', 'Bricolage Grotesque', system-ui, sans-serif;
 
   /* Page & Layout Backgrounds - Clean Neutral Frosted Glass */
   --bg-page: #FAFAFA;
@@ -187,9 +200,14 @@
 /* ─── Base Styles & Typography Hierarchy ────────────────────────────── */
 html {
   font-family: var(--font-sans);
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
   background-color: var(--bg-page);
   background-image:
     radial-gradient(at 0% 0%, rgba(228, 228, 231, 0.40) 0px, transparent 50%),
@@ -827,3 +845,110 @@ textarea:focus {
   animation-play-state: paused;
 }
 .count-up.in-view { animation-play-state: running; }
+
+/* ─── Glass Card & Panel Utilities (White Mode & Pure Dark OLED) ───── */
+.glass-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card), var(--glass-highlight);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+
+.glass-card-interactive {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card), var(--glass-highlight);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
+              background-color 0.2s ease;
+}
+
+.glass-card-interactive:hover {
+  transform: translateY(-2px);
+  background-color: var(--bg-hover);
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-elevated), var(--glass-highlight);
+}
+
+.glass-panel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card), var(--glass-highlight);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+
+/* ─── Wafy Arts Fest Typography, Focus & Animation ──────────────────── */
+.f-sans { font-family: var(--f-font); }
+.f-kufi { font-family: var(--f-kufi); font-variant-numeric: lining-nums; }
+
+.f-focus:focus-visible {
+  outline: 3px solid var(--f-saffron);
+  outline-offset: 3px;
+}
+
+/* One orchestrated moment: the hero loads in, nothing else on the page animates by itself. */
+@keyframes f-rise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+.f-rise {
+  animation: f-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f-rise { animation: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* ─── Pure Dark Mode Adaptations for Landing Sections ───────────────── */
+.dark #cic,
+.dark #wsf,
+.dark #history {
+  background-color: #000000 !important;
+  color: #EDEDED !important;
+  --f-ink: #EDEDED;
+  --f-lapis: #60a5fa;
+  --f-chalk: #000000;
+  --f-mist: #000000;
+}
+
+.dark #hero,
+.dark #wafy,
+.dark #committee {
+  background-color: #000000 !important;
+  --f-ink: #000000;
+}
+
+.dark #wsf .bg-\[var\(--f-ink\)\] {
+  background-color: #121212 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.dark #history .bg-\[var\(--f-ink\)\] {
+  background-color: #121212 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.dark #cic aside {
+  background-color: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.dark #wsf .bg-\[var\(--f-saffron\)\] {
+  color: #0c1244 !important;
+}
+
+.dark #wsf a.f-focus {
+  color: #0c1244 !important;
+}
+
+
