@@ -1,152 +1,199 @@
 'use client';
 
-import React from 'react';
-import { BookOpen, Star, GraduationCap, Layers } from 'lucide-react';
-import { useInView } from '@/lib/hooks/useInView';
+import React, { useState } from 'react';
+import { BookOpen, Layers, GraduationCap, Sparkles } from 'lucide-react';
 
 const PHASES = [
   {
     id: 'foundation',
     arabicName: 'ما قبل التمهيدية',
     engName: 'Foundation',
-    subtitle: 'Sub-Junior',
-    icon: Star,
-    accent: '#f59e0b',           // amber-500
-    borderClass: 'border-amber-500/25',
-    bgClass: 'bg-amber-500/6',
-    textClass: 'text-amber-500',
+    subtitle: 'HIGH SCHOOL LEVEL',
     numeral: '01',
+    duration: '3 Years',
+    icon: BookOpen,
     description:
-      'Cultivating a love for Islamic learning, Arabic language, and creative expression in young scholars at the beginning of their Wafy journey.',
-    highlights: ['Arabic Language', 'Quranic Studies', 'Creative Arts', 'Public Speaking'],
+      '3-year integrated schooling leading to the SSLC board exam alongside foundational Islamic jurisprudence (Fiqh), theology (Aqeedah), and Arabic roots.',
+    highlights: ['SSLC Board Exam', 'Fiqh & Aqeedah', 'Arabic & Urdu Roots'],
   },
   {
     id: 'thamheediyya',
     arabicName: 'التمهيدية',
     engName: 'Thamheediyya',
-    subtitle: 'Junior',
-    icon: BookOpen,
-    accent: '#0ea5e9',           // sky-500
-    borderClass: 'border-sky-500/25',
-    bgClass: 'bg-sky-500/6',
-    textClass: 'text-sky-500',
+    subtitle: 'PREPARATORY LEVEL',
     numeral: '02',
+    duration: '2 Years',
+    icon: Layers,
     description:
-      'Deepening engagement with Islamic sciences and classical Arabic literature, introducing competitive academic discourse and oratory.',
-    highlights: ['Islamic Sciences', 'Classical Arabic', 'Debate & Oratory', 'Literary Arts'],
+      '2-year higher secondary (+1 & +2) across Science, Commerce, or Humanities with intensive Madrasathul Umm Arabic LSRW (Listening, Speaking, Reading, Writing) immersion and Hadith studies.',
+    highlights: ['LSRW (Listen, Speak, Read, Write)', 'Plus Two (+1 & +2)', 'Madrasathul Umm'],
   },
   {
     id: 'aliya',
     arabicName: 'العالية',
     engName: 'Aliya',
-    subtitle: 'Senior',
-    icon: GraduationCap,
-    accent: '#10b981',           // emerald-500
-    borderClass: 'border-emerald-500/25',
-    bgClass: 'bg-emerald-500/6',
-    textClass: 'text-emerald-500',
+    subtitle: 'UNDERGRADUATE DEGREE',
     numeral: '03',
+    duration: '3–4 Years',
+    icon: GraduationCap,
     description:
-      'Advanced Islamic jurisprudence, philosophy, and high-level intellectual competitions — the pinnacle of the Wafy academic stream.',
-    highlights: ['Advanced Jurisprudence', 'Islamic Philosophy', 'Research & Writing', 'Leadership'],
+      'UGC-recognised university Bachelor’s degree integrated with advanced theology, Tafseer, philosophy, logic, and Wafiyya Home Science for girls.',
+    highlights: ['UGC Bachelor’s', 'Advanced Theology', 'Wafiyya Home Science'],
   },
   {
-    id: 'pg',
-    arabicName: 'الدراسات العليا',
-    engName: 'PG / General',
-    subtitle: 'Postgraduate',
-    icon: Layers,
-    accent: '#a855f7',           // purple-500
-    borderClass: 'border-purple-500/25',
-    bgClass: 'bg-purple-500/6',
-    textClass: 'text-purple-500',
+    id: 'muthawwal',
+    arabicName: 'المطوّل',
+    engName: 'Muthawwal',
+    subtitle: 'POSTGRADUATE TIER',
     numeral: '04',
+    duration: '2 Years',
+    icon: Sparkles,
     description:
-      'The highest tier — postgraduate scholars bringing interdisciplinary depth, academic publication, and mentorship to the festival.',
-    highlights: ['Post-Grad Research', 'Interdisciplinary Arts', 'Academic Publications', 'Mentorship'],
+      '2-year Master’s specialization across Theology, Sharia, and Language faculties, culminating in a mandatory 100-page Arabic thesis.',
+    highlights: ['Master’s Specialisation', 'Theology & Sharia', '100-Page Arabic Thesis'],
   },
 ] as const;
 
 export function WafyStream() {
-  const [headRef, headInView] = useInView<HTMLDivElement>({ threshold: 0.1 });
-  const [cardsRef, cardsInView] = useInView<HTMLDivElement>({ threshold: 0.04 });
+  const [hoveredPhase, setHoveredPhase] = useState<string | null>(null);
 
   return (
-    <section id="wafy" className="relative py-24 sm:py-32 bg-[var(--bg-subtle)]/40">
-      {/* Top rule */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-[var(--border-subtle)]" />
-
-      <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16">
-
-        {/* ── Header — two-column editorial style ── */}
-        <div
-          ref={headRef}
-          className={`reveal-up ${headInView ? 'in-view' : ''} flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-14 sm:mb-20`}
-        >
+    <section
+      id="wafy"
+      className="f-sans relative scroll-mt-16 bg-black py-20 text-white sm:py-28"
+    >
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+        {/* ── Section Header ── */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-12 sm:mb-14">
           <div>
-            <p className="text-emerald-500 text-xs font-bold tracking-[0.2em] uppercase mb-3">
-              The Curriculum
-            </p>
-            <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[var(--text-primary)] font-heading leading-[1.05]">
-              Wafy &amp;<br className="hidden sm:block" /> Wafiyya Stream
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)]">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>4-Tier Academic Roadmap</span>
+            </div>
+            <h2 className="mt-2 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-white">
+              Stream Curriculum
             </h2>
           </div>
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed lg:max-w-sm lg:text-right">
-            A revolutionary model integrating the full rigor of traditional Islamic scholarship
-            with the depth of a modern university education.
+          <p className="max-w-md text-xs sm:text-sm leading-relaxed text-white/70 lg:text-right">
+            Seamlessly wedding classical Islamic scholarship with modern university education across four progressive phases.
           </p>
         </div>
 
-        {/* ── Phase cards — numbered, editorial grid ── */}
-        <div
-          ref={cardsRef}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--border-subtle)] rounded-2xl overflow-hidden border border-[var(--border-subtle)]"
-        >
-          {PHASES.map(
-            ({ id, arabicName, engName, subtitle, icon: Icon, borderClass, bgClass, textClass, numeral, description, highlights }, i) => (
+        {/* ── Curriculum Progression Cards (Compact Uniform Heights) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-stretch gap-4 sm:gap-5">
+          {PHASES.map((phase) => {
+            const isHovered = hoveredPhase === phase.id;
+            const Icon = phase.icon;
+
+            return (
               <div
-                key={id}
-                className={`reveal-up ${cardsInView ? 'in-view' : ''} bg-[var(--bg-page)] p-6 sm:p-8 flex flex-col gap-5 group hover:bg-[var(--bg-surface)] transition-colors duration-300`}
-                style={{ animationDelay: `${i * 90}ms` }}
+                key={phase.id}
+                onMouseEnter={() => setHoveredPhase(phase.id)}
+                onMouseLeave={() => setHoveredPhase(null)}
+                className={`
+                  group relative flex flex-col justify-between rounded-[22px] border p-6 sm:p-7
+                  transition-all duration-300 ease-out cursor-pointer h-full min-h-[440px] sm:min-h-[460px]
+                  ${isHovered
+                    ? 'bg-[#FFB41F] border-amber-400/50 text-[#0C1244] shadow-[0_20px_50px_rgba(255,180,31,0.35)] -translate-y-2 scale-[1.015]'
+                    : 'bg-[#18181C] border-white/[0.10] text-white hover:bg-[#FFB41F] hover:border-amber-400/50 hover:text-[#0C1244] hover:shadow-[0_20px_50px_rgba(255,180,31,0.35)] hover:-translate-y-2 hover:scale-[1.015]'
+                  }
+                `}
               >
-                {/* Numeral + icon */}
-                <div className="flex items-start justify-between">
-                  <span className={`text-4xl font-extrabold font-mono ${textClass} opacity-20 leading-none select-none`}>
-                    {numeral}
-                  </span>
-                  <div className={`w-10 h-10 rounded-xl ${bgClass} ${textClass} border ${borderClass} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="w-4.5 h-4.5 w-[18px] h-[18px]" />
+                {/* ── Top content ── */}
+                <div>
+                  {/* Top Header: Numeral + Duration Badge */}
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`f-kufi text-4xl sm:text-5xl font-extrabold leading-none transition-colors select-none ${
+                        isHovered ? 'text-[#0C1244]/35' : 'text-white/20 group-hover:text-[#0C1244]/35'
+                      }`}
+                    >
+                      {phase.numeral}
+                    </span>
+                    <div
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold transition-all ${
+                        isHovered
+                          ? 'border-[#0C1244]/15 bg-[#0C1244]/10 text-[#0C1244] scale-105'
+                          : 'border-white/15 bg-white/5 text-white/85 group-hover:border-[#0C1244]/15 group-hover:bg-[#0C1244]/10 group-hover:text-[#0C1244] group-hover:scale-105'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{phase.duration}</span>
+                    </div>
                   </div>
+
+                  {/* Subtitle tier label */}
+                  <div className="mt-6">
+                    <p
+                      className={`text-[10px] font-bold tracking-widest uppercase transition-colors ${
+                        isHovered ? 'text-[#0C1244]/70' : 'text-white/60 group-hover:text-[#0C1244]/70'
+                      }`}
+                    >
+                      {phase.subtitle}
+                    </p>
+                    <h3
+                      className={`mt-1 text-2xl font-extrabold leading-tight tracking-tight transition-colors ${
+                        isHovered ? 'text-[#0C1244]' : 'text-white group-hover:text-[#0C1244]'
+                      }`}
+                    >
+                      {phase.engName}
+                    </h3>
+                    <p
+                      lang="ar"
+                      dir="rtl"
+                      className={`f-kufi mt-0.5 text-left text-lg font-bold transition-colors ${
+                        isHovered ? 'text-[#0C1244]' : 'text-white/90 group-hover:text-[#0C1244]'
+                      }`}
+                    >
+                      {phase.arabicName}
+                    </p>
+                  </div>
+
+                  {/* Concise Description paragraph */}
+                  <p
+                    className={`mt-3.5 text-xs sm:text-sm leading-relaxed transition-colors ${
+                      isHovered ? 'text-[#0C1244]/85' : 'text-white/70 group-hover:text-[#0C1244]/85'
+                    }`}
+                  >
+                    {phase.description}
+                  </p>
                 </div>
 
-                {/* Names */}
-                <div className="space-y-0.5">
-                  <div className={`text-[10px] font-bold tracking-[0.18em] uppercase ${textClass}`}>
-                    {subtitle}
+                {/* ── Bottom content: Divider + Key Competencies ── */}
+                <div
+                  className={`mt-6 border-t pt-4 transition-colors ${
+                    isHovered ? 'border-[#0C1244]/15' : 'border-white/10 group-hover:border-[#0C1244]/15'
+                  }`}
+                >
+                  <p
+                    className={`text-[10px] font-bold tracking-widest uppercase mb-2.5 transition-colors ${
+                      isHovered ? 'text-[#0C1244]/65' : 'text-white/50 group-hover:text-[#0C1244]/65'
+                    }`}
+                  >
+                    KEY COMPETENCIES
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {phase.highlights.map((h) => (
+                      <span
+                        key={h}
+                        className={`
+                          rounded-full border px-2.5 py-0.5 text-[11px] font-semibold
+                          transition-all duration-200 cursor-default
+                          ${
+                            isHovered
+                              ? 'bg-[#0C1244]/12 text-[#0C1244] border-[#0C1244]/10 hover:bg-[#0C1244]/20'
+                              : 'bg-[#2A2A32] text-white/85 border-white/[0.06] group-hover:bg-[#0C1244]/12 group-hover:text-[#0C1244] group-hover:border-[#0C1244]/10 hover:bg-white/20'
+                          }
+                        `}
+                      >
+                        {h}
+                      </span>
+                    ))}
                   </div>
-                  <h3 className="text-lg font-extrabold text-[var(--text-primary)] font-heading leading-tight">
-                    {engName}
-                  </h3>
-                  <p className={`text-[11px] ${textClass} opacity-70 font-heading`}>{arabicName}</p>
                 </div>
-
-                {/* Description */}
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed flex-1">
-                  {description}
-                </p>
-
-                {/* Highlights — simple text list */}
-                <ul className="space-y-1 border-t border-[var(--border-subtle)] pt-4">
-                  {highlights.map(h => (
-                    <li key={h} className={`text-[11px] font-medium ${textClass} flex items-center gap-2`}>
-                      <span className="w-1 h-1 rounded-full bg-current shrink-0 opacity-60" />
-                      {h}
-                    </li>
-                  ))}
-                </ul>
               </div>
-            )
-          )}
+            );
+          })}
         </div>
       </div>
     </section>

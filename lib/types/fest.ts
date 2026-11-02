@@ -488,14 +488,21 @@ export interface CommitteeMember {
   name: string;
   position: string;
   category:
+  | 'apex_leadership'
+  | 'convenors'
+  | 'executive_officers'
+  | 'technical_team'
+  | 'general_convenor'
+  | 'fest_convenor'
+  | 'technical_convenor'
   | 'chief_patron'
   | 'patron'
   | 'organizing_committee'
-  | 'technical_team'
   | 'volunteer_lead'
   | string;
   photo_url?: string | null;
   display_order: number;
   is_active: boolean;
+  campus?: string | null;
   created_at?: string;
 }
