@@ -245,7 +245,7 @@ export function CommitteeGrid() {
       .from('fest_committee')
       .select('*')
       .eq('is_active', true)
-      .in('id', MAIN_COMMITTEE_MEMBERS.map((m) => m.id))
+      .in('category', ['apex_chair', 'general_convenor', 'fest_convenor'])
       .order('display_order', { ascending: true })
       .then(({ data, error }: { data: CommitteeMember[] | null; error: any }) => {
         if (!error && data && data.length > 0) {
