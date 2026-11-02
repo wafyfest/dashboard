@@ -31,6 +31,30 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/festival',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/fest',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/stage',
+        destination: '/stage-controller',
+        permanent: false,
+      },
+      {
+        source: '/stages',
+        destination: '/stage-controller',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

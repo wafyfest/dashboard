@@ -1,26 +1,34 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Home, GraduationCap, LogIn, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Home, GraduationCap, LogIn, ArrowLeft, FileQuestion, Compass } from 'lucide-react';
 
 export default function NotFound() {
+  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col items-center justify-center p-4 sm:p-6 transition-colors selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col items-center justify-center p-4 sm:p-6 transition-colors selection:bg-emerald-500 selection:text-white relative overflow-hidden">
       {/* Background ambient decorative glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center">
         <div className="w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="w-[300px] h-[300px] rounded-full bg-amber-500/5 blur-2xl -translate-y-20 translate-x-20" />
+        <div className="w-[300px] h-[300px] rounded-full bg-slate-500/5 blur-2xl -translate-y-20 translate-x-20" />
       </div>
 
       <div className="relative z-10 max-w-lg w-full text-center space-y-6">
-        {/* Visual Badge */}
+        {/* Visual 404 Badge */}
         <div className="inline-flex items-center justify-center">
           <div className="relative">
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-emerald-600/20 to-emerald-400/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 backdrop-blur-md">
-              <ShieldAlert className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-500 dark:text-emerald-400 animate-pulse" />
+              <FileQuestion className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-500 dark:text-emerald-400" />
             </div>
-            <span className="absolute -top-2 -right-2 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-rose-500 text-white shadow-xs">
+            <span className="absolute -top-2 -right-2 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-rose-500 text-white shadow-xs">
               404
             </span>
           </div>
@@ -29,11 +37,21 @@ export default function NotFound() {
         {/* Text Details */}
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-primary)] font-heading">
-            Stage Not Found
+            Page Not Found
           </h1>
           <p className="text-sm sm:text-base text-[var(--text-secondary)] leading-relaxed max-w-md mx-auto">
-            The page or fest resource you are looking for doesn&apos;t exist or may have been relocated.
+            The page or resource you are looking for doesn&apos;t exist, has been removed, or may have been relocated.
           </p>
+
+          {/* Requested Path indicator */}
+          {mounted && pathname && pathname !== '/' && (
+            <div className="pt-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] max-w-full truncate">
+                <Compass className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="truncate">{pathname}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Helpful Shortcut Cards */}
@@ -69,7 +87,7 @@ export default function NotFound() {
           </Link>
         </div>
 
-        {/* Primary Action Button */}
+        {/* Primary Action Buttons */}
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
             href="/"
@@ -81,7 +99,7 @@ export default function NotFound() {
 
           <button
             onClick={() => window.history.back()}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-semibold text-xs transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-semibold text-xs transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Go Back</span>
