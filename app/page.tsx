@@ -88,6 +88,15 @@ export default function LandingPage() {
               )}
             </button>
 
+            {/* Fest Info Link */}
+            <Link
+              href="/14thwafyfest"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-all active:scale-[0.98] font-heading"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Fest Info</span>
+            </Link>
+
             {/* Student Login Link */}
             <Link
               href="/student-login"
@@ -144,6 +153,14 @@ export default function LandingPage() {
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
           <div className="sm:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 space-y-2 shadow-lg animate-in slide-in-from-top-2">
+            <Link
+              href="/14thwafyfest"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>About the Fest</span>
+            </Link>
             <Link
               href="/student-login"
               onClick={() => setMobileMenuOpen(false)}
