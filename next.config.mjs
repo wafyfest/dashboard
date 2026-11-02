@@ -15,6 +15,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.supabase.co",
       },
+      {
+        // placeholder avatars used for committee test data
+        protocol: "https",
+        hostname: "ui-avatars.com",
+      },
     ],
   },
   async headers() {

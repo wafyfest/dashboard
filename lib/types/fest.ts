@@ -481,3 +481,21 @@ export interface SystemAuditLog {
   created_at: string;
 }
 
+
+// ─── Festival Committee ───────────────────────────────────────────────────────
+export interface CommitteeMember {
+  id: string;
+  name: string;
+  position: string;
+  category:
+  | 'chief_patron'
+  | 'patron'
+  | 'organizing_committee'
+  | 'technical_team'
+  | 'volunteer_lead'
+  | string;
+  photo_url?: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at?: string;
+}

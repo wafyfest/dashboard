@@ -275,9 +275,9 @@ code, kbd, samp, pre, .font-mono {
   box-shadow: var(--shadow-card), var(--glass-highlight);
   backdrop-filter: blur(18px) saturate(180%);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
-              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
-              border-color 0.2s ease, 
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
               background-color 0.2s ease;
 }
 
@@ -639,7 +639,7 @@ textarea:focus {
   * {
     @apply border-border outline-ring/50;
   }
-  
+
   /* Universal Fallback & Body Typography (Space Grotesk) */
   html,
   body,
@@ -654,7 +654,7 @@ textarea:focus {
   .font-sans {
     font-family: 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   }
-  
+
   /* Headings Typography (Outfit) */
   h1,
   h2,
@@ -666,7 +666,7 @@ textarea:focus {
     font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
     letter-spacing: -0.02em;
   }
-  
+
   /* Navigation, Navbar, Header & Sidebar Typography (Outfit) */
   header,
   header *,
@@ -702,3 +702,128 @@ textarea:focus {
 .animate-indeterminate {
   animation: indeterminate 1.6s infinite ease-in-out;
 }
+
+
+/* ─── Festival Page: Scroll Reveal Keyframes ────────────────────────── */
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes revealDown {
+  from { opacity: 0; transform: translateY(-40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes revealLeft {
+  from { opacity: 0; transform: translateX(-50px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes revealRight {
+  from { opacity: 0; transform: translateX(50px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes revealScale {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes floatOrb {
+  0%, 100% { transform: translateY(0px) translateX(0px); }
+  33%       { transform: translateY(-28px) translateX(14px); }
+  66%       { transform: translateY(14px) translateX(-10px); }
+}
+
+@keyframes shimmerLoad {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes drawLine {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  50%       { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Reveal Utility Classes ─────────────────────────────────────────── */
+.reveal-up,
+.reveal-down,
+.reveal-left,
+.reveal-right,
+.reveal-scale {
+  opacity: 0;
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+  animation-play-state: paused;
+}
+
+.reveal-up.in-view    { animation-name: revealUp;    animation-play-state: running; }
+.reveal-down.in-view  { animation-name: revealDown;  animation-play-state: running; }
+.reveal-left.in-view  { animation-name: revealLeft;  animation-play-state: running; }
+.reveal-right.in-view { animation-name: revealRight; animation-play-state: running; }
+.reveal-scale.in-view { animation-name: revealScale; animation-play-state: running; }
+
+/* Stagger delays for child elements */
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 100ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 200ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 300ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 400ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 500ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 600ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 700ms; }
+.stagger-children > *:nth-child(9)  { animation-delay: 800ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 900ms; }
+.stagger-children > *:nth-child(11) { animation-delay: 1000ms; }
+.stagger-children > *:nth-child(12) { animation-delay: 1100ms; }
+
+/* Shimmer skeleton */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 25%,
+    var(--bg-hover)  50%,
+    var(--bg-subtle) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmerLoad 1.4s infinite linear;
+}
+
+/* Float orb */
+.float-orb {
+  animation: floatOrb var(--orb-duration, 8s) ease-in-out infinite;
+  animation-delay: var(--orb-delay, 0s);
+}
+
+/* Timeline line draw */
+.draw-line {
+  transform-origin: top center;
+  animation: drawLine 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-play-state: paused;
+}
+.draw-line.in-view { animation-play-state: running; }
+
+/* Pulse dot for 14th edition */
+.pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* Count-up reveal */
+.count-up {
+  opacity: 0;
+  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-play-state: paused;
+}
+.count-up.in-view { animation-play-state: running; }
