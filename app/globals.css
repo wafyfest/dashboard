@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Reem+Kufi:wght@400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@600;700&display=swap');
 @import "tailwindcss";
@@ -55,16 +55,37 @@
   --font-nav: var(--font-outfit, 'Outfit'), 'Outfit', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-mono, 'JetBrains Mono'), 'JetBrains Mono', monospace;
 
-  /* ─── Wafy Arts Fest Landing Tokens ───────────────────────────────── */
-  --f-ink: #0c1244;      /* lapis night: dark sections, body text */
-  --f-lapis: #1f2e9e;    /* tile blue: panels, links, numerals */
-  --f-chalk: #f4f6fd;    /* cool white: light sections */
-  --f-mist: #e3e8f8;     /* pale blue: alternate light section */
-  --f-saffron: #ffb41f;  /* lamp light: the single warm accent */
-  --f-teal: #12a594;     /* glazed-tile green: avatar tone only */
+  /* ─── Wafy Arts Fest Centralized Design Tokens (Phase 2 Spec) ───── */
+  --f-canvas: #090d1a;
+  --f-surface: #11182c;
+  --f-surface-elevated: #16203a;
+  --f-surface-subtle: #0d1424;
+  --f-ink: #090d1a;
+  --f-lapis: #2563eb;
+  --f-saffron: #f59e0b;
+  --f-saffron-hover: #d97706;
+  --f-teal: #10b981;
+  --f-emerald: #10b981;
+  --f-text-primary: #f8fafc;
+  --f-text-secondary: #cbd5e1;
+  --f-text-muted: #94a3b8;
+  --f-text-subtle: #64748b;
+  --f-border-subtle: rgba(255, 255, 255, 0.08);
+  --f-border-medium: rgba(255, 255, 255, 0.16);
+  --f-border-glow: rgba(245, 158, 11, 0.35);
 
-  --f-font: 'Bricolage Grotesque', system-ui, sans-serif;
-  --f-kufi: 'Reem Kufi', 'Bricolage Grotesque', system-ui, sans-serif;
+  --f-font: var(--font-sans);
+  --f-heading: var(--font-heading);
+  --f-kufi: 'Reem Kufi', var(--font-heading), sans-serif;
+  --f-mono: var(--font-mono);
+
+
+
+
+
+
+
+
 
   /* Page & Layout Backgrounds - Clean Neutral Frosted Glass */
   --bg-page: #FAFAFA;
@@ -909,46 +930,20 @@ textarea:focus {
   html { scroll-behavior: auto; }
 }
 
-/* ─── Pure Dark Mode Adaptations for Landing Sections ───────────────── */
-.dark #cic,
-.dark #wsf,
-.dark #history {
-  background-color: #000000 !important;
-  color: #EDEDED !important;
-  --f-ink: #EDEDED;
-  --f-lapis: #60a5fa;
-  --f-chalk: #000000;
-  --f-mist: #000000;
+/* ─── Wafy Arts Fest Continuous Dark Architecture ────────────────── */
+.f-landing {
+  background-color: var(--f-canvas);
+  color: var(--f-text-primary);
 }
 
-.dark #hero,
-.dark #wafy,
-.dark #committee {
-  background-color: #000000 !important;
-  --f-ink: #000000;
+.f-surface-card {
+  background-color: var(--f-surface);
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 1rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.dark #wsf .bg-\[var\(--f-ink\)\] {
-  background-color: #121212 !important;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+.f-surface-card:hover {
+  border-color: var(--f-border-medium);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
 }
-
-.dark #history .bg-\[var\(--f-ink\)\] {
-  background-color: #121212 !important;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.dark #cic aside {
-  background-color: #0f172a !important;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.dark #wsf .bg-\[var\(--f-saffron\)\] {
-  color: #0c1244 !important;
-}
-
-.dark #wsf a.f-focus {
-  color: #0c1244 !important;
-}
-
-

@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import {
   BookOpen,
   Megaphone,
   Trophy,
-  HeartHandshake,
   ArrowRight,
   ShieldCheck,
   Compass,
@@ -14,7 +13,6 @@ import {
   Activity,
   Award,
   Radio,
-  CheckCircle2,
   Sparkles,
 } from 'lucide-react';
 
@@ -97,17 +95,18 @@ export function AboutWSF() {
   return (
     <section
       id="wsf"
-      className="f-sans relative scroll-mt-16 bg-[var(--f-mist)] py-20 text-[var(--f-ink)] sm:py-28"
+      aria-label="About Wafy Students Federation"
+      className="relative scroll-mt-20 bg-[var(--f-surface-subtle)] py-20 text-[var(--f-text-primary)] sm:py-28 border-b border-white/5"
     >
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-        {/* ── Header ── */}
+        {/* ── Section Header ── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-lapis)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--f-lapis)]" />
+            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)]">
+              <span className="h-2 w-2 rounded-full bg-[var(--f-saffron)]" />
               <span>Official Student Wing of CIC</span>
             </div>
-            <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+            <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-white font-heading">
               Wafy Students
               <br />
               Federation
@@ -116,18 +115,18 @@ export function AboutWSF() {
           <p
             lang="ar"
             dir="rtl"
-            className="f-kufi text-left text-2xl font-bold text-[var(--f-lapis)] sm:text-right sm:text-3xl"
+            className="f-kufi text-left sm:text-left text-2xl font-bold text-[var(--f-saffron)] sm:text-3xl"
           >
             اتحاد طلاب وافي
           </p>
         </div>
 
-        {/* ── Intro + Facts Grid ── */}
-        <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:gap-14">
-          <div className="lg:col-span-7 space-y-4 text-sm sm:text-base leading-relaxed text-[var(--f-ink)]/85">
+        {/* ── Narrative & Snapshot Grid ── */}
+        <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:gap-14 items-start">
+          <div className="lg:col-span-7 space-y-4 text-sm sm:text-base leading-relaxed text-[var(--f-text-secondary)] font-sans">
             <p>
-              <strong>Wafy Students Federation (WSF)</strong> is the student wing of CIC, representing all the
-              students from <strong>54 colleges</strong> owned by or affiliated to CIC.
+              <strong className="text-white">Wafy Students Federation (WSF)</strong> is the student wing of CIC, representing all the
+              students from <strong className="text-white">54 colleges</strong> owned by or affiliated to CIC.
             </p>
             <p>
               The federation is actively involved in conducting various programmes and social projects. It
@@ -137,25 +136,25 @@ export function AboutWSF() {
               social projects.
             </p>
             <p>
-              The WSF, which has been operational for over <strong>15 years</strong>, has made its presence felt
+              The WSF, which has been operational for over <strong className="text-white">15 years</strong>, has made its presence felt
               by conducting tremendously successful state-level events such as the biannual{' '}
-              <strong>State Wafy Arts Fests</strong>, the state-wide <strong>Wafy sports meet</strong> (held
-              every two years), and an international seminar under the theme <em>‘Multiculturalism and world peace’</em>.
+              <strong className="text-white">State Wafy Arts Fests</strong>, the state-wide <strong className="text-white">Wafy sports meet</strong> (held
+              every two years), and an international seminar under the theme <em className="text-white">‘Multiculturalism and world peace’</em>.
               The organization utilises an effective networking system called the{' '}
-              <strong>‘Wafy Orbit system’</strong> to reach out to the community.
+              <strong className="text-white">‘Wafy Orbit system’</strong> to reach out to the community.
             </p>
           </div>
 
-          <div className="lg:col-span-5 rounded-2xl border border-[var(--f-ink)]/15 bg-white/70 p-6 backdrop-blur-sm dark:bg-white/5">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--f-ink)]/70 pb-3 border-b border-[var(--f-ink)]/10">
-              <ShieldCheck className="w-4 h-4 text-[var(--f-saffron)]" />
+          <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-[var(--f-surface)] p-6 backdrop-blur-sm shadow-xl">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--f-saffron)] pb-3 border-b border-white/10 font-heading">
+              <ShieldCheck className="w-4 h-4" />
               <span>Federation Snapshot</span>
             </div>
-            <dl className="mt-3 divide-y divide-[var(--f-ink)]/10 text-xs sm:text-sm">
+            <dl className="mt-3 divide-y divide-white/10 text-xs sm:text-sm">
               {FACTS.map(({ label, value }) => (
                 <div key={label} className="py-2.5 flex flex-col sm:flex-row sm:justify-between gap-1">
-                  <dt className="text-[var(--f-ink)]/65 font-medium">{label}</dt>
-                  <dd className="font-semibold text-[var(--f-ink)] sm:text-right">{value}</dd>
+                  <dt className="text-[var(--f-text-muted)] font-medium">{label}</dt>
+                  <dd className="font-semibold text-white sm:text-right">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -167,32 +166,32 @@ export function AboutWSF() {
           {WSF_STATS.map(({ value, label, detail }) => (
             <div
               key={label}
-              className="rounded-xl border border-[var(--f-ink)]/15 bg-white/70 p-4 sm:p-5 text-center backdrop-blur-sm dark:bg-white/5 transition-transform hover:-translate-y-1"
+              className="f-surface-card p-4 sm:p-5 text-center transition-transform hover:-translate-y-1"
             >
-              <dd className="f-kufi text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[var(--f-lapis)]">
+              <dd className="font-mono text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[var(--f-saffron)]">
                 {value}
               </dd>
-              <dt className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--f-ink)]">
+              <dt className="mt-1.5 text-xs font-bold uppercase tracking-wider text-white font-heading">
                 {label}
               </dt>
-              <p className="mt-0.5 text-[10px] text-[var(--f-ink)]/60">{detail}</p>
+              <p className="mt-0.5 text-[11px] text-[var(--f-text-muted)] font-medium">{detail}</p>
             </div>
           ))}
         </div>
 
         {/* ── Major Activities Section ── */}
-        <div className="mt-20 pt-12 border-t border-[var(--f-ink)]/15">
+        <div className="mt-20 pt-12 border-t border-white/10">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
             <div>
-              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-lapis)]">
-                <Sparkles className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
+              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)]">
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>Flagship Operations</span>
               </div>
-              <h3 className="mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <h3 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-white font-heading">
                 Major WSF Activities
               </h3>
             </div>
-            <p className="text-xs sm:text-sm text-[var(--f-ink)]/70 max-w-md">
+            <p className="text-xs sm:text-sm text-[var(--f-text-muted)] max-w-md">
               Comprehensive student development, academic research, and community networking programmes.
             </p>
           </div>
@@ -201,24 +200,24 @@ export function AboutWSF() {
             {MAJOR_ACTIVITIES.map(({ title, theme, desc, icon: Icon, category }) => (
               <div
                 key={title}
-                className="group relative flex flex-col justify-between rounded-xl border border-[var(--f-ink)]/15 bg-white/80 p-5 shadow-sm transition-all duration-300 hover:border-[var(--f-lapis)] hover:shadow-md hover:-translate-y-1 dark:bg-white/5"
+                className="f-surface-card group relative flex flex-col justify-between p-5 transition-all duration-300 hover:border-[var(--f-saffron)]/40 hover:-translate-y-1"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--f-lapis)] bg-[var(--f-lapis)]/10 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--f-saffron)] bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded">
                       {category}
                     </span>
-                    <div className="h-8 w-8 rounded-lg bg-[var(--f-ink)]/5 flex items-center justify-center text-[var(--f-ink)] group-hover:bg-[var(--f-saffron)] group-hover:text-[var(--f-ink)] transition-colors">
+                    <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/70 group-hover:bg-[var(--f-saffron)] group-hover:text-[var(--f-ink)] transition-colors">
                       <Icon className="w-4 h-4" />
                     </div>
                   </div>
-                  <h4 className="mt-3 text-sm font-bold text-[var(--f-ink)] leading-snug">
+                  <h4 className="mt-3 text-sm font-bold text-white leading-snug font-heading group-hover:text-[var(--f-saffron)] transition-colors">
                     {title}
                   </h4>
-                  <p className="mt-1 text-[11px] font-medium text-[var(--f-lapis)]">
+                  <p className="mt-1 text-[11px] font-semibold text-blue-400">
                     {theme}
                   </p>
-                  <p className="mt-2 text-xs leading-relaxed text-[var(--f-ink)]/75">
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--f-text-secondary)] font-sans">
                     {desc}
                   </p>
                 </div>
@@ -228,16 +227,18 @@ export function AboutWSF() {
         </div>
 
         {/* ── Student Portal CTA Banner ── */}
-        <div className="mt-16 flex flex-col sm:flex-row items-center justify-between gap-6 rounded-2xl bg-[var(--f-lapis)] p-6 sm:p-8 text-white shadow-xl">
+        <div className="mt-16 flex flex-col sm:flex-row items-center justify-between gap-6 rounded-2xl bg-gradient-to-r from-[#11182c] via-[#16203a] to-[#1e2a4a] border border-amber-500/25 p-6 sm:p-8 text-white shadow-2xl">
           <div>
-            <h4 className="text-lg sm:text-xl font-bold">WSF Student Portal Access</h4>
-            <p className="mt-1 text-xs sm:text-sm text-white/80 max-w-xl">
-              Are you an affiliated college participant or candidate? Access candidate schedules, live stage registrations, and scores.
+            <h4 className="text-lg sm:text-xl font-extrabold text-white font-heading">
+              WSF Student Portal Access
+            </h4>
+            <p className="mt-1 text-xs sm:text-sm text-[var(--f-text-secondary)] max-w-xl font-sans">
+              Are you an affiliated college participant or candidate? Access candidate schedules, live stage registrations, chest numbers, and official scores.
             </p>
           </div>
           <Link
             href="/student-login"
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--f-saffron)] px-5 py-3 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-md transition-all hover:bg-white hover:scale-105 shrink-0"
+            className="f-focus inline-flex items-center gap-2 rounded-xl bg-[var(--f-saffron)] px-6 py-3 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-lg shadow-amber-500/20 transition-all hover:bg-white hover:scale-105 shrink-0"
           >
             <span>Open Student Portal</span>
             <ArrowRight className="w-4 h-4" />
