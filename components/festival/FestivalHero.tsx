@@ -90,7 +90,8 @@ const delay = (ms: number) => ({ '--d': `${ms}ms` } as React.CSSProperties);
 export function FestivalHero() {
   const { festSettings, isAuthenticated, currentRole } = useFest();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isManuallyPaused, setIsManuallyPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   // Statistics state backed by live festival data service with reliable official benchmarks
   const [statsData, setStatsData] = useState([
@@ -193,12 +194,12 @@ export function FestivalHero() {
 
   // Auto-advance every 5.5s, paused when user hovers or explicitly pauses
   useEffect(() => {
-    if (isPaused) return;
+    if (isManuallyPaused || isHovered) return;
     const timer = setInterval(() => {
       swapNext();
     }, 5500);
     return () => clearInterval(timer);
-  }, [isPaused, swapNext]);
+  }, [isManuallyPaused, isHovered, swapNext]);
 
   return (
     <section
@@ -221,10 +222,10 @@ export function FestivalHero() {
 
       {/* Main Hero Content Area */}
       <div className="relative mx-auto grid w-full flex-1 max-w-7xl items-center gap-6 lg:gap-12 px-4 sm:px-6 lg:px-12 pt-20 sm:pt-24 lg:pt-28 pb-6 sm:pb-8 lg:pb-6 lg:grid-cols-[1.1fr_0.9fr]">
-        
+
         {/* ── Left Column: Editorial Hierarchy ── */}
         <div className="z-10 flex flex-col justify-center items-center text-center lg:items-start lg:text-left">
-          
+
           {/* Eyebrow badge */}
           <div className="f-rise flex items-center justify-center lg:justify-start gap-2" style={delay(50)}>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
@@ -307,10 +308,10 @@ export function FestivalHero() {
               perspective: '1200px',
               perspectiveOrigin: 'center center',
             }}
-            onMouseEnter={() => setIsPaused(true)}
-            onMouseLeave={() => setIsPaused(false)}
-            onFocus={() => setIsPaused(true)}
-            onBlur={() => setIsPaused(false)}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onFocus={() => setIsHovered(true)}
+            onBlur={() => setIsHovered(false)}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
@@ -426,12 +427,13 @@ export function FestivalHero() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setIsPaused((p) => !p);
+                            setIsManuallyPaused((p) => !p);
                           }}
-                          aria-label={isPaused ? 'Resume slideshow' : 'Pause slideshow'}
-                          className="text-white/70 hover:text-[var(--f-saffron)] transition-colors cursor-pointer"
+                          aria-label={isManuallyPaused ? 'Resume slideshow' : 'Pause slideshow'}
+                          aria-pressed={!isManuallyPaused}
+                          className="f-focus text-white/70 hover:text-[var(--f-saffron)] transition-colors cursor-pointer"
                         >
-                          {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                          {isManuallyPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
                         </button>
 
                         <div className="flex items-center gap-1">
@@ -443,11 +445,10 @@ export function FestivalHero() {
                                 jumpToSlide(dotIdx);
                               }}
                               aria-label={`Jump to slide ${dotIdx + 1}`}
-                              className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${
-                                currentIndex === dotIdx
+                              className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${currentIndex === dotIdx
                                   ? 'w-3.5 h-1.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]'
                                   : 'w-1 h-1 bg-white/40 hover:bg-white/80'
-                              }`}
+                                }`}
                             />
                           ))}
                         </div>
