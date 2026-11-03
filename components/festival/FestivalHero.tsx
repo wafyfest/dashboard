@@ -8,16 +8,12 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
+import { festService } from '@/lib/services/festService';
 import { TilePattern } from './FestivalPattern';
-
-const STATS = [
-  { value: '14th', label: 'Edition', detail: 'Biennial since 1997' },
-  { value: '62+', label: 'Colleges', detail: 'Affiliated across Kerala' },
-  { value: '1,700+', label: 'Participants', detail: 'Four academic phases' },
-  { value: '84+', label: 'Events', detail: 'Onstage & offstage categories' },
-];
 
 interface HeroSlide {
   id: string;
@@ -30,61 +26,61 @@ const HERO_SLIDES: HeroSlide[] = [
   {
     id: 'concept',
     src: '/hero-fest.png',
-    alt: 'Wafy Wafiyya State Arts Fest 2024-25 Theme',
+    alt: 'Wafy Wafiyya State Arts Fest 2024-25 official identity poster and Islamic emblem',
     objectFit: 'object-contain bg-white',
   },
   {
     id: 'stage',
     src: '/fest-stage.jpg',
-    alt: 'Wafy Arts Fest Grand Stage',
+    alt: 'Wafy Arts Fest Grand Stage with illuminated Islamic architectural arches',
     objectFit: 'object-cover',
   },
   {
     id: 'arts',
     src: '/fest-arts.jpg',
-    alt: 'Islamic Calligraphy & Arts Exhibition',
+    alt: 'Islamic Calligraphy & Arts Exhibition gallery display',
     objectFit: 'object-cover',
   },
   {
     id: 'convocation',
     src: '/image.png',
-    alt: '14th State Arts Fest & Convocation Ceremony',
+    alt: '14th State Arts Fest & Convocation Ceremony plenary gathering',
     objectFit: 'object-cover',
   },
   {
     id: 'auditorium',
     src: '/test-fest-1.jpg',
-    alt: 'Grand Auditorium & Fest Hall',
+    alt: 'Grand Auditorium filled with collegiate participants and scholars',
     objectFit: 'object-cover',
   },
   {
     id: 'architecture',
     src: '/test-2-architecture.jpg',
-    alt: 'Islamic Geometric Heritage Architecture',
+    alt: 'Traditional Islamic Geometric Heritage Architecture with arched corridors',
     objectFit: 'object-cover',
   },
   {
     id: 'performance',
     src: '/test-3-stage.jpg',
-    alt: 'Festive Cultural Stage Lighting',
+    alt: 'Dramatic stage illumination during cultural speech and choral competition',
     objectFit: 'object-cover',
   },
   {
     id: 'penmanship',
     src: '/test-4-calligraphy.jpg',
-    alt: 'Literary Oratory & Calligraphy',
+    alt: 'Master calligrapher demonstrating classical Arabic script penmanship',
     objectFit: 'object-cover',
   },
   {
     id: 'trophy',
     src: '/test-5-trophy.jpg',
-    alt: 'State Championship Trophy & Honors',
+    alt: 'State Championship Rolling Trophy and institutional awards of excellence',
     objectFit: 'object-cover',
   },
   {
     id: 'celebration',
     src: '/test-6-celebration.jpg',
-    alt: 'Fest Celebrations & Audience',
+    alt: 'Wafy Students Federation audience celebrating festival results',
     objectFit: 'object-cover',
   },
 ];
@@ -96,21 +92,61 @@ export function FestivalHero() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  const archRef = useRef<HTMLDivElement>(null);
-  const isSwapping = useRef(false);
-  const touchStartX = useRef<number | null>(null);
+  // Statistics state backed by live festival data service with reliable official benchmarks
+  const [statsData, setStatsData] = useState([
+    { value: '14th', label: 'Edition', detail: 'Biennial since 1997' },
+    { value: '62+', label: 'Colleges', detail: 'Affiliated across Kerala' },
+    { value: '1,700+', label: 'Participants', detail: 'Four academic phases' },
+    { value: '84+', label: 'Events', detail: 'Onstage & offstage categories' },
+  ]);
 
-  const festName = festSettings.fest_name || '14TH WAFY ARTS FEST';
+  useEffect(() => {
+    try {
+      const colleges = festService.getColleges();
+      const items = festService.getItems();
+      const students = festService.getStudents();
+
+      setStatsData([
+        { value: '14th', label: 'Edition', detail: 'Biennial since 1997' },
+        {
+          value: colleges.length > 0 ? `${colleges.length}+` : '62+',
+          label: 'Colleges',
+          detail: 'Affiliated across Kerala',
+        },
+        {
+          value: students.length > 0 ? `${students.length.toLocaleString()}+` : '1,700+',
+          label: 'Participants',
+          detail: 'Four academic phases',
+        },
+        {
+          value: items.length > 0 ? `${items.length}+` : '84+',
+          label: 'Events',
+          detail: 'Onstage & offstage categories',
+        },
+      ]);
+    } catch {
+      // Fallback cleanly to established defaults
+    }
+  }, []);
+
+  const touchStartX = useRef<number | null>(null);
 
   const getPortalRoute = () => {
     switch (currentRole) {
-      case 'admin': return '/admin';
-      case 'college': return '/college';
-      case 'stage_controller': return '/stage-controller';
-      case 'result_entry': return '/result-entry';
-      case 'convenor': return '/convenor';
-      case 'student': return '/student';
-      default: return '/college';
+      case 'admin':
+        return '/admin';
+      case 'college':
+        return '/college';
+      case 'stage_controller':
+        return '/stage-controller';
+      case 'result_entry':
+        return '/result-entry';
+      case 'convenor':
+        return '/convenor';
+      case 'student':
+        return '/student';
+      default:
+        return '/college';
     }
   };
 
@@ -126,37 +162,18 @@ export function FestivalHero() {
     setCurrentIndex(index);
   };
 
-  // Dedicated non-passive wheel listener: swaps images and PREVENTS page from scrolling down while hovering the arch
-  useEffect(() => {
-    const el = archRef.current;
-    if (!el) return;
-
-    const handleNativeWheel = (e: WheelEvent) => {
-      // Stop the window from moving down when scrolling over the arch container
+  // Keyboard navigation when user interacts with carousel
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      e.stopPropagation();
+      swapPrev();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      swapNext();
+    }
+  };
 
-      if (isSwapping.current) return;
-      if (Math.abs(e.deltaY) > 15 || Math.abs(e.deltaX) > 15) {
-        isSwapping.current = true;
-        if (e.deltaY > 0 || e.deltaX > 0) {
-          swapNext();
-        } else {
-          swapPrev();
-        }
-        setTimeout(() => {
-          isSwapping.current = false;
-        }, 360);
-      }
-    };
-
-    el.addEventListener('wheel', handleNativeWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleNativeWheel);
-    };
-  }, [swapNext, swapPrev]);
-
-  // Touch gesture support
+  // Touch gesture support without scroll interference
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
@@ -174,7 +191,7 @@ export function FestivalHero() {
     touchStartX.current = null;
   };
 
-  // Auto-play timer (every 5.5s), pauses on hover
+  // Auto-advance every 5.5s, paused when user hovers or explicitly pauses
   useEffect(() => {
     if (isPaused) return;
     const timer = setInterval(() => {
@@ -186,14 +203,15 @@ export function FestivalHero() {
   return (
     <section
       id="hero"
-      className="f-sans relative overflow-hidden bg-[var(--f-ink)] text-white min-h-[100svh] h-auto lg:h-[100svh] lg:max-h-[100svh] flex flex-col justify-between w-full max-w-full"
+      aria-label="Festival Hero & Overview"
+      className="relative overflow-hidden bg-[var(--f-canvas)] text-[var(--f-text-primary)] min-h-[92svh] lg:min-h-[100svh] flex flex-col justify-between w-full max-w-full"
     >
       {/* Background Islamic Tile Pattern */}
-      <TilePattern id="tiles-hero" className="text-white opacity-[0.05]" />
+      <TilePattern id="tiles-hero" className="text-white opacity-[0.04]" />
 
-      {/* Ambient background glow highlights */}
+      {/* Atmospheric ambient lighting */}
       <div
-        className="pointer-events-none absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-[var(--f-lapis)] opacity-30 blur-[120px]"
+        className="pointer-events-none absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-[var(--f-lapis)] opacity-20 blur-[130px]"
         aria-hidden="true"
       />
       <div
@@ -201,35 +219,35 @@ export function FestivalHero() {
         aria-hidden="true"
       />
 
-      {/* Main Hero Content Area - Responsive Flex Grid */}
-      <div className="relative mx-auto grid w-full flex-1 max-w-7xl items-center gap-4 sm:gap-6 lg:gap-12 px-4 sm:px-6 lg:px-12 pt-16 sm:pt-20 lg:pt-16 pb-4 sm:pb-6 lg:pb-3 lg:grid-cols-[1.1fr_0.9fr]">
+      {/* Main Hero Content Area */}
+      <div className="relative mx-auto grid w-full flex-1 max-w-7xl items-center gap-6 lg:gap-12 px-4 sm:px-6 lg:px-12 pt-20 sm:pt-24 lg:pt-28 pb-6 sm:pb-8 lg:pb-6 lg:grid-cols-[1.1fr_0.9fr]">
         
-        {/* ── Text Column (Responsive Editorial Hierarchy: Centered on Mobile, Left-Aligned on Desktop) ── */}
+        {/* ── Left Column: Editorial Hierarchy ── */}
         <div className="z-10 flex flex-col justify-center items-center text-center lg:items-start lg:text-left">
           
           {/* Eyebrow badge */}
           <div className="f-rise flex items-center justify-center lg:justify-start gap-2" style={delay(50)}>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 sm:px-3.5 sm:py-1 text-[10px] sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[var(--f-saffron)] animate-pulse" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-[var(--f-saffron)] animate-pulse" />
               <span>Official Cultural Festival</span>
             </span>
-            <span className="text-[10px] sm:text-xs font-medium text-white/60">WSF · CIC</span>
+            <span className="text-[11px] sm:text-xs font-medium text-white/60">WSF · CIC</span>
           </div>
 
-          {/* Main Title: Responsive 2-line lockup */}
+          {/* Main Title */}
           <h1
-            className="f-rise mt-2 sm:mt-3 text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.08] sm:leading-[1.04] tracking-tight text-white text-center lg:text-left"
+            className="f-rise mt-3 sm:mt-4 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.08] sm:leading-[1.04] tracking-tight text-white font-heading"
             style={delay(120)}
           >
             <span className="block text-white">14th Wafy</span>
             <span className="block text-white">Arts Fest</span>
           </h1>
 
-          {/* Arabic Subtitle: Primary saffron cultural accent line */}
+          {/* Arabic Subtitle */}
           <p
             lang="ar"
             dir="rtl"
-            className="f-kufi f-rise mt-1.5 sm:mt-2.5 text-center lg:text-left text-base sm:text-xl lg:text-3xl font-bold text-[var(--f-saffron)]"
+            className="f-kufi f-rise mt-2 sm:mt-3 text-center lg:text-left text-lg sm:text-2xl lg:text-3xl font-bold text-[var(--f-saffron)]"
             style={delay(200)}
           >
             مهرجان وافي الرابع عشر للفنون
@@ -237,7 +255,7 @@ export function FestivalHero() {
 
           {/* Editorial Lead Paragraph */}
           <p
-            className="f-rise mt-2 sm:mt-3 max-w-lg text-xs sm:text-sm lg:text-base leading-relaxed text-white/80 text-center lg:text-left mx-auto lg:mx-0"
+            className="f-rise mt-3 sm:mt-4 max-w-lg text-xs sm:text-sm lg:text-base leading-relaxed text-[var(--f-text-secondary)] text-center lg:text-left mx-auto lg:mx-0 font-sans"
             style={delay(280)}
           >
             The premier inter-collegiate arts festival of the Wafy and Wafiyya colleges. Uniting
@@ -245,211 +263,223 @@ export function FestivalHero() {
             across Kerala.
           </p>
 
-          {/* Action Buttons: Responsive sizing and centering */}
-          <div className="f-rise mt-3 sm:mt-5 flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-3" style={delay(360)}>
+          {/* Action Buttons: Primary Student Access & Secondary Institutional Login */}
+          <div className="f-rise mt-5 sm:mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3" style={delay(360)}>
             <Link
               href="/student-login"
-              className="f-focus group inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[var(--f-saffron)] px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-lg shadow-amber-500/20 transition-all duration-200 hover:bg-white hover:scale-[1.02] active:scale-[0.98]"
+              className="f-focus group inline-flex items-center gap-2 rounded-xl bg-[var(--f-saffron)] px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-lg shadow-amber-500/20 transition-all duration-200 hover:bg-white hover:scale-[1.02] active:scale-[0.98]"
             >
-              <GraduationCap className="h-3.5 w-3.5 sm:h-5 sm:w-5 transition-transform group-hover:scale-110" />
-              <span>Student portal</span>
-              <ArrowRight className="h-3.5 w-3.5 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" />
+              <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:scale-110" />
+              <span>Student Portal</span>
+              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" />
             </Link>
 
             {isAuthenticated ? (
               <Link
                 href={getPortalRoute()}
-                className="f-focus inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-white/30 bg-white/10 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/20 active:scale-[0.98]"
+                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/10 active:scale-[0.98]"
               >
                 <span>Dashboard</span>
-                <ArrowRight className="h-3.5 w-3.5 text-[var(--f-saffron)]" />
+                <ArrowRight className="h-4 w-4 text-[var(--f-saffron)]" />
               </Link>
             ) : (
               <Link
                 href="/login"
-                className="f-focus inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-white/30 bg-white/10 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/20 active:scale-[0.98]"
+                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/10 active:scale-[0.98]"
               >
-                <LogIn className="h-3.5 w-3.5 text-[var(--f-saffron)]" />
-                <span>Officer / College login</span>
+                <LogIn className="h-4 w-4 text-[var(--f-saffron)]" />
+                <span>Officer / College Login</span>
               </Link>
             )}
           </div>
         </div>
 
-        {/* ── 3D Stacked Arch Deck (Responsive Sizing, Tilted to Back in Infinite Loop) ── */}
-        <div
-          ref={archRef}
-          className="f-rise relative mx-auto w-full max-w-[190px] sm:max-w-[240px] md:max-w-[280px] lg:max-w-[360px] xl:max-w-[390px] aspect-[3/4] select-none my-4 sm:my-6 lg:my-auto"
-          style={{
-            ...delay(260),
-            perspective: '1200px',
-            perspectiveOrigin: 'center center',
-          }}
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* Tilted Arch Containers in Infinite Loop */}
-          {HERO_SLIDES.map((slide, i) => {
-            const total = HERO_SLIDES.length;
-            const position = (i - currentIndex + total) % total;
+        {/* ── Right Column: 3D Moorish Arch Magazine Deck (No Scroll Hijack) ── */}
+        <div className="flex flex-col items-center justify-center">
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label="Festival Gallery Carousel. Use left and right arrow keys to browse slides."
+            onKeyDown={handleKeyDown}
+            className="f-rise relative mx-auto w-full max-w-[210px] sm:max-w-[250px] md:max-w-[280px] lg:max-w-[340px] xl:max-w-[370px] aspect-[3/4] select-none my-2 sm:my-4 lg:my-auto focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)] rounded-t-[999px]"
+            style={{
+              ...delay(260),
+              perspective: '1200px',
+              perspectiveOrigin: 'center center',
+            }}
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            onFocus={() => setIsPaused(true)}
+            onBlur={() => setIsPaused(false)}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Tilted Arch Containers in Infinite Deck */}
+            {HERO_SLIDES.map((slide, i) => {
+              const total = HERO_SLIDES.length;
+              const position = (i - currentIndex + total) % total;
 
-            const isFront = position === 0;
+              const isFront = position === 0;
 
-            // 3D Tilt configs matching sketch: arches tilted backward into the right/depth
-            let transform = '';
-            let zIndex = 0;
-            let opacity = 0;
-            let filter = 'brightness(0.3)';
-            let borderStyle = 'border border-white/10';
-            let pointerEvents: 'auto' | 'none' = 'none';
+              let transform = '';
+              let zIndex = 0;
+              let opacity = 0;
+              let filter = 'brightness(0.3)';
+              let borderStyle = 'border border-white/10';
+              let pointerEvents: 'auto' | 'none' = 'none';
 
-            if (position === 0) {
-              // Front arch: perfectly upright, primary focus
-              zIndex = 40;
-              opacity = 1;
-              filter = 'brightness(1)';
-              transform = 'translate3d(0px, 0px, 0px) rotateZ(0deg) rotateY(0deg) rotateX(0deg) scale(1)';
-              borderStyle = 'border-2 border-[var(--f-saffron)] shadow-[0_25px_60px_rgba(0,0,0,0.85)] ring-1 ring-amber-400/40';
-              pointerEvents = 'auto';
-            } else if (position === 1) {
-              // 1st arch tilted back-right (top peeks out right, bottom corner dips below baseline)
-              zIndex = 30;
-              opacity = 0.92;
-              filter = 'brightness(0.8)';
-              transform = 'translate3d(28px, -10px, -45px) rotateZ(7deg) rotateY(-18deg) rotateX(6deg) scale(0.98)';
-              borderStyle = 'border-2 border-white/35 hover:border-[var(--f-saffron)] hover:brightness-100 shadow-[0_20px_45px_rgba(0,0,0,0.75)]';
-              pointerEvents = 'auto';
-            } else if (position === 2) {
-              // 2nd arch tilted further back-right (visible behind 1st tilted arch)
-              zIndex = 20;
-              opacity = 0.78;
-              filter = 'brightness(0.6)';
-              transform = 'translate3d(54px, -18px, -90px) rotateZ(14deg) rotateY(-28deg) rotateX(10deg) scale(0.95)';
-              borderStyle = 'border-2 border-white/25 hover:border-[var(--f-saffron)] hover:brightness-100 shadow-[0_15px_35px_rgba(0,0,0,0.65)]';
-              pointerEvents = 'auto';
-            } else if (position === 3) {
-              // 3rd arch in deck (deepest visible arch in stack)
-              zIndex = 10;
-              opacity = 0.45;
-              filter = 'brightness(0.4)';
-              transform = 'translate3d(76px, -24px, -135px) rotateZ(20deg) rotateY(-36deg) rotateX(14deg) scale(0.92)';
-              borderStyle = 'border border-white/15 shadow-[0_10px_25px_rgba(0,0,0,0.5)]';
-              pointerEvents = 'auto';
-            } else {
-              // Reserve slides waiting in infinite loop queue
-              zIndex = 0;
-              opacity = 0;
-              filter = 'brightness(0.2)';
-              transform = 'translate3d(85px, -28px, -160px) rotateZ(22deg) rotateY(-40deg) rotateX(16deg) scale(0.9)';
-              pointerEvents = 'none';
-            }
+              if (position === 0) {
+                zIndex = 40;
+                opacity = 1;
+                filter = 'brightness(1)';
+                transform = 'translate3d(0px, 0px, 0px) rotateZ(0deg) rotateY(0deg) rotateX(0deg) scale(1)';
+                borderStyle = 'border-2 border-[var(--f-saffron)] shadow-[0_25px_60px_rgba(0,0,0,0.85)] ring-1 ring-amber-400/40';
+                pointerEvents = 'auto';
+              } else if (position === 1) {
+                zIndex = 30;
+                opacity = 0.92;
+                filter = 'brightness(0.8)';
+                transform = 'translate3d(24px, -8px, -40px) rotateZ(6deg) rotateY(-16deg) rotateX(5deg) scale(0.98)';
+                borderStyle = 'border-2 border-white/30 shadow-[0_20px_45px_rgba(0,0,0,0.75)]';
+                pointerEvents = 'auto';
+              } else if (position === 2) {
+                zIndex = 20;
+                opacity = 0.75;
+                filter = 'brightness(0.6)';
+                transform = 'translate3d(46px, -15px, -80px) rotateZ(12deg) rotateY(-25deg) rotateX(9deg) scale(0.95)';
+                borderStyle = 'border-2 border-white/20 shadow-[0_15px_35px_rgba(0,0,0,0.65)]';
+                pointerEvents = 'auto';
+              } else if (position === 3) {
+                zIndex = 10;
+                opacity = 0.45;
+                filter = 'brightness(0.4)';
+                transform = 'translate3d(66px, -20px, -120px) rotateZ(18deg) rotateY(-32deg) rotateX(12deg) scale(0.92)';
+                borderStyle = 'border border-white/10 shadow-[0_10px_25px_rgba(0,0,0,0.5)]';
+                pointerEvents = 'auto';
+              } else {
+                zIndex = 0;
+                opacity = 0;
+                filter = 'brightness(0.2)';
+                transform = 'translate3d(75px, -24px, -150px) rotateZ(20deg) rotateY(-36deg) rotateX(14deg) scale(0.9)';
+                pointerEvents = 'none';
+              }
 
-            return (
-              <div
-                key={slide.id}
-                onClick={() => {
-                  if (!isFront && pointerEvents === 'auto') jumpToSlide(i);
-                }}
-                title={!isFront && pointerEvents === 'auto' ? 'Click to bring to front' : undefined}
-                style={{
-                  zIndex,
-                  opacity,
-                  filter,
-                  transform,
-                  transformStyle: 'preserve-3d',
-                  transformOrigin: 'bottom center',
-                  pointerEvents,
-                  transition: 'transform 600ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease, filter 600ms ease',
-                }}
-                className={`
-                  absolute inset-0 rounded-t-[999px] overflow-hidden bg-[var(--f-lapis)]
-                  w-full h-full aspect-[3/4] cursor-pointer group shadow-2xl
-                  ${borderStyle}
-                `}
-              >
-                {/* Pure Artwork (No captions) */}
-                <img
-                  src={slide.src}
-                  alt={slide.alt}
-                  className={`h-full w-full ${slide.objectFit} object-center transition-transform duration-700 ease-out group-hover:scale-105`}
-                  loading={i < 4 ? 'eager' : 'lazy'}
-                />
+              return (
+                <div
+                  key={slide.id}
+                  onClick={() => {
+                    if (!isFront && pointerEvents === 'auto') jumpToSlide(i);
+                  }}
+                  title={!isFront && pointerEvents === 'auto' ? 'Click to bring to front' : undefined}
+                  style={{
+                    zIndex,
+                    opacity,
+                    filter,
+                    transform,
+                    transformStyle: 'preserve-3d',
+                    transformOrigin: 'bottom center',
+                    pointerEvents,
+                    transition: 'transform 600ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease, filter 600ms ease',
+                  }}
+                  className={`
+                    absolute inset-0 rounded-t-[999px] overflow-hidden bg-[var(--f-surface)]
+                    w-full h-full aspect-[3/4] cursor-pointer group shadow-2xl
+                    ${borderStyle}
+                  `}
+                >
+                  <img
+                    src={slide.src}
+                    alt={slide.alt}
+                    className={`h-full w-full ${slide.objectFit} object-center transition-transform duration-700 ease-out group-hover:scale-105`}
+                    loading={i < 3 ? 'eager' : 'lazy'}
+                  />
 
-                {/* Minimal front arch controls */}
-                {isFront && (
-                  <>
-                    {/* Previous Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        swapPrev();
-                      }}
-                      aria-label="Previous arch"
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md border border-white/25 transition-all opacity-80 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[var(--f-saffron)] hover:text-[var(--f-ink)] hover:scale-110 active:scale-95 cursor-pointer shadow-xl"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
+                  {/* Accessible Controls on Front Arch */}
+                  {isFront && (
+                    <>
+                      {/* Previous Slide Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          swapPrev();
+                        }}
+                        aria-label="Previous slide"
+                        className="f-focus absolute left-2.5 top-1/2 -translate-y-1/2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-md border border-white/20 transition-all opacity-85 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[var(--f-saffron)] hover:text-[var(--f-ink)] hover:scale-110 active:scale-95 cursor-pointer shadow-xl"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
 
-                    {/* Next Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        swapNext();
-                      }}
-                      aria-label="Next arch"
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md border border-white/25 transition-all opacity-80 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[var(--f-saffron)] hover:text-[var(--f-ink)] hover:scale-110 active:scale-95 cursor-pointer shadow-xl"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                      {/* Next Slide Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          swapNext();
+                        }}
+                        aria-label="Next slide"
+                        className="f-focus absolute right-2.5 top-1/2 -translate-y-1/2 z-30 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-md border border-white/20 transition-all opacity-85 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[var(--f-saffron)] hover:text-[var(--f-ink)] hover:scale-110 active:scale-95 cursor-pointer shadow-xl"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
 
-                    {/* Minimal Dots (Bottom Center) with Slide Counter */}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 rounded-full bg-black/65 backdrop-blur-md border border-white/20 px-3 py-1 shadow-xl">
-                      <div className="flex items-center gap-1">
-                        {HERO_SLIDES.map((s, dotIdx) => (
-                          <button
-                            key={s.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              jumpToSlide(dotIdx);
-                            }}
-                            aria-label={`Switch to slide ${dotIdx + 1}`}
-                            className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${
-                              currentIndex === dotIdx
-                                ? 'w-3.5 h-1.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]'
-                                : 'w-1 h-1 bg-white/40 hover:bg-white/80'
-                            }`}
-                          />
-                        ))}
+                      {/* Pagination Pill & Pause Control */}
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/75 backdrop-blur-md border border-white/20 px-3 py-1 shadow-xl">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsPaused((p) => !p);
+                          }}
+                          aria-label={isPaused ? 'Resume slideshow' : 'Pause slideshow'}
+                          className="text-white/70 hover:text-[var(--f-saffron)] transition-colors cursor-pointer"
+                        >
+                          {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {HERO_SLIDES.map((s, dotIdx) => (
+                            <button
+                              key={s.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                jumpToSlide(dotIdx);
+                              }}
+                              aria-label={`Jump to slide ${dotIdx + 1}`}
+                              className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${
+                                currentIndex === dotIdx
+                                  ? 'w-3.5 h-1.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]'
+                                  : 'w-1 h-1 bg-white/40 hover:bg-white/80'
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        <span className="text-[10px] font-bold text-white/70 ml-1 pl-1.5 border-l border-white/20 tabular-nums font-mono">
+                          {currentIndex + 1}/{HERO_SLIDES.length}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-bold text-white/70 ml-1 pl-1.5 border-l border-white/20 tabular-nums">
-                        {currentIndex + 1}/{HERO_SLIDES.length}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* ── Stats Strip: Docked cleanly at bottom of viewport with refined dark aesthetic ── */}
-      <div className="relative border-t border-amber-500/20 bg-black/80 backdrop-blur-md text-white shrink-0 z-20">
-        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-y divide-white/10 sm:grid-cols-4 sm:divide-y-0 px-3 py-1.5 sm:py-3 sm:px-8 lg:px-12">
-          {STATS.map(({ value, label, detail }) => (
+      {/* ── Integrated Statistics Strip (Phase 5) ── */}
+      <div className="relative border-t border-white/10 bg-[var(--f-surface-subtle)]/90 backdrop-blur-md text-white shrink-0 z-20">
+        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-y divide-white/10 sm:grid-cols-4 sm:divide-y-0 px-3 py-2 sm:py-3.5 sm:px-8 lg:px-12">
+          {statsData.map(({ value, label, detail }) => (
             <div
               key={label}
-              className="group flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-2.5 py-1.5 sm:px-6 sm:py-2.5 transition-all duration-200 hover:bg-white/[0.04] cursor-default"
+              className="group flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-3 py-2 sm:px-6 sm:py-3 transition-all duration-200 hover:bg-white/[0.04] cursor-default"
             >
-              <dd className="f-kufi text-xl sm:text-2xl lg:text-3xl font-extrabold leading-none tracking-tight text-[var(--f-saffron)] group-hover:drop-shadow-[0_0_12px_rgba(255,180,31,0.4)] transition-all">
+              <dd className="f-kufi text-xl sm:text-2xl lg:text-3xl font-extrabold leading-none tracking-tight text-[var(--f-saffron)] group-hover:drop-shadow-[0_0_12px_rgba(245,158,11,0.45)] transition-all">
                 {value}
               </dd>
-              <dt className="mt-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white">
+              <dt className="mt-1 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[var(--f-text-primary)] font-heading">
                 {label}
               </dt>
-              <span className="mt-0.5 text-[9px] sm:text-[11px] text-white/60 font-medium">
+              <span className="mt-0.5 text-[10px] sm:text-[11px] text-[var(--f-text-muted)] font-medium">
                 {detail}
               </span>
             </div>

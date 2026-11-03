@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BookOpen, Layers, GraduationCap, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, GraduationCap, Sparkles, ChevronDown, Check } from 'lucide-react';
 
 const PHASES = [
   {
@@ -15,6 +15,12 @@ const PHASES = [
     description:
       '3-year integrated schooling leading to the SSLC board exam alongside foundational Islamic jurisprudence (Fiqh), theology (Aqeedah), and Arabic roots.',
     highlights: ['SSLC Board Exam', 'Fiqh & Aqeedah', 'Arabic & Urdu Roots'],
+    competencies: [
+      'State SSLC Secondary Certification',
+      'Classical Arabic Grammar & Urdu Basics',
+      'Fundamental Islamic Jurisprudence (Fiqh)',
+      'Aqeedah & Prophetic Seerah Immersion',
+    ],
   },
   {
     id: 'thamheediyya',
@@ -27,6 +33,12 @@ const PHASES = [
     description:
       '2-year higher secondary (+1 & +2) across Science, Commerce, or Humanities with intensive Madrasathul Umm Arabic LSRW (Listening, Speaking, Reading, Writing) immersion and Hadith studies.',
     highlights: ['LSRW (Listen, Speak, Read, Write)', 'Plus Two (+1 & +2)', 'Madrasathul Umm'],
+    competencies: [
+      'Govt. Recognized Higher Secondary (+2)',
+      'Intensive Arabic LSRW Fluency Training',
+      'Intermediate Hadith Sciences & Tafseer',
+      'Madrasathul Umm Linguistic Immersion',
+    ],
   },
   {
     id: 'aliya',
@@ -39,6 +51,12 @@ const PHASES = [
     description:
       'UGC-recognised university Bachelor’s degree integrated with advanced theology, Tafseer, philosophy, logic, and Wafiyya Home Science for girls.',
     highlights: ['UGC Bachelor’s', 'Advanced Theology', 'Wafiyya Home Science'],
+    competencies: [
+      'UGC Accredited University Degree (B.A. / B.Sc. / B.Com)',
+      'Advanced Islamic Jurisprudence & Usul al-Fiqh',
+      'Mantiq (Logic) & Comparative Philosophy',
+      'Dedicated Wafiyya Home Science (Women Campuses)',
+    ],
   },
   {
     id: 'muthawwal',
@@ -51,146 +69,147 @@ const PHASES = [
     description:
       '2-year Master’s specialization across Theology, Sharia, and Language faculties, culminating in a mandatory 100-page Arabic thesis.',
     highlights: ['Master’s Specialisation', 'Theology & Sharia', '100-Page Arabic Thesis'],
+    competencies: [
+      'Postgraduate Specialization (Master’s Equivalence)',
+      'Faculty of Theology, Sharia, or Language & Culture',
+      'Original Scholarly Research & Critical Review',
+      'Mandatory 100-Page Academic Thesis in Arabic',
+    ],
   },
 ] as const;
 
 export function WafyStream() {
-  const [hoveredPhase, setHoveredPhase] = useState<string | null>(null);
+  const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => {
+    setExpandedPhase((prev) => (prev === id ? null : id));
+  };
 
   return (
     <section
       id="wafy"
-      className="f-sans relative scroll-mt-16 bg-black py-20 text-white sm:py-28"
+      aria-label="Academic Stream Curriculum"
+      className="relative scroll-mt-20 bg-[var(--f-canvas)] py-20 text-[var(--f-text-primary)] sm:py-28 border-b border-white/5"
     >
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
         {/* ── Section Header ── */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-12 sm:mb-14">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-14 sm:mb-16">
           <div>
             <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)]">
               <Sparkles className="w-3.5 h-3.5" />
               <span>4-Tier Academic Roadmap</span>
             </div>
-            <h2 className="mt-2 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-white">
+            <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-white font-heading">
               Stream Curriculum
             </h2>
           </div>
-          <p className="max-w-md text-xs sm:text-sm leading-relaxed text-white/70 lg:text-right">
+          <p className="max-w-md text-xs sm:text-sm leading-relaxed text-[var(--f-text-muted)] lg:text-right font-sans">
             Seamlessly wedding classical Islamic scholarship with modern university education across four progressive phases.
           </p>
         </div>
 
-        {/* ── Curriculum Progression Cards (Compact Uniform Heights) ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-stretch gap-4 sm:gap-5">
+        {/* ── Connected Timeline Visual Indicator (Desktop) ── */}
+        <div className="hidden lg:block relative mb-8" aria-hidden="true">
+          <div className="absolute top-1/2 left-10 right-10 h-0.5 -translate-y-1/2 bg-gradient-to-r from-amber-500/20 via-blue-500/30 to-amber-500/20 z-0" />
+          <div className="relative z-10 grid grid-cols-4 text-center">
+            {PHASES.map((phase) => (
+              <div key={phase.id} className="flex flex-col items-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--f-saffron)] bg-[var(--f-canvas)] text-[var(--f-saffron)] font-mono text-xs font-bold shadow-md shadow-amber-500/10">
+                  {phase.numeral}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Responsive 4-Phase Grid ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start gap-5">
           {PHASES.map((phase) => {
-            const isHovered = hoveredPhase === phase.id;
+            const isExpanded = expandedPhase === phase.id;
             const Icon = phase.icon;
 
             return (
               <div
                 key={phase.id}
-                onMouseEnter={() => setHoveredPhase(phase.id)}
-                onMouseLeave={() => setHoveredPhase(null)}
-                className={`
-                  group relative flex flex-col justify-between rounded-[22px] border p-6 sm:p-7
-                  transition-all duration-300 ease-out cursor-pointer h-full min-h-[440px] sm:min-h-[460px]
-                  ${isHovered
-                    ? 'bg-[#FFB41F] border-amber-400/50 text-[#0C1244] shadow-[0_20px_50px_rgba(255,180,31,0.35)] -translate-y-2 scale-[1.015]'
-                    : 'bg-[#18181C] border-white/[0.10] text-white hover:bg-[#FFB41F] hover:border-amber-400/50 hover:text-[#0C1244] hover:shadow-[0_20px_50px_rgba(255,180,31,0.35)] hover:-translate-y-2 hover:scale-[1.015]'
-                  }
-                `}
+                className="f-surface-card flex flex-col justify-between p-6 transition-all duration-300 hover:border-[var(--f-saffron)]/50 hover:shadow-xl"
               >
-                {/* ── Top content ── */}
                 <div>
-                  {/* Top Header: Numeral + Duration Badge */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`f-kufi text-4xl sm:text-5xl font-extrabold leading-none transition-colors select-none ${
-                        isHovered ? 'text-[#0C1244]/35' : 'text-white/20 group-hover:text-[#0C1244]/35'
-                      }`}
-                    >
+                  {/* Top Bar: Numeral & Duration Badge */}
+                  <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                    <span className="font-mono text-3xl sm:text-4xl font-extrabold text-[var(--f-saffron)] select-none">
                       {phase.numeral}
                     </span>
-                    <div
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold transition-all ${
-                        isHovered
-                          ? 'border-[#0C1244]/15 bg-[#0C1244]/10 text-[#0C1244] scale-105'
-                          : 'border-white/15 bg-white/5 text-white/85 group-hover:border-[#0C1244]/15 group-hover:bg-[#0C1244]/10 group-hover:text-[#0C1244] group-hover:scale-105'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-bold text-white">
+                      <Icon className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                       <span>{phase.duration}</span>
                     </div>
                   </div>
 
-                  {/* Subtitle tier label */}
-                  <div className="mt-6">
-                    <p
-                      className={`text-[10px] font-bold tracking-widest uppercase transition-colors ${
-                        isHovered ? 'text-[#0C1244]/70' : 'text-white/60 group-hover:text-[#0C1244]/70'
-                      }`}
-                    >
+                  {/* Titles */}
+                  <div className="mt-5">
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-[var(--f-text-muted)] font-heading">
                       {phase.subtitle}
                     </p>
-                    <h3
-                      className={`mt-1 text-2xl font-extrabold leading-tight tracking-tight transition-colors ${
-                        isHovered ? 'text-[#0C1244]' : 'text-white group-hover:text-[#0C1244]'
-                      }`}
-                    >
+                    <h3 className="mt-1 text-xl sm:text-2xl font-extrabold text-white tracking-tight font-heading">
                       {phase.engName}
                     </h3>
                     <p
                       lang="ar"
                       dir="rtl"
-                      className={`f-kufi mt-0.5 text-left text-lg font-bold transition-colors ${
-                        isHovered ? 'text-[#0C1244]' : 'text-white/90 group-hover:text-[#0C1244]'
-                      }`}
+                      className="f-kufi mt-1 text-left sm:text-left text-base sm:text-lg font-bold text-[var(--f-saffron)]"
                     >
                       {phase.arabicName}
                     </p>
                   </div>
 
-                  {/* Concise Description paragraph */}
-                  <p
-                    className={`mt-3.5 text-xs sm:text-sm leading-relaxed transition-colors ${
-                      isHovered ? 'text-[#0C1244]/85' : 'text-white/70 group-hover:text-[#0C1244]/85'
-                    }`}
-                  >
+                  {/* Description */}
+                  <p className="mt-3.5 text-xs sm:text-sm leading-relaxed text-[var(--f-text-secondary)] font-sans">
                     {phase.description}
                   </p>
-                </div>
 
-                {/* ── Bottom content: Divider + Key Competencies ── */}
-                <div
-                  className={`mt-6 border-t pt-4 transition-colors ${
-                    isHovered ? 'border-[#0C1244]/15' : 'border-white/10 group-hover:border-[#0C1244]/15'
-                  }`}
-                >
-                  <p
-                    className={`text-[10px] font-bold tracking-widest uppercase mb-2.5 transition-colors ${
-                      isHovered ? 'text-[#0C1244]/65' : 'text-white/50 group-hover:text-[#0C1244]/65'
-                    }`}
-                  >
-                    KEY COMPETENCIES
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
+                  {/* Highlights Badges */}
+                  <div className="mt-5 flex flex-wrap gap-1.5">
                     {phase.highlights.map((h) => (
                       <span
                         key={h}
-                        className={`
-                          rounded-full border px-2.5 py-0.5 text-[11px] font-semibold
-                          transition-all duration-200 cursor-default
-                          ${
-                            isHovered
-                              ? 'bg-[#0C1244]/12 text-[#0C1244] border-[#0C1244]/10 hover:bg-[#0C1244]/20'
-                              : 'bg-[#2A2A32] text-white/85 border-white/[0.06] group-hover:bg-[#0C1244]/12 group-hover:text-[#0C1244] group-hover:border-[#0C1244]/10 hover:bg-white/20'
-                          }
-                        `}
+                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/90"
                       >
                         {h}
                       </span>
                     ))}
                   </div>
+
+                  {/* Expandable Deep-Dive Details */}
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t border-white/10 animate-in fade-in duration-200">
+                      <p className="text-[10px] font-bold tracking-wider uppercase text-[var(--f-saffron)] mb-2.5 font-heading">
+                        Curriculum Competencies
+                      </p>
+                      <ul className="space-y-1.5 text-xs text-[var(--f-text-secondary)]">
+                        {phase.competencies.map((comp) => (
+                          <li key={comp} className="flex items-start gap-2">
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>{comp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
+
+                {/* Expand / Collapse Button */}
+                <button
+                  onClick={() => toggleExpand(phase.id)}
+                  aria-expanded={isExpanded}
+                  className="mt-6 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                >
+                  <span>{isExpanded ? 'Hide Details' : 'View Competencies'}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isExpanded ? 'rotate-180 text-[var(--f-saffron)]' : ''
+                    }`}
+                  />
+                </button>
               </div>
             );
           })}
