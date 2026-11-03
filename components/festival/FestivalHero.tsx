@@ -131,6 +131,8 @@ export function FestivalHero() {
   }, []);
 
   const touchStartX = useRef<number | null>(null);
+  const archRef = useRef<HTMLDivElement>(null);
+  const isSwapping = useRef(false);
 
   const getPortalRoute = () => {
     switch (currentRole) {
@@ -162,6 +164,35 @@ export function FestivalHero() {
   const jumpToSlide = (index: number) => {
     setCurrentIndex(index);
   };
+
+  // Dedicated wheel listener on the arch container to cycle through images
+  useEffect(() => {
+    const el = archRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isSwapping.current) return;
+      if (Math.abs(e.deltaY) > 15 || Math.abs(e.deltaX) > 15) {
+        isSwapping.current = true;
+        if (e.deltaY > 0 || e.deltaX > 0) {
+          swapNext();
+        } else {
+          swapPrev();
+        }
+        setTimeout(() => {
+          isSwapping.current = false;
+        }, 360);
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [swapNext, swapPrev]);
 
   // Keyboard navigation when user interacts with carousel
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -299,6 +330,7 @@ export function FestivalHero() {
         <div className="flex flex-col items-center justify-center">
           <div
             tabIndex={0}
+            ref={archRef}
             role="region"
             aria-label="Festival Gallery Carousel. Use left and right arrow keys to browse slides."
             onKeyDown={handleKeyDown}
