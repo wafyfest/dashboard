@@ -40,5 +40,7 @@ next-env.d.ts
 .supabase
 supabase/.temp/
 skills-lock.json
-
+.codex
+.kiro
 .vscode
+.impeccable

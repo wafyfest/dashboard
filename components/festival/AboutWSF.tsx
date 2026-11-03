@@ -174,7 +174,7 @@ export function AboutWSF() {
               <dt className="mt-1.5 text-xs font-bold uppercase tracking-wider text-white font-heading">
                 {label}
               </dt>
-              <p className="mt-0.5 text-[11px] text-[var(--f-text-muted)] font-medium">{detail}</p>
+              <p className="mt-0.5 text-xs text-[var(--f-text-muted)] font-medium">{detail}</p>
             </div>
           ))}
         </div>
@@ -197,36 +197,55 @@ export function AboutWSF() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {MAJOR_ACTIVITIES.map(({ title, theme, desc, icon: Icon, category }) => (
-              <div
-                key={title}
-                className="f-surface-card group relative flex flex-col justify-between p-5 transition-all duration-300 hover:border-[var(--f-saffron)]/40 hover:-translate-y-1"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--f-saffron)] bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded">
-                      {category}
-                    </span>
-                    <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/70 group-hover:bg-[var(--f-saffron)] group-hover:text-[var(--f-ink)] transition-colors">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h4 className="mt-3 text-sm font-bold text-white leading-snug font-heading group-hover:text-[var(--f-saffron)] transition-colors">
-                    {title}
-                  </h4>
-                  <p className="mt-1 text-[11px] font-semibold text-blue-400">
-                    {theme}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-[var(--f-text-secondary)] font-sans">
-                    {desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+            {MAJOR_ACTIVITIES.map(({ title, theme, desc, icon: Icon, category }) => {
+              // Accent color mapping based on domain
+              const isLeadership = category === 'Leadership' || category === 'Governance';
+              const isResearch = category === 'Research';
+              const isArts = category === 'Oratory' || category === 'Literature' || category === 'Creativity';
+              const isSports = category === 'Sports';
 
-        {/* ── Student Portal CTA Banner ── */}
+              let badgeColor = 'text-[var(--f-saffron)] bg-amber-400/10 border-amber-400/20';
+              let iconHover = 'group-hover:bg-[var(--f-saffron)] group-hover:text-[var(--f-ink)]';
+              if (isResearch) {
+                badgeColor = 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+                iconHover = 'group-hover:bg-emerald-400 group-hover:text-black';
+              } else if (isArts) {
+                badgeColor = 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+                iconHover = 'group-hover:bg-blue-500 group-hover:text-white';
+              } else if (isSports) {
+                badgeColor = 'text-rose-400 bg-rose-400/10 border-rose-400/20';
+                iconHover = 'group-hover:bg-rose-500 group-hover:text-white';
+              }
+
+              return (
+                <div
+                  key={title}
+                  className="f-surface-card group relative flex flex-col justify-between p-5 transition-all duration-300 hover:border-white/30 hover:-translate-y-1 shadow-lg"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded border ${badgeColor}`}>
+                        {category}
+                      </span>
+                      <div className={`h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/70 ${iconHover} transition-colors`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <h4 className="mt-3.5 text-sm font-bold text-white leading-snug font-heading group-hover:text-[var(--f-saffron)] transition-colors">
+                      {title}
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold text-blue-300/90">
+                      {theme}
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-[var(--f-text-secondary)] font-sans">
+                      {desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>{/* ── Student Portal CTA Banner ── */}
         <div className="mt-16 flex flex-col sm:flex-row items-center justify-between gap-6 rounded-2xl bg-gradient-to-r from-[#11182c] via-[#16203a] to-[#1e2a4a] border border-amber-500/25 p-6 sm:p-8 text-white shadow-2xl">
           <div>
             <h4 className="text-lg sm:text-xl font-extrabold text-white font-heading">

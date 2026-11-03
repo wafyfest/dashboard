@@ -183,7 +183,7 @@ export function AboutCIC() {
                     }`}
                   >
                     <p className="text-xs font-bold">{p.name}</p>
-                    <p className={`text-[10px] ${selectedPhase === idx ? 'text-[var(--f-ink)]/80' : 'text-white/60'}`}>
+                    <p className={`text-xs ${selectedPhase === idx ? 'text-[var(--f-ink)]/80' : 'text-white/60'}`}>
                       {p.duration}
                     </p>
                   </button>
@@ -229,7 +229,7 @@ export function AboutCIC() {
                 <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)] font-heading">
                   Institutional Scale
                 </h3>
-                <span className="text-[10px] uppercase font-bold text-white/50 px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                <span className="text-xs uppercase font-bold text-white/50 px-2 py-0.5 rounded bg-white/5 border border-white/10">
                   Govt Reg 379/04
                 </span>
               </div>
@@ -296,9 +296,9 @@ export function AboutCIC() {
           </aside>
         </div>
 
-        {/* ── Mission & Vision (10 Key Pillars) ── */}
+        {/* ── Mission & Vision (Editorial Hierarchy) ── */}
         <div className="mt-20 sm:mt-24 pt-12 border-t border-white/10">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
             <div>
               <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--f-saffron)]">
                 <Compass className="w-3.5 h-3.5" />
@@ -313,23 +313,52 @@ export function AboutCIC() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {MISSION_VISION.map(({ num, title, desc }) => (
+          {/* ── Flagship Anchor Pillars (Featured Spotlight) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 mb-5">
+            {MISSION_VISION.slice(0, 2).map(({ num, title, desc }) => (
               <div
                 key={num}
-                className="f-surface-card group relative flex flex-col justify-between p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1"
+                className="relative overflow-hidden rounded-2xl border-2 border-[var(--f-saffron)]/40 bg-gradient-to-br from-[#131b31] via-[#10172a] to-[#0d1322] p-5 sm:p-6 shadow-xl transition-all duration-300 hover:border-[var(--f-saffron)] hover:-translate-y-0.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-mono text-xs font-black text-[var(--f-ink)] px-2.5 py-0.5 rounded-md bg-[var(--f-saffron)] shadow-sm">
+                      {num}
+                    </span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--f-saffron)]">
+                      {num === '01' ? 'Foundational Core' : 'Curricular Synthesis'}
+                    </span>
+                  </div>
+                  <Sparkles className="w-4 h-4 text-[var(--f-saffron)]" />
+                </div>
+                <h4 className="mt-3.5 text-base sm:text-lg font-bold text-white font-heading">
+                  {title}
+                </h4>
+                <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--f-text-secondary)] font-sans">
+                  {desc}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Secondary Specialized Pillars (Editorial 4-Column Grid) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+            {MISSION_VISION.slice(2).map(({ num, title, desc }) => (
+              <div
+                key={num}
+                className="f-surface-card group relative flex flex-col justify-between p-4 sm:p-5 transition-all duration-300 hover:border-white/20 hover:-translate-y-0.5"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-black text-[var(--f-saffron)] px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                    <span className="font-mono text-xs font-bold text-[var(--f-saffron)] px-2 py-0.5 rounded bg-white/5 border border-white/10">
                       {num}
                     </span>
-                    <Sparkles className="w-3.5 h-3.5 text-white/30 group-hover:text-[var(--f-saffron)] transition-colors" />
+                    <Sparkles className="w-3.5 h-3.5 text-white/20 group-hover:text-[var(--f-saffron)] transition-colors" />
                   </div>
                   <h4 className="mt-3 text-xs sm:text-sm font-bold text-white group-hover:text-[var(--f-saffron)] transition-colors leading-snug font-heading">
                     {title}
                   </h4>
-                  <p className="mt-2 text-[11px] sm:text-xs leading-relaxed text-[var(--f-text-secondary)] font-sans">
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--f-text-secondary)] font-sans">
                     {desc}
                   </p>
                 </div>

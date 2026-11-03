@@ -259,11 +259,11 @@ export function FestivalHero() {
 
           {/* Eyebrow badge */}
           <div className="f-rise flex items-center justify-center lg:justify-start gap-2" style={delay(50)}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
               <span className="h-2 w-2 rounded-full bg-[var(--f-saffron)] animate-pulse" />
               <span>Official Cultural Festival</span>
             </span>
-            <span className="text-[11px] sm:text-xs font-medium text-white/60">WSF · CIC</span>
+            <span className="text-xs sm:text-xs font-medium text-white/60">WSF · CIC</span>
           </div>
 
           {/* Main Title */}
@@ -485,7 +485,7 @@ export function FestivalHero() {
                           ))}
                         </div>
 
-                        <span className="text-[10px] font-bold text-white/70 ml-1 pl-1.5 border-l border-white/20 tabular-nums font-mono">
+                        <span className="text-xs font-bold text-white/70 ml-1 pl-1.5 border-l border-white/20 tabular-nums font-mono">
                           {currentIndex + 1}/{HERO_SLIDES.length}
                         </span>
                       </div>
@@ -509,10 +509,10 @@ export function FestivalHero() {
               <dd className="f-kufi text-xl sm:text-2xl lg:text-3xl font-extrabold leading-none tracking-tight text-[var(--f-saffron)] group-hover:drop-shadow-[0_0_12px_rgba(245,158,11,0.45)] transition-all">
                 {value}
               </dd>
-              <dt className="mt-1 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[var(--f-text-primary)] font-heading">
+              <dt className="mt-1 text-xs sm:text-xs font-bold uppercase tracking-wider text-[var(--f-text-primary)] font-heading">
                 {label}
               </dt>
-              <span className="mt-0.5 text-[10px] sm:text-[11px] text-[var(--f-text-muted)] font-medium">
+              <span className="mt-0.5 text-xs sm:text-xs text-[var(--f-text-muted)] font-medium">
                 {detail}
               </span>
             </div>
