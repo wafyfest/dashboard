@@ -83,7 +83,7 @@ export default async function OpenGraphImage() {
               fontWeight: 700,
             }}
           >
-            ● LIVE FESTIVAL PORTAL
+            ● LIVE FEST PORTAL
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export default async function OpenGraphImage() {
           <span style={{ color: 'rgba(148, 163, 184, 0.4)' }}>•</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '22px', fontWeight: 900, color: '#34d399' }}>84+</span>
-            <span style={{ fontSize: '14px', color: '#94a3b8' }}>Items</span>
+            <span style={{ fontSize: '14px', color: '#94a3b8' }}>Events</span>
           </div>
           <span style={{ color: 'rgba(148, 163, 184, 0.4)' }}>•</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -1,5 +1,5 @@
 -- Migration: 20261011000005_enable_supabase_realtime_replication.sql
--- Description: Add all festival application tables to supabase_realtime publication to enable instant WebSockets sync without manual browser refreshes
+-- Description: Add all fest application tables to supabase_realtime publication to enable instant WebSockets sync without manual browser refreshes
 
 -- 1. Enable logical replication for all application tables
 DO $$

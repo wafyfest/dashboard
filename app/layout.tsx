@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     'CIC',
     'Coordination of Islamic Colleges',
     'Arts Fest Management',
-    'Student Portal',
+    'Student Login',
     'Admit Card',
     'Live Stage Tracking',
     'Inter-College Fest',

@@ -433,13 +433,13 @@ export function ResultPosterModal({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left: Interactive Canvas Poster Preview */}
           <div className="lg:col-span-7 flex flex-col items-center">
-            <div className="w-full max-w-[420px] aspect-square rounded-2xl overflow-hidden shadow-elevated border-2 border-[var(--border-subtle)] bg-slate-950 relative group">
+            <div className="w-full max-w-[420px] aspect-square rounded-2xl overflow-hidden shadow-elevated border border-[var(--border-subtle)] [box-shadow:var(--shadow-elevated),var(--glass-highlight)] bg-[#050B14] relative group">
               <canvas
                 ref={canvasRef}
                 className="w-full h-full object-contain block"
                 style={{ imageRendering: 'crisp-edges' }}
               />
-              <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 text-[10px] font-mono border border-white/10">
+              <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-[var(--f-saffron)] text-[10px] font-mono font-bold border border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
                 1080 × 1080 HD
               </div>
             </div>
@@ -450,7 +450,7 @@ export function ResultPosterModal({
                 type="button"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] text-[#090d1a] font-heading font-bold py-2.5 text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
               >
                 <Download className="w-4 h-4" />
                 <span>{isDownloading ? 'Exporting HD...' : 'Download Poster (PNG)'}</span>
@@ -460,7 +460,7 @@ export function ResultPosterModal({
                 type="button"
                 variant="outline"
                 onClick={handleShare}
-                className="px-3.5 py-2.5 border-[var(--border-medium)] hover:bg-[var(--bg-hover)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2.5 border-[var(--border-medium)] hover:bg-[var(--bg-hover)] text-xs font-heading font-semibold flex items-center gap-1.5 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
                 title="Share to WhatsApp / Social Media"
               >
                 {isShared ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4 text-sky-500" />}
@@ -470,20 +470,20 @@ export function ResultPosterModal({
           </div>
 
           {/* Right: Customization Controls for the 4 blanks */}
-          <div className="lg:col-span-5 space-y-4 bg-[var(--bg-canvas)] p-3.5 sm:p-4 rounded-xl border border-[var(--border-subtle)]">
+          <div className="lg:col-span-5 space-y-4 bg-[var(--bg-subtle)]/70 p-3.5 sm:p-4 rounded-2xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)]">
-              <span className="font-bold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="font-heading font-bold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                 <span>Poster Details & Blanks</span>
               </span>
-              <Badge variant="navy" size="sm" className="text-[10px]">
+              <Badge variant="saffron" size="sm" className="text-[10px]">
                 Live Preview
               </Badge>
             </div>
 
             {/* Field 1: Student Name */}
             <div>
-              <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+              <label className="block text-[11px] font-heading font-bold text-[var(--text-secondary)] mb-1">
                 Student Name *
               </label>
               <input
@@ -491,27 +491,27 @@ export function ResultPosterModal({
                 value={studentName}
                 onChange={e => setStudentName(e.target.value)}
                 placeholder="Enter student name"
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-semibold font-sans focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
             {/* Field 2: Item Name (English) */}
             <div>
-              <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
-                Item Name (English) *
+              <label className="block text-[11px] font-heading font-bold text-[var(--text-secondary)] mb-1">
+                Event Name (English) *
               </label>
               <input
                 type="text"
                 value={itemEnglish}
                 onChange={e => setItemEnglish(e.target.value)}
                 placeholder="e.g. English Elocution, Essay Writing"
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-semibold font-sans focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
             {/* Field 3: Phase / Category */}
             <div>
-              <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+              <label className="block text-[11px] font-heading font-bold text-[var(--text-secondary)] mb-1">
                 Phase / Category *
               </label>
               <input
@@ -519,13 +519,13 @@ export function ResultPosterModal({
                 value={phase}
                 onChange={e => setPhase(e.target.value)}
                 placeholder="e.g. Senior, Junior, Sub Junior, General"
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-semibold font-sans focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
             {/* Field 4: Prize Got */}
             <div>
-              <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+              <label className="block text-[11px] font-heading font-bold text-[var(--text-secondary)] mb-1">
                 Prize Got *
               </label>
               <input
@@ -533,13 +533,13 @@ export function ResultPosterModal({
                 value={prize}
                 onChange={e => setPrize(e.target.value)}
                 placeholder="e.g. FIRST PRIZE 🥇, SECOND PRIZE 🥈"
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-bold text-amber-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-heading font-bold text-amber-600 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
             {/* Background Template Controls */}
             <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
-              <span className="text-[11px] font-bold text-[var(--text-secondary)] block">
+              <span className="text-[11px] font-heading font-bold text-[var(--text-secondary)] block">
                 Poster Background Template:
               </span>
 
@@ -550,9 +550,9 @@ export function ResultPosterModal({
                     setBgMode('default');
                     renderPoster();
                   }}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-heading font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     bgMode === 'default'
-                      ? 'bg-emerald-600 text-white shadow-xs'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-sm shadow-amber-500/20'
                       : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
@@ -561,9 +561,9 @@ export function ResultPosterModal({
                 </button>
 
                 <label
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-heading font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     bgMode === 'custom'
-                      ? 'bg-indigo-600 text-white shadow-xs'
+                      ? 'bg-amber-500/20 text-amber-900 dark:text-amber-300 font-bold border border-amber-500/40 shadow-xs'
                       : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
@@ -580,17 +580,17 @@ export function ResultPosterModal({
 
               {/* Text Theme Selector */}
               <div className="pt-2">
-                <label className="block text-[10px] font-semibold text-[var(--text-muted)] mb-1">
+                <label className="block text-[10px] font-heading font-semibold text-[var(--text-muted)] mb-1">
                   Text Color Palette:
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setTextColorTheme('gold_white')}
-                    className={`py-1 px-1.5 rounded text-[10px] font-semibold transition-all border ${
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-heading font-semibold transition-all border ${
                       textColorTheme === 'gold_white'
-                        ? 'border-amber-400 bg-amber-400/20 text-amber-300'
-                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                        ? 'border-amber-400/40 bg-amber-400/20 text-amber-900 dark:text-amber-300 shadow-xs'
+                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     Gold & White
@@ -598,10 +598,10 @@ export function ResultPosterModal({
                   <button
                     type="button"
                     onClick={() => setTextColorTheme('emerald_gold')}
-                    className={`py-1 px-1.5 rounded text-[10px] font-semibold transition-all border ${
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-heading font-semibold transition-all border ${
                       textColorTheme === 'emerald_gold'
-                        ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300'
-                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                        ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     Emerald Glow
@@ -609,10 +609,10 @@ export function ResultPosterModal({
                   <button
                     type="button"
                     onClick={() => setTextColorTheme('dark_navy')}
-                    className={`py-1 px-1.5 rounded text-[10px] font-semibold transition-all border ${
+                    className={`py-1 px-1.5 rounded-lg text-[10px] font-heading font-semibold transition-all border ${
                       textColorTheme === 'dark_navy'
-                        ? 'border-slate-800 bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
-                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                        ? 'border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-xs'
+                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     Dark (for light bg)
@@ -625,20 +625,20 @@ export function ResultPosterModal({
                 <button
                   type="button"
                   onClick={() => setShowAdvancedPositions(!showAdvancedPositions)}
-                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-heading font-semibold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
                 >
                   <MoveVertical className="w-3 h-3" />
                   <span>{showAdvancedPositions ? 'Hide Blank Position Controls' : 'Fine-Tune Blank Positions (Sliders)'}</span>
                 </button>
 
                 {showAdvancedPositions && (
-                  <div className="mt-2.5 p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-2 text-[10px]">
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-2 text-[10px]">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[var(--text-muted)]">Vertical Alignment (Y):</span>
+                      <span className="font-heading font-semibold text-[var(--text-muted)]">Vertical Alignment (Y):</span>
                       <button
                         type="button"
                         onClick={handleResetPositions}
-                        className="text-sky-500 hover:underline flex items-center gap-0.5"
+                        className="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5 font-heading font-semibold"
                       >
                         <RotateCcw className="w-2.5 h-2.5" /> Reset
                       </button>
@@ -646,7 +646,7 @@ export function ResultPosterModal({
 
                     <div>
                       <div className="flex justify-between text-[10px] mb-0.5">
-                        <span>Prize Banner:</span>
+                        <span className="font-sans">Prize Banner:</span>
                         <span className="font-mono">{prizeY}px</span>
                       </div>
                       <input
@@ -655,13 +655,13 @@ export function ResultPosterModal({
                         max="800"
                         value={prizeY}
                         onChange={e => setPrizeY(Number(e.target.value))}
-                        className="w-full h-1 accent-emerald-500 cursor-pointer"
+                        className="w-full h-1 accent-amber-500 cursor-pointer"
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between text-[10px] mb-0.5">
-                        <span>Student Name:</span>
+                        <span className="font-sans">Student Name:</span>
                         <span className="font-mono">{studentY}px</span>
                       </div>
                       <input
@@ -670,13 +670,13 @@ export function ResultPosterModal({
                         max="850"
                         value={studentY}
                         onChange={e => setStudentY(Number(e.target.value))}
-                        className="w-full h-1 accent-emerald-500 cursor-pointer"
+                        className="w-full h-1 accent-amber-500 cursor-pointer"
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between text-[10px] mb-0.5">
-                        <span>Phase / Category:</span>
+                        <span className="font-sans">Phase / Category:</span>
                         <span className="font-mono">{phaseY}px</span>
                       </div>
                       <input
@@ -685,13 +685,13 @@ export function ResultPosterModal({
                         max="900"
                         value={phaseY}
                         onChange={e => setPhaseY(Number(e.target.value))}
-                        className="w-full h-1 accent-emerald-500 cursor-pointer"
+                        className="w-full h-1 accent-amber-500 cursor-pointer"
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between text-[10px] mb-0.5">
-                        <span>Item Name (English):</span>
+                        <span className="font-sans">Event Name (English):</span>
                         <span className="font-mono">{itemY}px</span>
                       </div>
                       <input
@@ -700,7 +700,7 @@ export function ResultPosterModal({
                         max="950"
                         value={itemY}
                         onChange={e => setItemY(Number(e.target.value))}
-                        className="w-full h-1 accent-emerald-500 cursor-pointer"
+                        className="w-full h-1 accent-amber-500 cursor-pointer"
                       />
                     </div>
                   </div>

@@ -418,7 +418,7 @@ BEGIN
         'warning',
         v_actor_role,
         'Admin',
-        'Festival settings updated (Reg Deadline: ' || COALESCE(NEW.reg_deadline::text, 'None') || ', Fine Deadline: ' || COALESCE(NEW.fine_deadline::text, 'None') || ')',
+        'Fest settings updated (Reg Deadline: ' || COALESCE(NEW.reg_deadline::text, 'None') || ', Fine Deadline: ' || COALESCE(NEW.fine_deadline::text, 'None') || ')',
         jsonb_build_object('reg_deadline', NEW.reg_deadline, 'fine_deadline', NEW.fine_deadline, 'fest_name', NEW.fest_name)
       );
       RETURN NEW;

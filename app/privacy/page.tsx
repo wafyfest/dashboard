@@ -50,7 +50,7 @@ export default function PrivacyPolicyPage() {
             This Privacy Policy governs the collection, processing, confidentiality, and storage of participant and institutional data across the <strong>14th Wafy Arts Fest Portal</strong>, operated under the joint jurisdiction of the <strong>Coordination of Islamic Colleges (CIC)</strong> and the <strong>Wafy Students Federation (WSF)</strong>.
           </p>
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            We are committed to maintaining the highest standards of data security, identity protection, and academic integrity for all participating students, faculty mentors, and festival officials.
+            We are committed to maintaining the highest standards of data security, identity protection, and academic integrity for all participating students, faculty mentors, and fest officials.
           </p>
         </section>
 
@@ -63,7 +63,7 @@ export default function PrivacyPolicyPage() {
           <div className="space-y-3 text-sm text-[var(--text-secondary)]">
             <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-1.5">
               <strong className="text-[var(--text-primary)] block">Participant & Student Information:</strong>
-              <p>Official CIC Admission Number, full name, affiliated college name, competition category, enrolled arts items, and official Admit Card portrait photograph.</p>
+              <p>Official CIC Admission Number, full name, affiliated college name, competition category, enrolled arts events, and official Admit Card portrait photograph.</p>
             </div>
             <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-1.5">
               <strong className="text-[var(--text-primary)] block">Institutional Officer Information:</strong>

@@ -31,12 +31,12 @@ export function generateAdmitCardPdf({
   doc.setLineWidth(0.6);
   doc.rect(margin - 4, margin - 4, contentWidth + 8, 275);
 
-  doc.setDrawColor(19, 34, 56);
+  doc.setDrawColor(9, 13, 26);
   doc.setLineWidth(0.3);
   doc.rect(margin - 2, margin - 2, contentWidth + 4, 271);
 
   // 1. Header Banner
-  doc.setFillColor(19, 34, 56); // Navy #132238
+  doc.setFillColor(9, 13, 26); // Midnight #090D1A
   doc.rect(margin, margin, contentWidth, 26, 'F');
 
   doc.setTextColor(255, 255, 255);
@@ -49,13 +49,13 @@ export function generateAdmitCardPdf({
   doc.setFontSize(8);
   doc.setTextColor(190, 210, 235);
   doc.text(
-    'COORDINATION OF ISLAMIC COLLEGES (CIC) • ARTS & CULTURAL FESTIVAL',
+    'COORDINATION OF ISLAMIC COLLEGES (CIC) • ARTS & CULTURAL FEST',
     pageWidth / 2,
     margin + 13,
     { align: 'center' }
   );
 
-  doc.setFillColor(37, 99, 235); // Blue #2563EB accent pill
+  doc.setFillColor(217, 119, 6); // Amber #D97706 accent pill
   doc.roundedRect(pageWidth / 2 - 40, margin + 17, 80, 6, 2, 2, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
@@ -71,7 +71,7 @@ export function generateAdmitCardPdf({
   doc.roundedRect(margin, currentY, contentWidth, 38, 2, 2, 'FD');
 
   // Chest Number Highlight Box (Top Right of Student Card)
-  doc.setFillColor(19, 34, 56);
+  doc.setFillColor(9, 13, 26);
   doc.roundedRect(margin + contentWidth - 42, currentY + 4, 38, 18, 2, 2, 'F');
   doc.setTextColor(180, 200, 225);
   doc.setFont('helvetica', 'bold');
@@ -90,7 +90,7 @@ export function generateAdmitCardPdf({
   const className = student.class || 'N/A';
   const categoryPhase = (student.phase || student.category || 'N/A').toUpperCase();
 
-  doc.setTextColor(19, 34, 56);
+  doc.setTextColor(9, 13, 26);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text(studentName, margin + 6, currentY + 8);
@@ -122,13 +122,13 @@ export function generateAdmitCardPdf({
   doc.setTextColor(71, 85, 105);
   doc.text('Category / Phase:', margin + 48, currentY + 31);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(37, 99, 235);
+  doc.setTextColor(217, 119, 6);
   doc.text(categoryPhase, margin + 78, currentY + 31);
 
   currentY += 44;
 
   // 3. Registered Competitions Table
-  doc.setTextColor(19, 34, 56);
+  doc.setTextColor(9, 13, 26);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.text('REGISTERED COMPETITIONS & SCHEDULE', margin, currentY);
@@ -153,7 +153,7 @@ export function generateAdmitCardPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.text('#', colX.idx + 3, currentY + 4.8);
-  doc.text('ITEM CODE', colX.code + 2, currentY + 4.8);
+  doc.text('EVENT CODE', colX.code + 2, currentY + 4.8);
   doc.text('COMPETITION EVENT', colX.name + 2, currentY + 4.8);
   doc.text('CATEGORY', colX.phase + 2, currentY + 4.8);
   doc.text('MODE', colX.mode + 2, currentY + 4.8);
@@ -207,7 +207,7 @@ export function generateAdmitCardPdf({
       doc.text(itemMode, colX.mode + 2, currentY + 5.2);
 
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235);
+      doc.setTextColor(217, 119, 6);
       doc.text(itemStatus, colX.status + 2, currentY + 5.2);
 
       currentY += rowHeight;
@@ -270,9 +270,9 @@ export function generateAdmitCardPdf({
 
   // Box 3: Fest Convener Authorized Signatory
   doc.rect(margin + 127, currentY, 55, boxHeight);
-  doc.text('Festival Central Directorate', margin + 130, currentY + 4);
+  doc.text('Fest Central Directorate', margin + 130, currentY + 4);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(19, 34, 56);
+  doc.setTextColor(9, 13, 26);
   doc.text('FEST GENERAL CONVENER', margin + 130, currentY + boxHeight - 2.5);
 
   // 6. Security Footer

@@ -68,7 +68,7 @@ export function CollegeParticipantsTab({
   const [selectedMode, setSelectedMode] = useState('All Modes');
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Extract flat participant rows with all details (Student Name, CIC No, Category, Item Name, Item Code, Type, Blind Code, etc.)
+  // Extract flat participant rows with all details
   const participantRows = React.useMemo(() => {
     const list: ParticipantRow[] = [];
     const seenKeys = new Set<string>();
@@ -206,7 +206,7 @@ export function CollegeParticipantsTab({
         filterSummary: hasActiveFilters
           ? [
               selectedCategory !== 'All Categories' ? `Category: ${selectedCategory}` : null,
-              selectedItemCode !== 'All Item Codes' ? `Item: ${selectedItemCode}` : null,
+              selectedItemCode !== 'All Item Codes' ? `Event: ${selectedItemCode}` : null,
               selectedMode !== 'All Modes' ? `Mode: ${selectedMode}` : null,
               searchQuery ? `Search: "${searchQuery}"` : null
             ].filter(Boolean).join(' | ')
@@ -224,26 +224,34 @@ export function CollegeParticipantsTab({
   };
 
   return (
-    <Card>
+    <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
       <CardHeader className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <CardTitle>Registered Competition Participants</CardTitle>
-            <Badge variant="navy">{filteredRows.length} / {participantRows.length} Entries</Badge>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
+            </span>
+            <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+              Registered Competition Participants
+            </CardTitle>
+            <Badge variant="saffron" className="font-mono font-bold">
+              {filteredRows.length} / {participantRows.length} Entries
+            </Badge>
           </div>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
             Official participant directory sorted by CIC number
           </CardDescription>
         </div>
 
-        {/* Toolbar: Category Filter + Item Code Filter + Search + CSV Export */}
+        {/* Toolbar: Category Filter + Item Code Filter + Search + PDF Export */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Category Filter Dropdown */}
           <div className="relative min-w-[140px]">
             <select
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--border-strong)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
             >
               <option value="All Categories">All Categories</option>
               {categoryOptions.map(cat => (
@@ -260,9 +268,9 @@ export function CollegeParticipantsTab({
             <select
               value={selectedItemCode}
               onChange={e => setSelectedItemCode(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--border-strong)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer font-mono"
+              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-mono"
             >
-              <option value="All Item Codes">All Item Codes</option>
+              <option value="All Item Codes">All Event Codes</option>
               {itemCodeOptions.map(opt => (
                 <option key={opt.code} value={opt.code}>
                   {opt.code} ({opt.name.slice(0, 16)})
@@ -277,7 +285,7 @@ export function CollegeParticipantsTab({
             <select
               value={selectedMode}
               onChange={e => setSelectedMode(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--border-strong)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
             >
               <option value="All Modes">All Stage Modes</option>
               <option value="onstage">On Stage</option>
@@ -295,7 +303,7 @@ export function CollegeParticipantsTab({
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans font-medium"
             />
           </div>
 
@@ -305,7 +313,7 @@ export function CollegeParticipantsTab({
               size="xs"
               variant="outline"
               onClick={handleResetFilters}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer font-sans"
               title="Reset all filters"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1" />
@@ -316,21 +324,21 @@ export function CollegeParticipantsTab({
           {/* Download Participants PDF Button */}
           <Button
             size="sm"
-            variant="primary"
+            variant="saffron"
             onClick={handleDownloadPDF}
             disabled={isExportingPdf || filteredRows.length === 0}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 font-semibold shrink-0 shadow-2xs"
+            className="flex items-center gap-1.5 font-heading font-bold shrink-0 shadow-2xs"
             title="Download Official Participants Directory as PDF"
           >
-            <FileText className="w-4 h-4 text-emerald-100" />
+            <FileText className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
             <span className="sm:hidden">PDF</span>
           </Button>
         </div>
       </CardHeader>
 
-      <CardContent className="p-0 overflow-x-auto">
-        <Table>
+      <CardContent className="space-y-4">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
           <TableHeader>
             <TableRow>
               <TableHead className="w-12 text-center">#</TableHead>
@@ -338,17 +346,17 @@ export function CollegeParticipantsTab({
               <TableHead>
                 <button
                   onClick={() => setSortAsc(!sortAsc)}
-                  className="flex items-center gap-1 hover:text-emerald-500 transition-colors font-bold cursor-pointer text-xs"
+                  className="flex items-center gap-1 hover:text-[var(--f-saffron)] transition-colors font-bold cursor-pointer text-xs"
                   title="Click to toggle CIC sorting direction"
                 >
                   <span>CIC / Adm No</span>
-                  <ArrowUpDown className="w-3 h-3 text-emerald-500" />
+                  <ArrowUpDown className="w-3 h-3 text-[var(--f-saffron)]" />
                 </button>
               </TableHead>
               <TableHead>Chest No</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Item Name</TableHead>
-              <TableHead>Item Code</TableHead>
+              <TableHead>Event Name</TableHead>
+              <TableHead>Event Code</TableHead>
               <TableHead className="text-center">Type / Mode</TableHead>
               <TableHead className="text-center">Blind Code</TableHead>
             </TableRow>
@@ -357,18 +365,24 @@ export function CollegeParticipantsTab({
             {filteredRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-xs">
-                  <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
-                  No matching competition participant details found.
+                  <div className="max-w-md mx-auto space-y-2">
+                    <Users className="w-8 h-8 mx-auto opacity-40 text-[var(--text-muted)]" />
+                    <p className="font-heading font-semibold text-[var(--text-secondary)]">
+                      No matching competition participant details found.
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
               filteredRows.map((p, index) => (
                 <TableRow key={p.id}>
-                  <TableCell className="text-center font-medium text-[var(--text-muted)]">
+                  <TableCell className="text-center font-mono font-medium text-[var(--text-muted)]">
                     {index + 1}
                   </TableCell>
                   <TableCell>
-                    <div className="font-bold text-[var(--text-primary)]">{p.studentName}</div>
+                    <div className="font-heading font-bold text-[var(--text-primary)] text-xs sm:text-sm">
+                      {p.studentName}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -376,7 +390,7 @@ export function CollegeParticipantsTab({
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                       {p.chestNo}
                     </span>
                   </TableCell>
@@ -384,12 +398,14 @@ export function CollegeParticipantsTab({
                     <CategoryBadge category={p.category} />
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold text-[var(--text-primary)]">{p.itemName}</div>
+                    <div className="font-heading font-semibold text-[var(--text-primary)] text-xs sm:text-sm">
+                      {p.itemName}
+                    </div>
                     {p.itemNameMal && (
-                      <div className="text-[10px] text-[var(--text-muted)]">{p.itemNameMal}</div>
+                      <div className="text-[10px] font-sans text-[var(--text-muted)]">{p.itemNameMal}</div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono font-bold text-xs text-sky-600 dark:text-sky-400">
+                  <TableCell className="font-mono font-bold text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                     {p.itemCode}
                   </TableCell>
                   <TableCell className="text-center">
@@ -397,11 +413,11 @@ export function CollegeParticipantsTab({
                   </TableCell>
                   <TableCell className="text-center">
                     {p.blindCode !== 'Unassigned' ? (
-                      <span className="font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs">
+                      <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs">
                         {p.blindCode}
                       </span>
                     ) : (
-                      <span className="text-[var(--text-muted)] text-xs">Unassigned</span>
+                      <span className="text-[var(--text-muted)] text-xs font-sans">Unassigned</span>
                     )}
                   </TableCell>
                 </TableRow>

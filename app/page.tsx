@@ -16,12 +16,12 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
-import { FestivalNav } from '@/components/festival/FestivalNav';
-import { FestivalHero } from '@/components/festival/FestivalHero';
-import { AboutCIC } from '@/components/festival/AboutCIC';
-import { AboutWSF } from '@/components/festival/AboutWSF';
-import { WafyStream } from '@/components/festival/WafyStream';
-import { CommitteeGrid } from '@/components/festival/CommitteeGrid';
+import { FestNav } from '@/components/fest/FestNav';
+import { FestHero } from '@/components/fest/FestHero';
+import { AboutCIC } from '@/components/fest/AboutCIC';
+import { AboutWSF } from '@/components/fest/AboutWSF';
+import { WafyStream } from '@/components/fest/WafyStream';
+import { CommitteeGrid } from '@/components/fest/CommitteeGrid';
 
 const NAV_SECTIONS = [
   { href: '#cic', label: 'About CIC' },
@@ -46,6 +46,11 @@ export default function HomePage() {
   const { festSettings, theme, toggleTheme, isAuthenticated, currentRole } = useFest();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -123,25 +128,25 @@ export default function HomePage() {
             ))}
           </nav>
 
-          {/* Right Action Group: One Student Portal Button + One Officer Login Button + Theme Toggle */}
+          {/* Right Action Group: One Student Login Button + One Officer Login Button + Theme Toggle */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Primary Action: Student Portal */}
+            {/* Primary Action: Student Login */}
             <Link
               href="/student-login"
-              className="f-focus inline-flex items-center gap-1.5 rounded-xl bg-[var(--f-saffron)] px-3 sm:px-4 py-2 text-xs font-bold tracking-wider uppercase text-[var(--f-ink)] shadow-md shadow-amber-500/20 transition-all hover:bg-white hover:scale-[1.02] active:scale-[0.98]"
+              className="f-focus inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 sm:px-4 py-2 text-xs font-bold tracking-wider uppercase text-black shadow-md shadow-amber-500/20 transition-all duration-200 hover:bg-amber-400 hover:text-black hover:shadow-lg hover:shadow-amber-500/30 hover:scale-[1.02] active:scale-[0.98]"
             >
               <GraduationCap className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Student Portal</span>
+              <span className="hidden sm:inline">Student Login</span>
               <span className="sm:hidden">Student</span>
             </Link>
 
-            {/* Secondary Action: Officer / College Portal Login */}
+            {/* Secondary Action: College/Official Login */}
             <Link
-              href={isAuthenticated ? getPortalRoute() : '/login'}
-              className="f-focus hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+              href={mounted && isAuthenticated ? getPortalRoute() : '/login'}
+              className="f-focus hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 hover:text-white hover:bg-white/10 hover:border-white/40 transition-colors"
             >
               <LogIn className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
-              <span>{isAuthenticated ? 'Dashboard' : 'College / Officer'}</span>
+              <span>{mounted && isAuthenticated ? 'Dashboard' : 'College/Official Login'}</span>
             </Link>
 
             {/* Theme Preference Toggle for Portal / Dark Mode consistency */}
@@ -198,18 +203,18 @@ export default function HomePage() {
               <Link
                 href="/student-login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-[var(--f-ink)] bg-[var(--f-saffron)] shadow-md"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-black bg-amber-500 hover:bg-amber-400 shadow-md transition-colors"
               >
                 <GraduationCap className="w-4 h-4" />
-                <span>Student Portal</span>
+                <span>Student Login</span>
               </Link>
               <Link
-                href={isAuthenticated ? getPortalRoute() : '/login'}
+                href={mounted && isAuthenticated ? getPortalRoute() : '/login'}
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white border border-white/20 bg-white/5 hover:bg-white/10"
               >
                 <LogIn className="w-4 h-4 text-[var(--f-saffron)]" />
-                <span>{isAuthenticated ? 'Open Dashboard' : 'Officer / College Login'}</span>
+                <span>{mounted && isAuthenticated ? 'Open Dashboard' : 'College/Official Login'}</span>
               </Link>
             </div>
           </div>
@@ -217,11 +222,11 @@ export default function HomePage() {
       </header>
 
       {/* ─── Desktop Section Dot Indicator ──────────────────────────── */}
-      <FestivalNav />
+      <FestNav />
 
-      {/* ─── Main Editorial Festival Sections ────────────────────────── */}
+      {/* ─── Main Editorial Fest Sections ────────────────────────── */}
       <main className="flex-1">
-        <FestivalHero />
+        <FestHero />
         <AboutCIC />
         <AboutWSF />
         <WafyStream />
@@ -243,7 +248,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-[var(--f-text-secondary)] max-w-sm font-sans">
-                Organized jointly by the Coordination of Islamic Colleges (CIC) and Wafy Students Federation (WSF), uniting 62 affiliated institutions across Kerala.
+                Organized jointly by the Coordination of Islamic Colleges (CIC) and Wafy Students Federation (WSF), uniting 25+ affiliated institutions across Kerala.
               </p>
               <p className="text-[11px] text-[var(--f-text-muted)]">
                 Registered with Government of Kerala (No. 379/04)
@@ -310,10 +315,10 @@ export default function HomePage() {
 
             <div className="flex items-center gap-4 font-semibold text-[11px]">
               <Link href="/login" className="hover:text-white transition-colors">
-                Portal Sign In
+                College/Official Login
               </Link>
               <Link href="/student-login" className="hover:text-white transition-colors">
-                Student Portal
+                Student Login
               </Link>
               <Link href="/privacy" className="hover:text-white transition-colors">
                 Privacy Policy

@@ -90,7 +90,7 @@ BEGIN
 
   SELECT * INTO v_settings FROM public.fest_settings LIMIT 1;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Festival settings not found';
+    RAISE EXCEPTION 'Fest settings not found';
   END IF;
 
   SELECT * INTO v_college FROM public.colleges WHERE affl_no = p_college_affl_no;

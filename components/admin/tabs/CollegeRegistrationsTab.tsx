@@ -280,8 +280,8 @@ export function CollegeRegistrationsTab({
     };
   };
 
-  // Festival-wide late entries
-  const allFestivalLateEntries = useMemo(() => {
+  // Fest-wide late entries
+  const allFestLateEntries = useMemo(() => {
     const list: LateRegistrationEntry[] = [];
     registrations.forEach(r => {
       const entry = computeLateEntry(r, itemMap, collegeMap, students);
@@ -292,8 +292,8 @@ export function CollegeRegistrationsTab({
 
   // Current college late entries
   const activeCollegeLateEntries = useMemo(() => {
-    return allFestivalLateEntries.filter(e => Number(e.college.affl_no) === currentColAffl);
-  }, [allFestivalLateEntries, currentColAffl]);
+    return allFestLateEntries.filter(e => Number(e.college.affl_no) === currentColAffl);
+  }, [allFestLateEntries, currentColAffl]);
 
   const activeCollegeLateItemIds = useMemo(() => {
     return new Set(activeCollegeLateEntries.map(e => Number(e.item.item_id)));
@@ -493,22 +493,22 @@ export function CollegeRegistrationsTab({
     <div className="space-y-6 w-full">
       {/* 1. LOADING BANNER */}
       {isLoadingCollegeData && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-medium animate-pulse">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0 text-blue-500" />
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-medium animate-pulse">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0 text-amber-500" />
           <span>Synchronizing student & registration roster for #{currentColAffl} from database...</span>
         </div>
       )}
 
       {/* 2. COMPACT INSTITUTION PROFILE, SWITCHER & QUICK ACTIONS */}
-      <Card className="p-3 sm:p-4 border-l-4 border-l-blue-600 bg-[var(--bg-surface)] shadow-xs">
+      <Card className="p-4 sm:p-5 border-l-4 border-l-[var(--f-saffron)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Identity & Metadata */}
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
+              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold border border-amber-500/30">
                 #{currentCol?.affl_no}
               </span>
-              <h3 className="text-base sm:text-lg font-bold text-[var(--text-primary)] tracking-tight">
+              <h3 className="text-base sm:text-lg font-heading font-black text-[var(--text-primary)] tracking-tight">
                 {currentCol?.name}
               </h3>
               <Badge variant="outline" size="sm" className="uppercase font-mono text-[10px]">
@@ -516,16 +516,16 @@ export function CollegeRegistrationsTab({
               </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-              <span>Code: <strong className="text-[var(--text-secondary)]">{currentCol?.short_name || currentCol?.code}</strong></span>
+              <span>Code: <strong className="text-[var(--text-secondary)] font-mono">{currentCol?.short_name || currentCol?.code}</strong></span>
               <span>Coordinator: <strong className="text-[var(--text-secondary)]">{currentCol?.coordinator_name || currentCol?.staff_coordinator_name || '—'}</strong></span>
               {(currentCol?.coordinator_phone || currentCol?.staff_coordinator_phone) && (
-                <span className="flex items-center gap-1 font-mono text-emerald-600 dark:text-emerald-400">
+                <span className="flex items-center gap-1 font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                   <Phone className="w-3 h-3" />
                   {currentCol.coordinator_phone || currentCol.staff_coordinator_phone}
                 </span>
               )}
               <span>•</span>
-              <span className="font-semibold text-blue-600 dark:text-blue-400 font-mono">
+              <span className="font-semibold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono">
                 {registeredEventsCount} registered ({regPercentage}%)
               </span>
               <span>•</span>
@@ -559,10 +559,10 @@ export function CollegeRegistrationsTab({
               <select
                 value={activeCollegeAffl}
                 onChange={e => handleCollegeChange(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] font-semibold focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 cursor-pointer transition-all"
               >
                 {colleges.map(c => (
-                  <option key={c.affl_no} value={c.affl_no}>
+                  <option key={c.affl_no} value={c.affl_no} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
                     #{c.affl_no} - {c.short_name} ({c.name})
                   </option>
                 ))}
@@ -608,10 +608,10 @@ export function CollegeRegistrationsTab({
                 size="xs"
                 variant="outline"
                 onClick={handleDownloadCollegePdf}
-                className="h-8 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 border-blue-500/30 whitespace-nowrap font-medium"
+                className="h-8 text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:bg-amber-500/10 border-amber-500/30 whitespace-nowrap font-medium"
                 title={`Download registered students list for ${currentCol?.name} as PDF`}
               >
-                <FileText className="w-3.5 h-3.5 mr-1 text-blue-500" />
+                <FileText className="w-3.5 h-3.5 mr-1 text-amber-500" />
                 <span>Download PDF</span>
               </Button>
 
@@ -632,20 +632,19 @@ export function CollegeRegistrationsTab({
       </Card>
 
       {/* 3. VIEW MODE SWITCHER: EVENTS TABLE VS STUDENT ROSTER VS LATE REGISTRATIONS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--bg-canvas)] p-1.5 rounded-xl border border-[var(--border-subtle)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--bg-subtle)] p-1.5 rounded-2xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={() => setMainTab('events')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              mainTab === 'events'
-                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'events'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
           >
-            <Award className="w-3.5 h-3.5 text-blue-500" />
+            <Award className="w-3.5 h-3.5 text-amber-500" />
             <span>Events & Registration Table</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--bg-canvas)] font-mono text-[var(--text-muted)]">
+            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-[var(--bg-surface)] font-mono text-[var(--text-secondary)] border border-[var(--border-subtle)]">
               {items.length}
             </span>
           </button>
@@ -653,15 +652,14 @@ export function CollegeRegistrationsTab({
           <button
             type="button"
             onClick={() => setMainTab('students')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              mainTab === 'students'
-                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'students'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
           >
-            <Users className="w-3.5 h-3.5 text-indigo-500" />
+            <Users className="w-3.5 h-3.5 text-purple-500" />
             <span>Student Roster</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--bg-canvas)] font-mono text-[var(--text-muted)]">
+            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-[var(--bg-surface)] font-mono text-[var(--text-secondary)] border border-[var(--border-subtle)]">
               {collegeStudents.length}
             </span>
           </button>
@@ -669,363 +667,357 @@ export function CollegeRegistrationsTab({
           <button
             type="button"
             onClick={() => setMainTab('late_registrations')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              mainTab === 'late_registrations'
-                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-xs border border-[var(--border-subtle)]'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'late_registrations'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              }`}
           >
             <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>Late Registrations</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                activeCollegeLateEntries.length > 0
+              className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${activeCollegeLateEntries.length > 0
                   ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                  : 'bg-[var(--bg-canvas)] text-[var(--text-muted)]'
-              }`}
+                  : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
+                }`}
             >
               {activeCollegeLateEntries.length}
             </span>
           </button>
         </div>
 
-        <div className="text-xs text-[var(--text-muted)] px-2">
+        <div className="text-xs text-[var(--text-muted)] px-2 font-mono">
           {mainTab === 'events'
             ? `${registeredEventsCount} of ${items.length} events registered (${regPercentage}%)`
             : mainTab === 'students'
-            ? `${activeStudentChestNos.size} of ${collegeStudents.length} students assigned to events`
-            : lateScope === 'current'
-            ? `${activeCollegeLateEntries.length} late entry rows for #${currentCol?.affl_no}`
-            : `${allFestivalLateEntries.length} total late entry rows across festival`}
+              ? `${activeStudentChestNos.size} of ${collegeStudents.length} students assigned to events`
+              : lateScope === 'current'
+                ? `${activeCollegeLateEntries.length} late entry rows for #${currentCol?.affl_no}`
+                : `${allFestLateEntries.length} total late entry rows across fest`}
         </div>
       </div>
 
       {/* 4. UNIFIED ALL-EVENTS REGISTRATION TABLE */}
       {mainTab === 'events' && (
-            <div className="space-y-4">
-              {/* Filter and Search Bar */}
-              <Card className="p-2.5 sm:p-3 bg-[var(--bg-surface)]">
-                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search events by name or code (e.g. AF065, Elocution)..."
-                      value={regSearchQuery}
-                      onChange={e => setRegSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-                    />
-                  </div>
+        <div className="space-y-4">
+          {/* Filter and Search Bar */}
+          <Card className="p-3 sm:p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search events by name or code (e.g. AF065, Elocution)..."
+                  value={regSearchQuery}
+                  onChange={e => setRegSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-medium transition-all"
+                />
+              </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
-                      {(['All', 'Registered', 'Late', 'Unregistered'] as const).map(status => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => setRegStatusFilter(status)}
-                          className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                            regStatusFilter === status
-                              ? status === 'Late'
-                                ? 'bg-amber-600 text-white shadow-xs'
-                                : 'bg-blue-600 text-white shadow-xs'
-                              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          {status === 'All'
-                            ? `All (${items.length})`
-                            : status === 'Registered'
-                            ? `Registered (${registeredEventsCount})`
-                            : status === 'Late'
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
+                  {(['All', 'Registered', 'Late', 'Unregistered'] as const).map(status => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setRegStatusFilter(status)}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${regStatusFilter === status
+                          ? status === 'Late'
+                            ? 'bg-amber-500 text-[#090d1a] shadow-xs'
+                            : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        }`}
+                    >
+                      {status === 'All'
+                        ? `All (${items.length})`
+                        : status === 'Registered'
+                          ? `Registered (${registeredEventsCount})`
+                          : status === 'Late'
                             ? `Late (${activeCollegeLateItemIds.size})`
                             : `Not Enrolled (${items.length - registeredEventsCount})`}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-1 overflow-x-auto text-xs">
-                      {categories.map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setRegCategoryFilter(cat)}
-                          className={`px-2.5 py-1 rounded-lg font-semibold transition-all border ${
-                            regCategoryFilter.toLowerCase() === cat.toLowerCase()
-                              ? 'bg-slate-900 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900'
-                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-1 overflow-x-auto text-xs border-l border-[var(--border-subtle)] pl-2">
-                      {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setRegModeFilter(m)}
-                          className={`px-2.5 py-1 rounded-lg font-semibold transition-all border ${
-                            regModeFilter === m
-                              ? 'bg-slate-900 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900'
-                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
-                          }`}
-                        >
-                          {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Event Registrations Table */}
-              <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-xs">
-                <div className="p-3 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h4 className="text-xs font-bold text-[var(--text-primary)]">Festival Events & College Roster</h4>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      Showing {filteredItems.length} of {items.length} events for #{currentCol?.affl_no} {currentCol?.short_name}
-                    </p>
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)]">
-                    Click any student chip to inspect their profile and full registrations.
-                  </div>
+                    </button>
+                  ))}
                 </div>
 
-                <div className="overflow-x-auto">
-                  <Table className="w-full text-xs">
-                    <TableHeader className="bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
-                      <TableRow>
-                        <TableHead className="w-24 font-bold text-xs py-2.5 pl-4">Code / Type</TableHead>
-                        <TableHead className="min-w-[180px] max-w-[260px] font-bold text-xs py-2.5">
-                          Event Name & Category
-                        </TableHead>
-                        <TableHead className="w-32 text-center font-bold text-xs py-2.5">Status</TableHead>
-                        <TableHead className="min-w-[240px] font-bold text-xs py-2.5">
-                          Registered Students / Team
-                        </TableHead>
-                        <TableHead className="text-right w-36 font-bold text-xs py-2.5 pr-4">Admin Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredItems.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-10 text-[var(--text-muted)]">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Users className="w-8 h-8 text-[var(--text-muted)] opacity-40" />
-                              <p className="text-sm font-medium">No events found matching your filter criteria</p>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => {
-                                  setRegSearchQuery('');
-                                  setRegCategoryFilter('All');
-                                  setRegStatusFilter('All');
-                                }}
-                              >
-                                Clear Filters
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredItems.map(item => {
-                          const itemRegs = collegeRegs.filter(r => r.item_id === item.item_id);
-                          const isReg = itemRegs.length > 0;
-                          const registeredChestNos = itemRegs.map(r => r.chest_no);
-                          const registeredStudentObjects = registeredChestNos
-                            .map(
-                              cNo =>
-                                findStudentByIdentifier(collegeStudents, cNo) ||
-                                findStudentByIdentifier(students, cNo)
-                            )
-                            .filter(Boolean) as Student[];
+                <div className="flex items-center gap-1 overflow-x-auto text-xs">
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setRegCategoryFilter(cat)}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${regCategoryFilter.toLowerCase() === cat.toLowerCase()
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                        }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
 
-                          const lock = locks.find(
-                            l => l.item_id === item.item_id && l.college_affl_no === currentColAffl
-                          );
-                          const isUnlocked =
-                            currentCol?.manual_lock_override || (lock ? lock.is_open : !item.is_locked);
-
-                          return (
-                            <TableRow
-                              key={item.item_id || item.id}
-                              className={`border-b border-[var(--border-subtle)]/50 transition-colors ${
-                                isReg
-                                  ? 'bg-slate-50/40 dark:bg-slate-900/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/40'
-                                  : 'hover:bg-slate-50/70 dark:hover:bg-slate-850/40'
-                              }`}
-                            >
-                              <TableCell className="py-2.5 pl-4 align-middle">
-                                <div className="flex flex-col">
-                                  <span className="font-mono font-bold text-[var(--text-primary)] text-xs">
-                                    {item.code}
-                                  </span>
-                                  <div className="flex items-center gap-1 mt-0.5">
-                                    <span className="font-mono text-[9.5px] px-1 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)] font-semibold">
-                                      {item.item_type || 'Single'}
-                                    </span>
-                                    <span className="text-[10px] text-[var(--text-muted)] font-mono">
-                                      ({item.min_participants === item.max_participants ? item.min_participants : `${item.min_participants}-${item.max_participants}`})
-                                    </span>
-                                  </div>
-                                </div>
-                              </TableCell>
-
-                              <TableCell className="py-2.5 align-middle max-w-[260px]">
-                                <div className="font-bold text-[var(--text-primary)] text-xs truncate" title={item.name}>
-                                  {item.name}
-                                </div>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <CategoryBadge category={item.category} />
-                                  <ItemModeBadge mode={item.mode} size="sm" />
-                                </div>
-                              </TableCell>
-
-                              <TableCell className="py-2.5 align-middle text-center">
-                                <div className="flex flex-col items-center gap-1">
-                                  {isReg ? (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                        <span>Enrolled ({registeredChestNos.length})</span>
-                                      </span>
-                                      {activeCollegeLateItemIds.has(Number(item.item_id)) && (
-                                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                          <Clock className="w-2.5 h-2.5 mr-0.5" /> Late Entry
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10.5px] text-[var(--text-muted)] font-medium">
-                                      Not Enrolled
-                                    </span>
-                                  )}
-
-                                  <div>
-                                    {isUnlocked ? (
-                                      <span className="inline-flex items-center text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                                        <Unlock className="w-2.5 h-2.5 mr-1 text-emerald-500" /> Open
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                                        <Lock className="w-2.5 h-2.5 mr-1 text-rose-500" /> Locked
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </TableCell>
-
-                              <TableCell className="py-2.5 align-middle">
-                                {isReg && registeredStudentObjects.length > 0 ? (
-                                  <div className="flex items-center gap-1.5 max-w-xs">
-                                    <div className="relative flex-1 min-w-[170px]">
-                                      <select
-                                        value=""
-                                        onChange={e => {
-                                          const chest = e.target.value;
-                                          if (!chest) return;
-                                          const stu =
-                                            findStudentByIdentifier(collegeStudents, chest) ||
-                                            findStudentByIdentifier(students, chest);
-                                          if (stu) setSelectedStudentForDetails(stu);
-                                        }}
-                                        className="w-full px-2.5 py-1 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-md text-[var(--text-primary)] font-medium focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer truncate shadow-2xs"
-                                        title="Click to view all registered students for this event"
-                                      >
-                                        <option value="" disabled>
-                                          {registeredStudentObjects.length === 1
-                                            ? `${registeredStudentObjects[0].chest_no} - ${registeredStudentObjects[0].name}`
-                                            : `👥 ${registeredStudentObjects.length} Students Registered ▾`}
-                                        </option>
-                                        {registeredStudentObjects.map(stu => (
-                                          <option key={stu.chest_no || stu.id} value={stu.chest_no}>
-                                            {stu.chest_no} — {stu.name} ({stu.phase || stu.category || 'Cat'})
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-
-                                    {registeredStudentObjects[0] && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setSelectedStudentForDetails(registeredStudentObjects[0])}
-                                        className="p-1 rounded-md text-[var(--text-muted)] hover:text-slate-900 dark:hover:text-slate-100 hover:bg-[var(--bg-canvas)] transition-all shrink-0 border border-transparent hover:border-[var(--border-subtle)]"
-                                        title={`View profile for ${registeredStudentObjects[0].name} (${registeredStudentObjects[0].chest_no})`}
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : isReg && registeredChestNos.length > 0 ? (
-                                  <div className="flex items-center gap-1.5 max-w-xs">
-                                    <select
-                                      value=""
-                                      onChange={e => {
-                                        const chest = e.target.value;
-                                        if (!chest) return;
-                                        const stu =
-                                          findStudentByIdentifier(collegeStudents, chest) ||
-                                          findStudentByIdentifier(students, chest);
-                                        if (stu) setSelectedStudentForDetails(stu);
-                                      }}
-                                      className="w-full px-2.5 py-1 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-md text-[var(--text-primary)] font-medium cursor-pointer shadow-2xs"
-                                    >
-                                      <option value="" disabled>
-                                        👥 {registeredChestNos.length} Enrolled ({registeredChestNos.join(', ')})
-                                      </option>
-                                      {registeredChestNos.map(cNo => (
-                                        <option key={cNo} value={cNo}>
-                                          {cNo}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-[var(--text-muted)] italic">
-                                    —
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              <TableCell className="py-2.5 pr-4 align-middle text-right whitespace-nowrap">
-                                <div className="inline-flex items-center justify-end gap-1.5">
-                                  <Button
-                                    size="xs"
-                                    variant={isReg ? 'outline' : 'primary'}
-                                    onClick={() => handleOpenAdminRegModal(item, registeredChestNos)}
-                                    className="h-7 px-2.5 text-xs font-semibold"
-                                    title={isReg ? 'Edit student assignments for this event' : 'Register students for this event'}
-                                  >
-                                    <UserCheck className="w-3.5 h-3.5 mr-1" />
-                                    {isReg ? 'Roster' : 'Register'}
-                                  </Button>
-
-                                  {isReg && (
-                                    <Button
-                                      size="xs"
-                                      variant="destructive"
-                                      onClick={() => handleAdminUnregister(item.item_id, item.name || item.code || 'Event')}
-                                      className="h-7 w-7 p-0"
-                                      title="Remove registration for this college"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
+                <div className="flex items-center gap-1 overflow-x-auto text-xs border-l border-[var(--border-subtle)] pl-2">
+                  {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setRegModeFilter(m)}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${regModeFilter === m
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                        }`}
+                    >
+                      {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
+          </Card>
+
+          {/* Event Registrations Table */}
+          <div className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+            <div className="p-3.5 bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Fest Events & College Roster</h4>
+                <p className="text-[11px] text-[var(--text-muted)] font-mono">
+                  Showing {filteredItems.length} of {items.length} events for #{currentCol?.affl_no} {currentCol?.short_name}
+                </p>
+              </div>
+              <div className="text-[11px] text-[var(--text-muted)]">
+                Click any student chip to inspect their profile and full registrations.
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table className="w-full text-xs">
+                <TableHeader className="bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]">
+                  <TableRow>
+                    <TableHead className="w-24 font-bold text-xs py-2.5 pl-4">Code / Type</TableHead>
+                    <TableHead className="min-w-[180px] max-w-[260px] font-bold text-xs py-2.5">
+                      Event Name & Category
+                    </TableHead>
+                    <TableHead className="w-32 text-center font-bold text-xs py-2.5">Status</TableHead>
+                    <TableHead className="min-w-[240px] font-bold text-xs py-2.5">
+                      Registered Students / Team
+                    </TableHead>
+                    <TableHead className="text-right w-36 font-bold text-xs py-2.5 pr-4">Admin Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-[var(--text-muted)]">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users className="w-8 h-8 text-[var(--text-muted)] opacity-40" />
+                          <p className="text-sm font-medium">No events found matching your filter criteria</p>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => {
+                              setRegSearchQuery('');
+                              setRegCategoryFilter('All');
+                              setRegStatusFilter('All');
+                            }}
+                          >
+                            Clear Filters
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredItems.map(item => {
+                      const itemRegs = collegeRegs.filter(r => r.item_id === item.item_id);
+                      const isReg = itemRegs.length > 0;
+                      const registeredChestNos = itemRegs.map(r => r.chest_no);
+                      const registeredStudentObjects = registeredChestNos
+                        .map(
+                          cNo =>
+                            findStudentByIdentifier(collegeStudents, cNo) ||
+                            findStudentByIdentifier(students, cNo)
+                        )
+                        .filter(Boolean) as Student[];
+
+                      const lock = locks.find(
+                        l => l.item_id === item.item_id && l.college_affl_no === currentColAffl
+                      );
+                      const isUnlocked =
+                        currentCol?.manual_lock_override || (lock ? lock.is_open : !item.is_locked);
+
+                      return (
+                        <TableRow
+                          key={item.item_id || item.id}
+                          className={`border-b border-[var(--border-subtle)]/50 transition-colors ${isReg
+                              ? 'bg-[var(--bg-subtle)]/40 hover:bg-[var(--bg-subtle)]/70'
+                              : 'hover:bg-[var(--bg-subtle)]/50'
+                            }`}
+                        >
+                          <TableCell className="py-2.5 pl-4 align-middle">
+                            <div className="flex flex-col">
+                              <span className="font-mono font-black text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] text-xs">
+                                {item.code}
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="font-mono text-[9.5px] px-1 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold">
+                                  {item.item_type || 'Single'}
+                                </span>
+                                <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                                  ({item.min_participants === item.max_participants ? item.min_participants : `${item.min_participants}-${item.max_participants}`})
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-2.5 align-middle max-w-[260px]">
+                            <div className="font-bold text-[var(--text-primary)] text-xs truncate" title={item.name}>
+                              {item.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <CategoryBadge category={item.category} />
+                              <ItemModeBadge mode={item.mode} size="sm" />
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-2.5 align-middle text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {isReg ? (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Enrolled ({registeredChestNos.length})</span>
+                                  </span>
+                                  {activeCollegeLateItemIds.has(Number(item.item_id)) && (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                      <Clock className="w-2.5 h-2.5 mr-0.5" /> Late Entry
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[10.5px] text-[var(--text-muted)] font-medium">
+                                  Not Enrolled
+                                </span>
+                              )}
+
+                              <div>
+                                {isUnlocked ? (
+                                  <span className="inline-flex items-center text-[10px] text-[var(--text-secondary)] font-medium">
+                                    <Unlock className="w-2.5 h-2.5 mr-1 text-emerald-500" /> Open
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center text-[10px] text-[var(--text-secondary)] font-medium">
+                                    <Lock className="w-2.5 h-2.5 mr-1 text-rose-500" /> Locked
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-2.5 align-middle">
+                            {isReg && registeredStudentObjects.length > 0 ? (
+                              <div className="flex items-center gap-1.5 max-w-xs">
+                                <div className="relative flex-1 min-w-[170px]">
+                                  <select
+                                    value=""
+                                    onChange={e => {
+                                      const chest = e.target.value;
+                                      if (!chest) return;
+                                      const stu =
+                                        findStudentByIdentifier(collegeStudents, chest) ||
+                                        findStudentByIdentifier(students, chest);
+                                      if (stu) setSelectedStudentForDetails(stu);
+                                    }}
+                                    className="w-full px-2.5 py-1 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-md text-[var(--text-primary)] font-medium focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 cursor-pointer truncate shadow-2xs transition-all"
+                                    title="Click to view all registered students for this event"
+                                  >
+                                    <option value="" disabled className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                                      {registeredStudentObjects.length === 1
+                                        ? `${registeredStudentObjects[0].chest_no} - ${registeredStudentObjects[0].name}`
+                                        : `👥 ${registeredStudentObjects.length} Students Registered ▾`}
+                                    </option>
+                                    {registeredStudentObjects.map(stu => (
+                                      <option key={stu.chest_no || stu.id} value={stu.chest_no} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                                        {stu.chest_no} — {stu.name} ({stu.phase || stu.category || 'Cat'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {registeredStudentObjects[0] && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedStudentForDetails(registeredStudentObjects[0])}
+                                    className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] hover:bg-[var(--bg-subtle)] transition-all shrink-0 border border-transparent hover:border-[var(--border-subtle)]"
+                                    title={`View profile for ${registeredStudentObjects[0].name} (${registeredStudentObjects[0].chest_no})`}
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : isReg && registeredChestNos.length > 0 ? (
+                              <div className="flex items-center gap-1.5 max-w-xs">
+                                <select
+                                  value=""
+                                  onChange={e => {
+                                    const chest = e.target.value;
+                                    if (!chest) return;
+                                    const stu =
+                                      findStudentByIdentifier(collegeStudents, chest) ||
+                                      findStudentByIdentifier(students, chest);
+                                    if (stu) setSelectedStudentForDetails(stu);
+                                  }}
+                                  className="w-full px-2.5 py-1 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-md text-[var(--text-primary)] font-medium cursor-pointer shadow-2xs focus:outline-none focus:border-[var(--f-saffron)]"
+                                >
+                                  <option value="" disabled className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                                    👥 {registeredChestNos.length} Enrolled ({registeredChestNos.join(', ')})
+                                  </option>
+                                  {registeredChestNos.map(cNo => (
+                                    <option key={cNo} value={cNo} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                                      {cNo}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-[var(--text-muted)] italic">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="py-2.5 pr-4 align-middle text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <Button
+                                size="xs"
+                                variant={isReg ? 'outline' : 'saffron'}
+                                onClick={() => handleOpenAdminRegModal(item, registeredChestNos)}
+                                className="h-7 px-2.5 text-xs font-semibold"
+                                title={isReg ? 'Edit student assignments for this event' : 'Register students for this event'}
+                              >
+                                <UserCheck className="w-3.5 h-3.5 mr-1" />
+                                {isReg ? 'Roster' : 'Register'}
+                              </Button>
+
+                              {isReg && (
+                                <Button
+                                  size="xs"
+                                  variant="destructive"
+                                  onClick={() => handleAdminUnregister(item.item_id, item.name || item.code || 'Event')}
+                                  className="h-7 w-7 p-0"
+                                  title="Remove registration for this college"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 6. VIEW BY REGISTERED STUDENTS & DETAILS */}
       {mainTab === 'students' && (() => {
@@ -1052,7 +1044,7 @@ export function CollegeRegistrationsTab({
         return (
           <div className="space-y-4">
             {/* Student Filter Bar */}
-            <Card className="p-2.5 sm:p-3 bg-[var(--bg-surface)]">
+            <Card className="p-3 sm:p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl">
               <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1061,28 +1053,27 @@ export function CollegeRegistrationsTab({
                     placeholder="Search students by name, chest #, or adm #..."
                     value={studentSearchQuery}
                     onChange={e => setStudentSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-medium transition-all"
                   />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
+                  <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
                     {(['All', 'Registered', 'Unregistered'] as const).map(status => (
                       <button
                         key={status}
                         type="button"
                         onClick={() => setStudentRegStatusFilter(status)}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                          studentRegStatusFilter === status
-                            ? 'bg-blue-600 text-white shadow-xs'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${studentRegStatusFilter === status
+                            ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          }`}
                       >
                         {status === 'All'
                           ? `All (${collegeStudents.length})`
                           : status === 'Registered'
-                          ? `Enrolled (${activeStudentChestNos.size})`
-                          : `Not Enrolled (${collegeStudents.length - activeStudentChestNos.size})`}
+                            ? `Enrolled (${activeStudentChestNos.size})`
+                            : `Not Enrolled (${collegeStudents.length - activeStudentChestNos.size})`}
                       </button>
                     ))}
                   </div>
@@ -1093,11 +1084,10 @@ export function CollegeRegistrationsTab({
                         key={cat}
                         type="button"
                         onClick={() => setStudentCategoryFilter(cat)}
-                        className={`px-2.5 py-1 rounded-lg font-semibold transition-all border ${
-                          studentCategoryFilter.toLowerCase() === cat.toLowerCase()
-                            ? 'bg-slate-900 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900'
-                            : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${studentCategoryFilter.toLowerCase() === cat.toLowerCase()
+                            ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                          }`}
                       >
                         {cat}
                       </button>
@@ -1108,13 +1098,13 @@ export function CollegeRegistrationsTab({
             </Card>
 
             {/* Registered Students Table */}
-            <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-xs">
-              <div className="p-3 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+              <div className="p-3.5 bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-bold text-[var(--text-primary)]">
                     College Student Roster & Event Enrollments
                   </h4>
-                  <p className="text-[11px] text-[var(--text-muted)]">
+                  <p className="text-[11px] text-[var(--text-muted)] font-mono">
                     Showing {filteredStudentsList.length} of {collegeStudents.length} students from #{currentCol?.affl_no}{' '}
                     {currentCol?.name}
                   </p>
@@ -1124,10 +1114,10 @@ export function CollegeRegistrationsTab({
                     size="xs"
                     variant="outline"
                     onClick={handleDownloadCollegePdf}
-                    className="h-7 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 border-blue-500/30 whitespace-nowrap font-medium"
+                    className="h-7 text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:bg-amber-500/10 border-amber-500/30 whitespace-nowrap font-medium"
                     title={`Download registered students roster for ${currentCol?.name} as PDF`}
                   >
-                    <FileText className="w-3.5 h-3.5 mr-1 text-blue-500" />
+                    <FileText className="w-3.5 h-3.5 mr-1 text-amber-500" />
                     <span>Download Roster PDF</span>
                   </Button>
                 </div>
@@ -1135,7 +1125,7 @@ export function CollegeRegistrationsTab({
 
               <div className="overflow-x-auto">
                 <Table className="w-full text-xs">
-                  <TableHeader className="bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
+                  <TableHeader className="bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]">
                     <TableRow>
                       <TableHead className="w-44 font-bold text-xs py-2.5 pl-4">Student & Chest #</TableHead>
                       <TableHead className="w-28 font-bold text-xs py-2.5">Category & Class</TableHead>
@@ -1184,11 +1174,11 @@ export function CollegeRegistrationsTab({
                         return (
                           <TableRow
                             key={stu.id || stu.chest_no}
-                            className="border-b border-[var(--border-subtle)]/50 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                            className="border-b border-[var(--border-subtle)]/50 hover:bg-[var(--bg-subtle)]/60 transition-colors"
                           >
                             <TableCell className="py-2.5 pl-4 align-middle">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-md bg-slate-100 dark:bg-slate-800 border border-[var(--border-subtle)] text-[var(--text-secondary)] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                                   {initials}
                                 </div>
                                 <div className="space-y-0.5 min-w-0">
@@ -1196,7 +1186,7 @@ export function CollegeRegistrationsTab({
                                     {stu.name || stu.full_name}
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)]">
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                                       {chestNo}
                                     </span>
                                   </div>
@@ -1220,7 +1210,7 @@ export function CollegeRegistrationsTab({
                                 </span>
                                 {stu.phone ? (
                                   <div className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1 font-mono">
-                                    <Phone className="w-2.5 h-2.5" /> {stu.phone}
+                                    <Phone className="w-2.5 h-2.5 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" /> {stu.phone}
                                   </div>
                                 ) : (
                                   <div className="text-[10px] text-[var(--text-muted)]">—</div>
@@ -1234,9 +1224,9 @@ export function CollegeRegistrationsTab({
                                   {enrolledItems.map(itm => (
                                     <div
                                       key={itm.item_id}
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-primary)] shadow-2xs"
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-primary)] shadow-2xs"
                                     >
-                                      <span className="font-mono font-bold text-slate-500 text-[9px]">
+                                      <span className="font-mono font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] text-[9px]">
                                         {itm.code}
                                       </span>
                                       <span className="font-medium truncate max-w-[110px]">{itm.name}</span>
@@ -1252,11 +1242,7 @@ export function CollegeRegistrationsTab({
 
                             <TableCell className="py-2.5 align-middle text-center">
                               <span
-                                className={`inline-block px-2 py-0.5 rounded-full text-xs font-mono font-bold border ${
-                                  enrolledItems.length > 0
-                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
-                                    : 'bg-[var(--bg-canvas)] text-[var(--text-muted)] border-[var(--border-subtle)]'
-                                }`}
+                                className="inline-block px-2 py-0.5 rounded-full text-xs font-mono font-bold border bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)]"
                               >
                                 {enrolledItems.length}
                               </span>
@@ -1267,10 +1253,10 @@ export function CollegeRegistrationsTab({
                                 size="xs"
                                 variant="outline"
                                 onClick={() => setSelectedStudentForDetails(stu)}
-                                className="h-7 px-2.5 text-xs font-medium"
+                                className="h-7 px-2.5 text-xs font-medium hover:bg-[var(--bg-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)]"
                                 title="View full student profile and registered events"
                               >
-                                <Eye className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                                <Eye className="w-3.5 h-3.5 mr-1 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" />
                                 <span>Inspect</span>
                               </Button>
                             </TableCell>
@@ -1289,7 +1275,7 @@ export function CollegeRegistrationsTab({
       {/* 6.1. VIEW BY LATE REGISTRATIONS LIST & FINES AUDIT */}
       {mainTab === 'late_registrations' && (() => {
         // Source entries depending on selected scope
-        const sourceEntries = lateScope === 'current' ? activeCollegeLateEntries : allFestivalLateEntries;
+        const sourceEntries = lateScope === 'current' ? activeCollegeLateEntries : allFestLateEntries;
 
         // Apply search, category, and fine status filters
         const filteredLateEntries = sourceEntries.filter(entry => {
@@ -1380,7 +1366,7 @@ export function CollegeRegistrationsTab({
           const filename =
             lateScope === 'current'
               ? `late_registrations_col_${currentColAffl}.csv`
-              : 'festival_all_late_registrations.csv';
+              : 'fest_all_late_registrations.csv';
           link.setAttribute('download', filename);
           document.body.appendChild(link);
           link.click();
@@ -1390,14 +1376,14 @@ export function CollegeRegistrationsTab({
         return (
           <div className="space-y-4">
             {/* 1. Header Toolbar & Scope Selector */}
-            <Card className="p-3.5 sm:p-4 bg-[var(--bg-surface)]">
+            <Card className="p-4 sm:p-5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <span className="p-1 rounded-lg bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-amber-500/30">
                       <Clock className="w-4 h-4" />
                     </span>
-                    <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+                    <h3 className="text-sm sm:text-base font-heading font-black text-[var(--text-primary)]">
                       Late Registrations & Fines Clearinghouse
                     </h3>
                     <Badge variant="amber" size="sm" className="font-bold">
@@ -1411,28 +1397,26 @@ export function CollegeRegistrationsTab({
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Scope Switcher */}
-                  <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
+                  <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
                     <button
                       type="button"
                       onClick={() => setLateScope('current')}
-                      className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                        lateScope === 'current'
-                          ? 'bg-amber-600 text-white shadow-xs'
-                          : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                      }`}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all ${lateScope === 'current'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        }`}
                     >
                       #{currentCol?.affl_no} {currentCol?.short_name} ({activeCollegeLateEntries.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setLateScope('all')}
-                      className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                        lateScope === 'all'
-                          ? 'bg-amber-600 text-white shadow-xs'
-                          : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                      }`}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all ${lateScope === 'all'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        }`}
                     >
-                      All Institutions ({allFestivalLateEntries.length})
+                      All Institutions ({allFestLateEntries.length})
                     </button>
                   </div>
 
@@ -1441,10 +1425,10 @@ export function CollegeRegistrationsTab({
                       size="xs"
                       variant="outline"
                       onClick={handleExportLateRegistrationsCsv}
-                      className="h-8 text-xs font-semibold gap-1 whitespace-nowrap"
+                      className="h-8 text-xs font-semibold gap-1 whitespace-nowrap text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:bg-amber-500/10 border-amber-500/30"
                       title="Download late registrations as CSV spreadsheet"
                     >
-                      <Download className="w-3.5 h-3.5 text-blue-500" />
+                      <Download className="w-3.5 h-3.5 text-amber-500" />
                       <span>Export CSV</span>
                     </Button>
                   )}
@@ -1453,12 +1437,12 @@ export function CollegeRegistrationsTab({
 
               {/* KPI Mini Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                <div className="p-2.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
+                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
                     Late Registrations
                   </span>
                   <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-bold text-amber-600 dark:text-amber-400 font-mono">
+                    <span className="text-lg font-black text-amber-600 dark:text-amber-400 font-mono">
                       {filteredLateEntries.length}
                     </span>
                     <span className="text-[10px] text-[var(--text-muted)] font-mono">
@@ -1467,31 +1451,31 @@ export function CollegeRegistrationsTab({
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
+                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
                     Unique Students
                   </span>
                   <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-bold text-[var(--text-primary)] font-mono">
+                    <span className="text-lg font-black text-[var(--text-primary)] font-mono">
                       {uniqueStudentsCount}
                     </span>
                     <span className="text-[10px] text-[var(--text-muted)]">participants</span>
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)]">
+                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
                     Impacted Events
                   </span>
                   <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-bold text-[var(--text-primary)] font-mono">
+                    <span className="text-lg font-black text-[var(--text-primary)] font-mono">
                       {uniqueItemsCount}
                     </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">items</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">events</span>
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)] flex items-center justify-between">
+                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
                       Late Fine Status
@@ -1523,7 +1507,7 @@ export function CollegeRegistrationsTab({
                         festService.toggleCollegeFine(currentCol.affl_no);
                         triggerRefresh();
                       }}
-                      className="h-7 text-[11px] px-2"
+                      className="h-7 text-[11px] px-2 font-semibold"
                     >
                       {currentCol?.fine_status ? 'Waive' : 'Apply'}
                     </Button>
@@ -1533,7 +1517,7 @@ export function CollegeRegistrationsTab({
             </Card>
 
             {/* 2. Search & Filters Bar */}
-            <Card className="p-2.5 sm:p-3 bg-[var(--bg-surface)]">
+            <Card className="p-3 sm:p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl">
               <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1542,28 +1526,27 @@ export function CollegeRegistrationsTab({
                     placeholder="Search late entries by student name, chest #, event code/name, college..."
                     value={lateSearchQuery}
                     onChange={e => setLateSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-medium transition-all"
                   />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
+                  <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
                     {(['all', 'fine', 'waived'] as const).map(fStatus => (
                       <button
                         key={fStatus}
                         type="button"
                         onClick={() => setLateFineFilter(fStatus)}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                          lateFineFilter === fStatus
-                            ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${lateFineFilter === fStatus
+                            ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          }`}
                       >
                         {fStatus === 'all'
                           ? `All (${sourceEntries.length})`
                           : fStatus === 'fine'
-                          ? `Fine Flagged (${fineFlaggedEntriesCount})`
-                          : `Waived (${fineWaivedEntriesCount})`}
+                            ? `Fine Flagged (${fineFlaggedEntriesCount})`
+                            : `Waived (${fineWaivedEntriesCount})`}
                       </button>
                     ))}
                   </div>
@@ -1574,11 +1557,10 @@ export function CollegeRegistrationsTab({
                         key={cat}
                         type="button"
                         onClick={() => setLateCategoryFilter(cat)}
-                        className={`px-2.5 py-1 rounded-lg font-semibold transition-all border ${
-                          lateCategoryFilter.toLowerCase() === cat.toLowerCase()
-                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                            : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${lateCategoryFilter.toLowerCase() === cat.toLowerCase()
+                            ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                          }`}
                       >
                         {cat}
                       </button>
@@ -1589,15 +1571,15 @@ export function CollegeRegistrationsTab({
             </Card>
 
             {/* 3. Late Registrations Table */}
-            <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden shadow-xs">
-              <div className="p-3 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+              <div className="p-3.5 bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-bold text-[var(--text-primary)]">
                     {lateScope === 'current'
                       ? `Late Registrations for #${currentCol?.affl_no} ${currentCol?.name}`
-                      : 'Festival-wide Late Registrations Registry'}
+                      : 'Fest-wide Late Registrations Registry'}
                   </h4>
-                  <p className="text-[11px] text-[var(--text-muted)]">
+                  <p className="text-[11px] text-[var(--text-muted)] font-mono">
                     Showing {filteredLateEntries.length} of {sourceEntries.length} matching entries
                   </p>
                 </div>
@@ -1608,7 +1590,7 @@ export function CollegeRegistrationsTab({
 
               <div className="overflow-x-auto">
                 <Table className="w-full text-xs">
-                  <TableHeader className="bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
+                  <TableHeader className="bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]">
                     <TableRow>
                       <TableHead className="w-44 font-bold text-xs py-2.5 pl-4">Student & Chest #</TableHead>
                       {lateScope === 'all' && (
@@ -1632,8 +1614,6 @@ export function CollegeRegistrationsTab({
                             <p className="text-xs text-[var(--text-muted)] max-w-sm text-center">
                               {sourceEntries.length === 0
                                 ? lateScope === 'current'
-                                  ? `All registrations for ${currentCol?.name} were completed on time within standard deadline rules.`
-                                  : 'No late registration entries detected across all festival institutions.'
                                 : 'No late registration rows match your current search and filter criteria.'}
                             </p>
                             {(lateSearchQuery || lateFineFilter !== 'all' || lateCategoryFilter !== 'All') && (
@@ -1670,12 +1650,12 @@ export function CollegeRegistrationsTab({
                         return (
                           <TableRow
                             key={entry.id}
-                            className="border-b border-[var(--border-subtle)]/50 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                            className="border-b border-[var(--border-subtle)]/50 hover:bg-[var(--bg-subtle)]/60 transition-colors"
                           >
                             {/* Student Info */}
                             <TableCell className="py-2.5 pl-4 align-middle">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 rounded-md bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                                   {initials}
                                 </div>
                                 <div className="min-w-0 space-y-0.5">
@@ -1683,7 +1663,7 @@ export function CollegeRegistrationsTab({
                                     {stuName}
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)]">
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                                       {canonicalChest}
                                     </span>
                                     {stu?.class && (
@@ -1701,7 +1681,7 @@ export function CollegeRegistrationsTab({
                               <TableCell className="py-2.5 align-middle">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                                       #{col.affl_no}
                                     </span>
                                     <span className="font-bold text-xs text-[var(--text-primary)] truncate max-w-[110px]" title={col.name}>
@@ -1718,10 +1698,10 @@ export function CollegeRegistrationsTab({
                             {/* Event Name & Code */}
                             <TableCell className="py-2.5 align-middle max-w-[240px]">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-xs text-[var(--text-primary)]">
+                                <span className="font-mono font-black text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                                   {itm.code || itm.item_code}
                                 </span>
-                                <span className="font-mono text-[9.5px] px-1 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)] font-semibold">
+                                <span className="font-mono text-[9.5px] px-1 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold">
                                   {itm.item_type || 'Single'}
                                 </span>
                               </div>
@@ -1741,7 +1721,7 @@ export function CollegeRegistrationsTab({
                                   {entry.regTime ? formatIstDisplay(entry.regTime) : 'Time not logged'}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-amber-500/30">
                                     <Clock className="w-2.5 h-2.5 mr-1" />
                                     {entry.delayText}
                                   </span>
@@ -1761,7 +1741,7 @@ export function CollegeRegistrationsTab({
                                       Fine Flagged
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-[var(--border-subtle)]">
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                                       Fine Waived
                                     </span>
                                   )}
@@ -1777,7 +1757,7 @@ export function CollegeRegistrationsTab({
                                     size="xs"
                                     variant="outline"
                                     onClick={() => setSelectedStudentForDetails(stu)}
-                                    className="h-7 w-7 p-0"
+                                    className="h-7 w-7 p-0 hover:bg-[var(--bg-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)]"
                                     title={`View profile for ${stu.name}`}
                                   >
                                     <Eye className="w-3.5 h-3.5" />
@@ -1786,7 +1766,7 @@ export function CollegeRegistrationsTab({
 
                                 <Button
                                   size="xs"
-                                  variant="primary"
+                                  variant="saffron"
                                   onClick={() => handleOpenAdminRegModal(itm, [entry.registration.chest_no])}
                                   className="h-7 px-2 text-xs font-semibold"
                                   title="Manage event roster"
@@ -1872,7 +1852,7 @@ export function CollegeRegistrationsTab({
             return (
               <form onSubmit={handleSaveAdminReg} className="space-y-4">
                 {/* Item & College Identity banner */}
-                <div className="p-3 bg-[var(--bg-canvas)] rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2">
                     <CategoryBadge category={selectedItemForAdminReg.category} />
                     <Badge variant={selectedItemForAdminReg.item_type === 'Single' ? 'default' : 'purple'} size="sm">
@@ -1914,7 +1894,7 @@ export function CollegeRegistrationsTab({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs font-semibold text-[var(--text-primary)]">
                     <span>Select Students from College Roster ({collegeStudents.length} available)</span>
-                    <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">
+                    <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold">
                       Selected: {selectedStudentChestNosForAdminReg.length} / {min === max ? min : `${min}-${max}`}
                     </span>
                   </div>
@@ -1927,18 +1907,17 @@ export function CollegeRegistrationsTab({
                         placeholder="Search students by name or chest no..."
                         value={regModalStudentSearch}
                         onChange={e => setRegModalStudentSearch(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-medium transition-all"
                       />
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setRegModalShowAllCategories(!regModalShowAllCategories)}
-                      className={`px-2 py-1.5 text-[11px] rounded-lg font-medium border transition-colors whitespace-nowrap ${
-                        regModalShowAllCategories
-                          ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 font-semibold'
-                          : 'bg-[var(--bg-canvas)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                      }`}
+                      className={`px-2 py-1.5 text-[11px] rounded-lg font-medium border transition-colors whitespace-nowrap ${regModalShowAllCategories
+                          ? 'bg-amber-500/15 border-amber-500/30 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold'
+                          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                        }`}
                     >
                       {regModalShowAllCategories
                         ? 'All Categories (Showing All)'
@@ -1948,7 +1927,7 @@ export function CollegeRegistrationsTab({
                 </div>
 
                 {/* Student Selection List */}
-                <div className="max-h-60 overflow-y-auto space-y-1.5 p-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)]">
+                <div className="max-h-60 overflow-y-auto space-y-1.5 p-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
                   {filteredCollegeStudents.length === 0 ? (
                     <div className="p-6 text-center text-xs text-[var(--text-muted)]">
                       No students found matching current filters.
@@ -1956,7 +1935,7 @@ export function CollegeRegistrationsTab({
                         <button
                           type="button"
                           onClick={() => setRegModalShowAllCategories(true)}
-                          className="block mx-auto mt-2 text-blue-500 hover:underline font-semibold"
+                          className="block mx-auto mt-2 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:underline font-semibold"
                         >
                           Show students from all categories
                         </button>
@@ -1974,30 +1953,29 @@ export function CollegeRegistrationsTab({
                         <div
                           key={student.id || chestNo}
                           onClick={() => handleToggleStudentSelection(chestNo)}
-                          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${
-                            isSelected
-                              ? 'bg-blue-500/10 border-blue-500/40 text-[var(--text-primary)]'
+                          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${isSelected
+                              ? 'bg-amber-500/10 border-amber-500/40 text-[var(--text-primary)]'
                               : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-2.5">
-                            <div className="text-blue-600 dark:text-blue-400">
+                            <div className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                               {isSelected ? (
-                                <CheckSquare className="w-4 h-4 fill-blue-500/20" />
+                                <CheckSquare className="w-4 h-4 fill-amber-500/20 text-amber-500" />
                               ) : (
                                 <Square className="w-4 h-4 text-[var(--text-muted)]" />
                               )}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                                <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                                   {student.chest_no}
                                 </span>
                                 <span className="text-xs font-semibold text-[var(--text-primary)]">
                                   {student.name}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)] mt-0.5">
+                              <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)] mt-0.5 font-mono">
                                 <span>Class: {student.class || 'N/A'}</span>
                                 <span>•</span>
                                 <span>Phase: {student.phase || student.category}</span>
@@ -2008,7 +1986,7 @@ export function CollegeRegistrationsTab({
                           </div>
 
                           <div className="text-right">
-                            <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-canvas)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
+                            <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
                               {studentRegCount} event{studentRegCount === 1 ? '' : 's'}
                             </span>
                           </div>
@@ -2043,7 +2021,7 @@ export function CollegeRegistrationsTab({
                   <Button
                     type="submit"
                     size="sm"
-                    variant="primary"
+                    variant="saffron"
                     disabled={selectedStudentChestNosForAdminReg.length === 0}
                     className="font-semibold"
                   >
@@ -2089,19 +2067,19 @@ export function CollegeRegistrationsTab({
             return (
               <div className="space-y-4">
                 {/* Profile Card */}
-                <div className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#132238] text-white flex items-center justify-center font-bold text-base dark:bg-[#1A2E4A] shadow-xs">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-amber-500/30 flex items-center justify-center font-mono font-black text-base shadow-xs">
                       {getCanonicalChestNo(stu).replace('CH-', '').replace('ST-', '')}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-bold text-[var(--text-primary)]">{stu.name || stu.full_name}</h4>
-                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
+                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold border border-amber-500/30">
                           {getCanonicalChestNo(stu)}
                         </span>
                       </div>
-                      <div className="text-xs text-[var(--text-muted)] flex flex-wrap items-center gap-2 mt-0.5">
+                      <div className="text-xs text-[var(--text-muted)] flex flex-wrap items-center gap-2 mt-0.5 font-mono">
                         <span>Adm: <strong className="font-mono text-[var(--text-secondary)]">{stu.admission_no}</strong></span>
                         <span>•</span>
                         <span>College: <strong className="text-[var(--text-secondary)]">{stuCollege?.short_name || stuCollege?.name}</strong> (#{stu.college_affl_no})</span>
@@ -2111,7 +2089,7 @@ export function CollegeRegistrationsTab({
 
                   <div className="flex sm:flex-col items-end gap-1">
                     <CategoryBadge category={stu.phase || stu.category || 'Senior'} />
-                    <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                    <span className="text-[11px] text-[var(--text-muted)] font-medium font-mono">
                       Class: <strong className="text-[var(--text-secondary)]">{stu.class || 'N/A'}</strong>
                     </span>
                   </div>
@@ -2119,21 +2097,21 @@ export function CollegeRegistrationsTab({
 
                 {/* Quota & Participation Stats */}
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase">Total Events</div>
-                    <div className="text-base font-bold text-[var(--text-primary)] mt-0.5 font-mono">
+                  <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Events</div>
+                    <div className="text-base font-black text-[var(--text-primary)] mt-0.5 font-mono">
                       {stuItems.length} <span className="text-xs font-normal text-[var(--text-muted)]">/ {totalMax}</span>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase">Onstage</div>
-                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
+                  <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Onstage</div>
+                    <div className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
                       {onstageCount} <span className="text-xs font-normal text-[var(--text-muted)]">/ {stageMax}</span>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase">Offstage</div>
-                    <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 font-mono">
+                  <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Offstage</div>
+                    <div className="text-base font-black text-purple-600 dark:text-purple-400 mt-0.5 font-mono">
                       {offstageCount} <span className="text-xs font-normal text-[var(--text-muted)]">/ {offstageMax}</span>
                     </div>
                   </div>
@@ -2151,13 +2129,13 @@ export function CollegeRegistrationsTab({
                   </div>
 
                   {stuItems.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-[var(--text-muted)] bg-[var(--bg-canvas)] rounded-xl border border-[var(--border-subtle)]">
-                      This student is not enrolled in any festival events yet.
+                    <div className="p-6 text-center text-xs text-[var(--text-muted)] bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]">
+                      This student is not enrolled in any fest events yet.
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+                    <div className="rounded-2xl border border-[var(--border-subtle)] overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)]">
                       <Table className="w-full text-xs">
-                        <TableHeader className="bg-[var(--bg-canvas)]">
+                        <TableHeader className="bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)]">
                           <TableRow>
                             <TableHead className="w-20 font-bold py-2">Code</TableHead>
                             <TableHead className="font-bold py-2">Event Name</TableHead>
@@ -2169,8 +2147,8 @@ export function CollegeRegistrationsTab({
                           {stuItems.map(item => {
                             const sched = stuSchedules.find(s => s.item_id === item.item_id);
                             return (
-                              <TableRow key={item.item_id} className="border-b border-[var(--border-subtle)]/60">
-                                <TableCell className="font-mono font-bold text-xs py-2">{item.code}</TableCell>
+                              <TableRow key={item.item_id} className="border-b border-[var(--border-subtle)]/60 hover:bg-[var(--bg-subtle)]/60 transition-colors">
+                                <TableCell className="font-mono font-black text-xs py-2 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">{item.code}</TableCell>
                                 <TableCell className="font-semibold text-xs text-[var(--text-primary)] py-2">
                                   {item.name}
                                 </TableCell>
@@ -2187,9 +2165,9 @@ export function CollegeRegistrationsTab({
                                       <div className="text-[10px] text-[var(--text-muted)] font-mono">
                                         {sched.starting
                                           ? new Date(sched.starting).toLocaleTimeString([], {
-                                              hour: '2-digit',
-                                              minute: '2-digit'
-                                            })
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })
                                           : 'Time TBA'}
                                       </div>
                                     </div>

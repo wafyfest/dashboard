@@ -289,7 +289,7 @@ export function SystemLogsTab() {
         return {
           label: 'Broadcast Alerts',
           icon: BellRing,
-          badgeClass: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25'
+          badgeClass: 'bg-amber-500/15 text-[var(--f-saffron-text)] border-amber-500/25'
         };
       case 'VOLUNTEERS':
         return {
@@ -307,7 +307,7 @@ export function SystemLogsTab() {
         return {
           label: category || 'System',
           icon: ShieldCheck,
-          badgeClass: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/25'
+          badgeClass: 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
         };
     }
   };
@@ -344,24 +344,24 @@ export function SystemLogsTab() {
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header Card */}
-      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm">
+      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="p-3 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-500/20">
-                <ScrollText className="w-6 h-6" />
+              <div className="p-3 rounded-2xl bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20 shrink-0">
+                <ScrollText className="w-6 h-6 stroke-[2.2]" />
               </div>
               <div>
-                <div className="flex items-center gap-2.5">
-                  <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl font-heading font-extrabold text-[var(--text-primary)] tracking-tight">
                     System Audit Logs & Live Activity Feed
                   </h1>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <span className={`w-2 h-2 rounded-full ${isLiveStreamActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                    <span className={`w-2 h-2 rounded-full ${isLiveStreamActive ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]' : 'bg-[var(--text-muted)]'}`} />
                     {isLiveStreamActive ? 'Live Realtime Active' : 'Live Paused'}
                   </span>
                 </div>
-                <p className="text-xs text-[var(--text-muted)] mt-1">
+                <p className="text-xs text-[var(--text-muted)] mt-1 font-sans">
                   Immutable event trail tracking every registration, lock override, deadline shift, appeal, result, and volunteer update in the system.
                 </p>
               </div>
@@ -429,41 +429,41 @@ export function SystemLogsTab() {
           {/* Quick Metrics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 mt-6 pt-6 border-t border-[var(--border-subtle)]">
             <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)]">
-              <span className="text-[11px] font-medium text-[var(--text-muted)] block uppercase tracking-wider">Total Events</span>
+              <span className="text-[11px] font-heading font-bold text-[var(--text-muted)] block uppercase tracking-wider">Total Events</span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-extrabold text-[var(--text-primary)]">{stats.total}</span>
+                <span className="text-2xl font-heading font-extrabold font-mono tabular-nums text-[var(--text-primary)]">{stats.total}</span>
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">100% Verified</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-              <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 block uppercase tracking-wider">Registrations</span>
+              <span className="text-[11px] font-heading font-bold text-emerald-700 dark:text-emerald-400 block uppercase tracking-wider">Registrations</span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{stats.registrations}</span>
+                <span className="text-2xl font-heading font-extrabold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{stats.registrations}</span>
                 <Users className="w-4 h-4 text-emerald-500/70" />
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
-              <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 block uppercase tracking-wider">Locks & Overrides</span>
+              <span className="text-[11px] font-heading font-bold text-amber-700 dark:text-amber-400 block uppercase tracking-wider">Locks & Overrides</span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{stats.locks}</span>
+                <span className="text-2xl font-heading font-extrabold font-mono tabular-nums text-amber-600 dark:text-amber-400">{stats.locks}</span>
                 <Lock className="w-4 h-4 text-amber-500/70" />
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/15">
-              <span className="text-[11px] font-medium text-purple-700 dark:text-purple-400 block uppercase tracking-wider">Appeals & Queries</span>
+              <span className="text-[11px] font-heading font-bold text-purple-700 dark:text-purple-400 block uppercase tracking-wider">Appeals & Queries</span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-extrabold text-purple-600 dark:text-purple-400">{stats.appeals}</span>
+                <span className="text-2xl font-heading font-extrabold font-mono tabular-nums text-purple-600 dark:text-purple-400">{stats.appeals}</span>
                 <AlertTriangle className="w-4 h-4 text-purple-500/70" />
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/15 col-span-2 sm:col-span-1">
-              <span className="text-[11px] font-medium text-rose-700 dark:text-rose-400 block uppercase tracking-wider">Warnings & Alerts</span>
+              <span className="text-[11px] font-heading font-bold text-rose-700 dark:text-rose-400 block uppercase tracking-wider">Warnings & Alerts</span>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">{stats.warnings}</span>
+                <span className="text-2xl font-heading font-extrabold font-mono tabular-nums text-rose-600 dark:text-rose-400">{stats.warnings}</span>
                 <XCircle className="w-4 h-4 text-rose-500/70" />
               </div>
             </div>
@@ -472,7 +472,7 @@ export function SystemLogsTab() {
       </Card>
 
       {/* Filter and Control Bar */}
-      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm">
+      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <CardContent className="p-4 space-y-3.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
             {/* Search Input */}
@@ -483,7 +483,7 @@ export function SystemLogsTab() {
                 placeholder="Search action, description, chest #, actor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all font-sans"
               />
               {searchQuery && (
                 <button
@@ -500,7 +500,7 @@ export function SystemLogsTab() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer"
               >
                 <option value="ALL">All Event Categories</option>
                 <option value="REGISTRATION">🎓 Registrations & Rosters</option>
@@ -520,7 +520,7 @@ export function SystemLogsTab() {
               <select
                 value={selectedSeverity}
                 onChange={(e) => setSelectedSeverity(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer"
               >
                 <option value="ALL">All Severities</option>
                 <option value="info">Info</option>
@@ -535,7 +535,7 @@ export function SystemLogsTab() {
               <select
                 value={selectedCollegeAffl}
                 onChange={(e) => setSelectedCollegeAffl(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer"
               >
                 <option value="ALL">All Colleges / Scopes</option>
                 {colleges.map(c => (
@@ -550,7 +550,7 @@ export function SystemLogsTab() {
           {/* Secondary Row: Time range pills & Active filters reset */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)] text-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-              <span className="text-[11px] font-medium text-[var(--text-muted)] mr-1">Timeframe:</span>
+              <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] mr-1">Timeframe:</span>
               {[
                 { id: 'ALL', label: 'All Time' },
                 { id: 'TODAY', label: 'Today' },
@@ -561,10 +561,10 @@ export function SystemLogsTab() {
                 <button
                   key={t.id}
                   onClick={() => setSelectedTimeRange(t.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     selectedTimeRange === t.id
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--border-subtle)]'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                      : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   {t.label}
@@ -573,13 +573,13 @@ export function SystemLogsTab() {
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-[var(--text-muted)]">
-                Showing <strong>{filteredLogs.length}</strong> of <strong>{logs.length}</strong> events
+              <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                Showing <strong className="text-[var(--text-primary)]">{filteredLogs.length}</strong> of <strong>{logs.length}</strong> events
               </span>
               {hasActiveFilters && (
                 <button
                   onClick={resetAllFilters}
-                  className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 font-semibold"
+                  className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Reset Filters
@@ -591,19 +591,19 @@ export function SystemLogsTab() {
       </Card>
 
       {/* Main Audit Log Table */}
-      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm overflow-hidden">
+      <Card className="border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-[var(--bg-subtle)]/60">
+              <TableHeader className="bg-[var(--bg-subtle)]/75">
                 <TableRow>
-                  <TableHead className="w-36 text-xs font-semibold">Timestamp (IST)</TableHead>
-                  <TableHead className="w-36 text-xs font-semibold">Category</TableHead>
-                  <TableHead className="w-24 text-xs font-semibold">Severity</TableHead>
-                  <TableHead className="text-xs font-semibold">Activity & Details</TableHead>
-                  <TableHead className="w-36 text-xs font-semibold">Actor / Origin</TableHead>
-                  <TableHead className="w-40 text-xs font-semibold">Scope / College</TableHead>
-                  <TableHead className="w-20 text-right text-xs font-semibold">Action</TableHead>
+                  <TableHead className="w-36 text-xs font-heading font-semibold">Timestamp (IST)</TableHead>
+                  <TableHead className="w-36 text-xs font-heading font-semibold">Category</TableHead>
+                  <TableHead className="w-24 text-xs font-heading font-semibold">Severity</TableHead>
+                  <TableHead className="text-xs font-heading font-semibold">Activity & Details</TableHead>
+                  <TableHead className="w-36 text-xs font-heading font-semibold">Actor / Origin</TableHead>
+                  <TableHead className="w-40 text-xs font-heading font-semibold">Scope / College</TableHead>
+                  <TableHead className="w-20 text-right text-xs font-heading font-semibold">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -611,7 +611,7 @@ export function SystemLogsTab() {
                   Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell colSpan={7} className="py-4">
-                        <div className="h-5 bg-slate-200/60 dark:bg-slate-800/50 rounded animate-pulse" />
+                        <div className="h-5 bg-[var(--bg-subtle)] rounded-lg animate-pulse" />
                       </TableCell>
                     </TableRow>
                   ))
@@ -793,10 +793,10 @@ export function SystemLogsTab() {
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${
+                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                           currentPage === pageNum
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-subtle)]'
+                            ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
                         }`}
                       >
                         {pageNum}
@@ -828,11 +828,11 @@ export function SystemLogsTab() {
           onClick={() => setInspectedLog(null)}
         >
           <div
-            className="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="p-5 border-b border-[var(--border-subtle)] flex items-start justify-between bg-[var(--bg-subtle)]/40">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-start justify-between bg-[var(--bg-subtle)]/75">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold border ${getCategoryConfig(inspectedLog.category).badgeClass}`}>
@@ -898,10 +898,10 @@ export function SystemLogsTab() {
                 </div>
 
                 <div className="p-3 rounded-lg bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
-                  <span className="text-[10px] text-[var(--text-muted)] uppercase block">Event Item ID</span>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase block">Event ID</span>
                   <span className="font-medium text-[var(--text-primary)] mt-0.5 block truncate">
                     {inspectedLog.item_id
-                      ? `${itemMap.get(Number(inspectedLog.item_id))?.item_code || 'Item'} (#${inspectedLog.item_id})`
+                      ? `${itemMap.get(Number(inspectedLog.item_id))?.item_code || 'Event'} (#${inspectedLog.item_id})`
                       : 'None'}
                   </span>
                 </div>
@@ -939,7 +939,7 @@ export function SystemLogsTab() {
                       setCopiedJson(true);
                       setTimeout(() => setCopiedJson(false), 2000);
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+                    className="inline-flex items-center gap-1 text-[11px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:underline font-semibold cursor-pointer"
                   >
                     {copiedJson ? (
                       <>
@@ -952,7 +952,7 @@ export function SystemLogsTab() {
                     )}
                   </button>
                 </div>
-                <pre className="p-3.5 rounded-xl bg-slate-950 text-emerald-400 font-mono text-[11px] overflow-x-auto max-h-48 border border-slate-800">
+                <pre className="p-3.5 rounded-xl bg-black/90 text-amber-300 dark:text-amber-400 font-mono text-[11px] overflow-x-auto max-h-48 border border-[var(--border-subtle)]">
                   {JSON.stringify(inspectedLog.details || {}, null, 2)}
                 </pre>
               </div>

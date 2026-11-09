@@ -3,10 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
-import { Badge, CategoryBadge } from '../ui/badge';
-import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import {
   Radio,
   ClipboardPen,
@@ -15,38 +12,22 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  Clock,
-  Calendar,
-  ArrowLeft,
-  Send,
-  Lock,
-  Trophy,
-  Sparkles,
-  Loader2,
-  Building2,
-  UserCheck,
   RefreshCw,
-  Award,
-  ChevronDown
 } from 'lucide-react';
-import { Item, StageStatus, Result, Registration } from '@/lib/types/fest';
+import { StageStatus } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
+import { TilePattern } from '@/components/fest/FestPattern';
+import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
+import { ScoreEntryTab, ScoreEntryRow } from '../result-entry/tabs/ScoreEntryTab';
+import { ResultPublishingTab } from '../result-entry/tabs/ResultPublishingTab';
+import { ResultVerificationTab } from '../result-entry/tabs/ResultVerificationTab';
 
 export type ResultEntryTab = 'event-status' | 'score-entry' | 'result-publishing' | 'result-verification';
-
-interface ScoreEntryRow {
-  code_letter: string;
-  chest_no?: string;
-  college_affl_no?: number;
-  mark_percentage: number;
-  grade: string;
-  rank: number | null;
-  points: number;
-}
+export type ResultEntryTabType = ResultEntryTab;
 
 interface ResultEntryViewProps {
-  activeTab?: ResultEntryTab;
-  onTabChange?: (tab: ResultEntryTab) => void;
+  activeTab?: ResultEntryTabType;
+  onTabChange?: (tab: ResultEntryTabType) => void;
 }
 
 export function ResultEntryView({ activeTab = 'event-status', onTabChange }: ResultEntryViewProps) {
@@ -110,7 +91,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   };
 
   // -------------------------------------------------------------
-  // TAB 1: EVENT STATUS LOGIC
+  // TAB 1: EVENT STATUS DATA
   // -------------------------------------------------------------
   const filteredEventStatusList = useMemo(() => {
     return items
@@ -121,7 +102,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           item,
           schedule: sch,
           stage,
-          status: sch?.status || 'Upcoming'
+          status: sch?.status || 'Upcoming',
         };
       })
       .filter(({ item }) => {
@@ -155,7 +136,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   };
 
   // -------------------------------------------------------------
-  // TAB 2: SCORE ENTRY LOGIC
+  // TAB 2: SCORE ENTRY DATA
   // -------------------------------------------------------------
   const filteredScoreEntryItems = useMemo(() => {
     return items
@@ -174,7 +155,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           codesCount: codes.length,
           isScored,
           isPublished,
-          status: sch?.status || 'Upcoming'
+          status: sch?.status || 'Upcoming',
         };
       })
       .filter(({ item }) => {
@@ -193,7 +174,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   }, [items, schedules, allRegistrations, allCodeLetters, allResults, searchQuery, selectedPhase]);
 
   const selectedScoringItem = items.find(i => Number(i.item_id) === Number(selectedEventId));
-  const selectedScoringSchedule = schedules.find(s => Number(s.item_id) === Number(selectedEventId));
   const isSelectedEventPublished = useMemo(() => {
     if (!selectedEventId) return false;
     return allResults.some(r => Number(r.item_id) === Number(selectedEventId) && Boolean(r.published));
@@ -208,7 +188,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     Promise.all([
       festService.fetchEventParticipantsData(selectedEventId),
       festService.fetchResults(selectedEventId),
-      festService.fetchPointsMatrix()
+      festService.fetchPointsMatrix(),
     ]).then(([participantsData, fetchedResults]) => {
       if (isCancelled) return;
 
@@ -238,7 +218,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           mark_percentage: marks,
           grade,
           rank,
-          points: pts
+          points: pts,
         };
       });
 
@@ -269,7 +249,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       if (field === 'mark_percentage') {
         const num = Math.min(100, Math.max(0, parseFloat(value) || 0));
         target.mark_percentage = num;
-        // Auto assign grade if default
         if (!target.grade || target.grade === 'Auto') {
           target.grade = num >= 90 ? 'A+' : num >= 80 ? 'A' : num >= 70 ? 'B' : 'C';
         }
@@ -279,7 +258,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         target.rank = value === '' || value === 'none' ? null : Number(value);
       }
 
-      // Auto calculate points matching points_matrix (phase, category, grade, rank, points)
       target.points = festService.calculatePoints(
         selectedScoringItem?.phase,
         selectedScoringItem?.category,
@@ -316,9 +294,8 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   };
 
   // -------------------------------------------------------------
-  // TAB 3: RESULT PUBLISHING LOGIC
+  // TAB 3: RESULT PUBLISHING DATA
   // -------------------------------------------------------------
-  // Show ONLY available results, with exactly 1 row per event (no repeated data)
   const filteredPublishingList = useMemo(() => {
     return aggregatedResults.filter(agg => {
       const query = searchQuery.trim().toLowerCase();
@@ -355,9 +332,8 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   };
 
   // -------------------------------------------------------------
-  // TAB 4: RESULT VERIFICATION LOGIC
+  // TAB 4: RESULT VERIFICATION DATA
   // -------------------------------------------------------------
-  // Filter items that have results updated, and resolve full student and college info
   const filteredVerificationList = useMemo(() => {
     return aggregatedResults
       .filter(agg => {
@@ -374,7 +350,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         return matchesQuery && matchesPhase;
       })
       .map(agg => {
-        // Enrich participant details
         const enrichedParticipants = agg.results.map(res => {
           const col = colleges.find(c => Number(c.affl_no) === Number(res.college_affl_no));
           const stu = findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined);
@@ -384,7 +359,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
             studentName: stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`,
             collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
             collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
-            displayChestNo: stu ? getCanonicalChestNo(stu) : (res.chest_no || '—')
+            displayChestNo: stu ? getCanonicalChestNo(stu) : (res.chest_no || '—'),
           };
         });
 
@@ -393,7 +368,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         return {
           ...agg,
           enrichedParticipants,
-          totalPoints
+          totalPoints,
         };
       });
   }, [aggregatedResults, colleges, students, searchQuery, selectedPhase]);
@@ -403,8 +378,8 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       {/* Toast Alert Message */}
       {actionSuccessMessage && (
         <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+          <div className="bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-emerald-500/40 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold [box-shadow:var(--shadow-elevated),var(--glass-highlight)]">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>{actionSuccessMessage}</span>
           </div>
         </div>
@@ -412,28 +387,29 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
 
       {/* Global Search & Phase Filter Header */}
       {(!selectedEventId || activeTab !== 'score-entry') && (
-        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-sm space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 [box-shadow:var(--shadow-card),var(--glass-highlight)] space-y-4">
+          <TilePattern id="result-entry-hero-pattern" className="opacity-10 text-[var(--f-saffron)]" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-slate-700/30">
-                {activeTab === 'event-status' && <Radio className="w-6 h-6 text-emerald-400" />}
-                {activeTab === 'score-entry' && <ClipboardPen className="w-6 h-6 text-amber-400" />}
-                {activeTab === 'result-publishing' && <Globe className="w-6 h-6 text-sky-400" />}
-                {activeTab === 'result-verification' && <FileCheck2 className="w-6 h-6 text-indigo-400" />}
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] flex items-center justify-center font-bold text-lg shrink-0">
+                {activeTab === 'event-status' && <Radio className="w-6 h-6 text-emerald-500" />}
+                {activeTab === 'score-entry' && <ClipboardPen className="w-6 h-6 text-[var(--f-saffron-text)]" />}
+                {activeTab === 'result-publishing' && <Globe className="w-6 h-6 text-sky-500" />}
+                {activeTab === 'result-verification' && <FileCheck2 className="w-6 h-6 text-indigo-500" />}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-mono tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span className="text-xs uppercase font-mono tracking-widest text-[var(--f-saffron-text)] font-bold">
                     RESULT ENTRY DIVISION
                   </span>
-                  <Badge variant="navy" size="sm">
+                  <Badge variant="saffron" size="sm">
                     {activeTab === 'event-status' && 'LIVE TIMETABLE'}
                     {activeTab === 'score-entry' && 'BLIND SCORING'}
                     {activeTab === 'result-publishing' && 'OFFICIAL RELEASE'}
                     {activeTab === 'result-verification' && 'AUDIT & VERIFICATION'}
                   </Badge>
                 </div>
-                <h2 className="text-xl font-bold text-[var(--text-primary)] mt-0.5">
+                <h2 className="text-xl font-heading font-black text-[var(--text-primary)] tracking-tight mt-0.5">
                   {activeTab === 'event-status' && 'Event Status Management'}
                   {activeTab === 'score-entry' && 'Score Entry Console'}
                   {activeTab === 'result-publishing' && 'Result Publishing Registry'}
@@ -449,36 +425,38 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
                 festService.fetchPointsMatrix();
                 triggerRefresh();
               }}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-600 bg-[var(--bg-subtle)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer self-start md:self-auto"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--f-saffron-text)] hover:border-amber-500/40 transition-colors cursor-pointer self-start md:self-auto focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Sync Live Database</span>
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh Fest Data</span>
             </button>
           </div>
 
-          {/* Search bar and Category filter controls */}
-          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-[var(--border-subtle)]">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="text"
-                placeholder="Search by Item Code or Event Name..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                placeholder="Search event code or title..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none placeholder:text-[var(--text-muted)]"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+            <div className="relative">
+              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <select
                 value={selectedPhase}
                 onChange={e => setSelectedPhase(e.target.value)}
-                className="w-full sm:w-44 text-xs font-semibold rounded-xl px-3 py-2.5 border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                aria-label="Filter by Phase / Category"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
               >
                 <option value="all">All Phases / Categories</option>
-                {distinctPhases.map(p => (
-                  <option key={p} value={p}>{p}</option>
+                {distinctPhases.map(phase => (
+                  <option key={phase} value={phase}>
+                    {phase}
+                  </option>
                 ))}
               </select>
             </div>
@@ -486,711 +464,42 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         </div>
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* 1. EVENT STATUS TAB */}
-      {/* ------------------------------------------------------------- */}
+      {/* Tab Renderers */}
       {activeTab === 'event-status' && (
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Radio className="w-4 h-4 text-emerald-500" />
-                Events Status Timetable
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Inspect schedule and update live event status. Only the status dropdown is editable.
-              </CardDescription>
-            </div>
-            <span className="text-xs font-mono text-[var(--text-muted)]">
-              Showing {filteredEventStatusList.length} Events
-            </span>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>Item Code</TableHead>
-                  <TableHead>Item Name</TableHead>
-                  <TableHead>Phase / Category</TableHead>
-                  <TableHead>Stage Venue</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Time Start - End</TableHead>
-                  <TableHead className="w-44">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEventStatusList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[var(--text-muted)] text-sm">
-                      No events match the search or filter criteria.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredEventStatusList.map(({ item, schedule, stage, status }, idx) => (
-                    <TableRow key={item.id} className="hover:bg-[var(--bg-hover)]">
-                      <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
-                        {idx + 1}
-                      </TableCell>
-                      <TableCell className="font-mono font-bold text-xs text-[var(--text-primary)]">
-                        {item.item_code || item.code}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-semibold text-[var(--text-primary)]">
-                          {item.name_eng || item.name}
-                        </div>
-                        {item.name_mal && (
-                          <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                            {item.name_mal}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <CategoryBadge category={item.phase || item.category || 'General'} />
-                      </TableCell>
-                      <TableCell className="text-xs text-[var(--text-secondary)]">
-                        {stage?.name || (schedule?.stage_number ? `Stage ${schedule.stage_number}` : 'TBD')}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap">
-                        {formatDate(schedule?.starting)}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">
-                        {formatTime(schedule?.starting)} - {formatTime(schedule?.ending)}
-                      </TableCell>
-                      <TableCell>
-                        <select
-                          value={status}
-                          onChange={e => handleUpdateEventStatus(Number(item.item_id), e.target.value as StageStatus)}
-                          className="text-xs font-bold rounded-lg px-2.5 py-1.5 border border-emerald-400/60 dark:border-emerald-700 bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer shadow-2xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                        >
-                          <option value="Upcoming">Upcoming</option>
-                          <option value="Starting_Soon">Starting Soon</option>
-                          <option value="Next_Item">Next Item</option>
-                          <option value="On_Going">On Going (Live)</option>
-                          <option value="Ended">Ended</option>
-                        </select>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <EventStatusTab
+          events={filteredEventStatusList}
+          onUpdateStatus={handleUpdateEventStatus}
+          formatDate={formatDate}
+          formatTime={formatTime}
+        />
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* 2. SCORE ENTRY TAB */}
-      {/* ------------------------------------------------------------- */}
       {activeTab === 'score-entry' && (
-        <div>
-          {/* Subview 2A: Event Selection List */}
-          {!selectedEventId && (
-            <Card>
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ClipboardPen className="w-4 h-4 text-amber-500" />
-                    Select Event to Enter Scores
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Choose an event to view registered blind code letters and input participant scores, grades, and ranks.
-                  </CardDescription>
-                </div>
-                <span className="text-xs font-mono text-[var(--text-muted)]">
-                  {filteredScoreEntryItems.length} Events Available
-                </span>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12 text-center">#</TableHead>
-                      <TableHead>Item Code</TableHead>
-                      <TableHead>Item Name</TableHead>
-                      <TableHead>Phase / Category</TableHead>
-                      <TableHead>Stage Status</TableHead>
-                      <TableHead className="text-center">Code Letters</TableHead>
-                      <TableHead className="text-center">Scoring Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredScoreEntryItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12 text-[var(--text-muted)] text-sm">
-                          No events match the search query.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredScoreEntryItems.map(({ item, schedule, codesCount, registrationsCount, isScored, isPublished, status }, idx) => (
-                        <TableRow
-                          key={item.id}
-                          className="hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
-                          onClick={() => setSelectedEventId(Number(item.item_id))}
-                        >
-                          <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
-                            {idx + 1}
-                          </TableCell>
-                          <TableCell className="font-mono font-bold text-xs text-[var(--text-primary)]">
-                            {item.item_code || item.code}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-semibold text-[var(--text-primary)]">
-                              {item.name_eng || item.name}
-                            </div>
-                            {item.name_mal && (
-                              <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                                {item.name_mal}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <CategoryBadge category={item.phase || item.category || 'General'} />
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" size="sm" className="font-semibold text-xs">
-                              {status.replace(/_/g, ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
-                              {codesCount} / {registrationsCount}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {isPublished ? (
-                              <Badge variant="navy" size="sm" className="font-semibold">
-                                Published
-                              </Badge>
-                            ) : isScored ? (
-                              <Badge variant="success" size="sm" className="font-semibold">
-                                Scored
-                              </Badge>
-                            ) : (
-                              <Badge variant="amber" size="sm" className="font-semibold">
-                                Pending
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right" onClick={e => e.stopPropagation()}>
-                            <Button
-                              size="xs"
-                              variant="primary"
-                              onClick={() => setSelectedEventId(Number(item.item_id))}
-                              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-2xs gap-1.5"
-                            >
-                              <span>{isScored ? 'Edit Scores' : 'Enter Scores'} →</span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Subview 2B: Scoring Console for Selected Event */}
-          {selectedEventId && selectedScoringItem && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Back navigation */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setSelectedEventId(null)}
-                  className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-500 bg-[var(--bg-surface)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back to Events List</span>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {isSelectedEventPublished && (
-                    <Badge variant="destructive" className="gap-1.5 px-3 py-1 font-semibold">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Results Published (Locked)</span>
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Event Header Banner */}
-              <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 shadow-sm">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-xl shadow-sm border border-slate-700/30 shrink-0">
-                      <ClipboardPen className="w-7 h-7 text-amber-400" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-lg">
-                          {selectedScoringItem.item_code || selectedScoringItem.code}
-                        </span>
-                        <CategoryBadge category={selectedScoringItem.phase || selectedScoringItem.category} />
-                        <Badge variant={selectedScoringItem.point_type === 'group' ? 'purple' : 'secondary'}>
-                          {selectedScoringItem.point_type === 'group' ? 'Group Event' : 'Single Event'}
-                        </Badge>
-                      </div>
-                      <h2 className="text-2xl font-bold text-[var(--text-primary)] mt-1.5">
-                        {selectedScoringItem.name_eng || selectedScoringItem.name}
-                      </h2>
-                      {selectedScoringItem.name_mal && (
-                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-                          {selectedScoringItem.name_mal}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 bg-[var(--bg-subtle)] p-4 rounded-xl border border-[var(--border-subtle)]">
-                    <div>
-                      <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Blind Letters Count</span>
-                      <span className="text-base font-mono font-bold text-[var(--text-primary)]">
-                        {scoreRows.length} Registered
-                      </span>
-                    </div>
-                    <div className="h-8 w-px bg-[var(--border-subtle)]" />
-                    <div>
-                      <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Points Matrix</span>
-                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        Auto Calculated
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Scoring Table */}
-              <Card>
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      Blind Code Score Tabulation
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Enter marks percentage (0-100), select Grade and Rank. Championship points are automatically computed matching the points_matrix.
-                    </CardDescription>
-                  </div>
-
-                  {!isSelectedEventPublished && (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      disabled={isSubmittingScores || scoreRows.length === 0}
-                      onClick={handleSaveScores}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm gap-2"
-                    >
-                      {isSubmittingScores ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Saving...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          <span>Save & Record Scores</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </CardHeader>
-
-                <CardContent className="p-0 overflow-x-auto">
-                  {isLoadingEventData ? (
-                    <div className="py-16 text-center space-y-3">
-                      <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
-                      <p className="text-xs text-[var(--text-muted)]">
-                        Loading registered blind code letters and existing score records...
-                      </p>
-                    </div>
-                  ) : scoreRows.length === 0 ? (
-                    <div className="py-14 text-center space-y-2">
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">
-                        No code letters allocated yet for this event.
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)] max-w-md mx-auto">
-                        Please open the Stage Controller console to draw anonymous code letters (A, B, C...) for registered candidates before entering scores.
-                      </p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-24 text-center">Blind Code</TableHead>
-                          <TableHead className="w-48">Mark Percentage (%)</TableHead>
-                          <TableHead className="w-36">Grade</TableHead>
-                          <TableHead className="w-40">Rank Position</TableHead>
-                          <TableHead className="w-36 text-center">Points (Auto)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {scoreRows.map((row, idx) => (
-                          <TableRow key={row.code_letter} className="hover:bg-[var(--bg-hover)]">
-                            <TableCell className="text-center">
-                              <div className="w-10 h-10 rounded-xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-extrabold text-lg mx-auto shadow-sm border border-slate-700/30">
-                                {row.code_letter}
-                              </div>
-                            </TableCell>
-
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step="0.5"
-                                  disabled={isSelectedEventPublished}
-                                  value={row.mark_percentage}
-                                  onChange={e => handleScoreRowChange(idx, 'mark_percentage', e.target.value)}
-                                  className="w-28 px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                                />
-                                <span className="text-xs font-semibold text-[var(--text-muted)]">/ 100</span>
-                              </div>
-                            </TableCell>
-
-                            <TableCell>
-                              <select
-                                value={row.grade}
-                                disabled={isSelectedEventPublished}
-                                onChange={e => handleScoreRowChange(idx, 'grade', e.target.value)}
-                                className="w-full text-xs font-bold rounded-lg px-2.5 py-1.5 border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                              >
-                                <option value="A+">Grade A+</option>
-                                <option value="A">Grade A</option>
-                                <option value="B">Grade B</option>
-                                <option value="C">Grade C</option>
-                                <option value="None">No Grade</option>
-                              </select>
-                            </TableCell>
-
-                            <TableCell>
-                              <select
-                                value={row.rank === null ? 'none' : String(row.rank)}
-                                disabled={isSelectedEventPublished}
-                                onChange={e => handleScoreRowChange(idx, 'rank', e.target.value)}
-                                className="w-full text-xs font-bold rounded-lg px-2.5 py-1.5 border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                              >
-                                <option value="none">No Rank</option>
-                                <option value="1">🥇 1st Place</option>
-                                <option value="2">🥈 2nd Place</option>
-                                <option value="3">🥉 3rd Place</option>
-                              </select>
-                            </TableCell>
-
-                            <TableCell className="text-center">
-                              <Badge
-                                variant={row.points > 0 ? 'success' : 'outline'}
-                                className="font-mono text-sm font-bold px-3 py-1"
-                              >
-                                {row.points} Pts
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </div>
+        <ScoreEntryTab
+          items={filteredScoreEntryItems}
+          selectedEventId={selectedEventId}
+          selectedScoringItem={selectedScoringItem}
+          isSelectedEventPublished={isSelectedEventPublished}
+          scoreRows={scoreRows}
+          isLoadingEventData={isLoadingEventData}
+          isSubmittingScores={isSubmittingScores}
+          onSelectEvent={setSelectedEventId}
+          onScoreRowChange={handleScoreRowChange}
+          onSaveScores={handleSaveScores}
+        />
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* 3. RESULT PUBLISHING TAB */}
-      {/* ------------------------------------------------------------- */}
       {activeTab === 'result-publishing' && (
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Globe className="w-4 h-4 text-sky-500" />
-                Official Result Publishing Console
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Toggle publication of scored events. Published results immediately reflect on public scoreboards and college dashboards.
-              </CardDescription>
-            </div>
-            <span className="text-xs font-mono text-[var(--text-muted)]">
-              {filteredPublishingList.filter(a => a.is_published).length} Published / {filteredPublishingList.length} Scored
-            </span>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>Event Code & Name</TableHead>
-                  <TableHead>Category / Phase</TableHead>
-                  <TableHead>1st Place (Winner)</TableHead>
-                  <TableHead>2nd Place</TableHead>
-                  <TableHead>3rd Place</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-right">Publish Toggle</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPublishingList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[var(--text-muted)] text-sm">
-                      No scored events available yet. Enter scores in the Score Entry tab to make them available for publishing.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredPublishingList.map((agg, idx) => {
-                    const item = agg.item;
-                    const isPub = agg.is_published;
-
-                    return (
-                      <TableRow key={agg.item_id} className="hover:bg-[var(--bg-hover)]">
-                        <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
-                          {idx + 1}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-mono font-bold text-xs text-[var(--text-primary)]">
-                            {item?.item_code || item?.code}
-                          </div>
-                          <div className="font-semibold text-xs text-[var(--text-primary)] mt-0.5">
-                            {item?.name_eng || item?.name}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <CategoryBadge category={item?.phase || item?.category || 'General'} />
-                        </TableCell>
-                        <TableCell>
-                          {agg.first ? (
-                            <div>
-                              <span className="font-bold text-xs text-emerald-600 dark:text-emerald-400">
-                                Code [{agg.first.code_letter}]
-                              </span>
-                              <span className="text-[11px] text-[var(--text-secondary)] block">
-                                Chest: {agg.first.chest_no || 'N/A'} • {agg.first.points} pts
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {agg.second ? (
-                            <div>
-                              <span className="font-bold text-xs text-[var(--text-primary)]">
-                                Code [{agg.second.code_letter}]
-                              </span>
-                              <span className="text-[11px] text-[var(--text-secondary)] block">
-                                Chest: {agg.second.chest_no || 'N/A'} • {agg.second.points} pts
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {agg.third ? (
-                            <div>
-                              <span className="font-bold text-xs text-[var(--text-primary)]">
-                                Code [{agg.third.code_letter}]
-                              </span>
-                              <span className="text-[11px] text-[var(--text-secondary)] block">
-                                Chest: {agg.third.chest_no || 'N/A'} • {agg.third.points} pts
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isPub ? (
-                            <Badge variant="success" size="sm" className="font-bold gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Published</span>
-                            </Badge>
-                          ) : (
-                            <Badge variant="amber" size="sm" className="font-bold">
-                              <span>Draft</span>
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="xs"
-                            variant={isPub ? 'destructive' : 'primary'}
-                            onClick={() => handleTogglePublish(agg.item_id, isPub)}
-                            className={`font-semibold shadow-2xs ${
-                              isPub
-                                ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            }`}
-                          >
-                            {isPub ? 'Unpublish' : 'Publish Result'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ResultPublishingTab
+          aggregatedResults={filteredPublishingList}
+          onTogglePublish={handleTogglePublish}
+        />
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* 4. RESULT VERIFICATION TAB */}
-      {/* ------------------------------------------------------------- */}
       {activeTab === 'result-verification' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileCheck2 className="w-4 h-4 text-indigo-500" />
-                  Result Verification & Audit Standings
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Review finalized standings with resolved candidate names, college affiliations, and awarded points for each scored event.
-                </CardDescription>
-              </div>
-              <span className="text-xs font-mono text-[var(--text-muted)]">
-                {filteredVerificationList.length} Events With Scored Results
-              </span>
-            </CardHeader>
-          </Card>
-
-          {filteredVerificationList.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-[var(--text-muted)] text-sm">
-                No updated results found to verify. Enter scores in the Score Entry tab to audit them here.
-              </CardContent>
-            </Card>
-          ) : (
-            filteredVerificationList.map(agg => {
-              const item = agg.item;
-
-              return (
-                <Card key={agg.item_id} className="overflow-hidden">
-                  <div className="bg-[var(--bg-subtle)] px-6 py-4 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                        <Trophy className="w-4 h-4 text-amber-400" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                            {item?.item_code || item?.code}
-                          </span>
-                          <span className="font-bold text-sm text-[var(--text-primary)]">
-                            {item?.name_eng || item?.name}
-                          </span>
-                          <CategoryBadge category={item?.phase || item?.category || 'General'} />
-                        </div>
-                        {item?.name_mal && (
-                          <span className="text-[11px] text-[var(--text-muted)] mt-0.5 block">
-                            {item.name_mal}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-lg">
-                        Total {agg.totalPoints} Championship Pts
-                      </span>
-                      {agg.is_published ? (
-                        <Badge variant="success" size="sm" className="font-semibold">
-                          Published
-                        </Badge>
-                      ) : (
-                        <Badge variant="amber" size="sm" className="font-semibold">
-                          Draft
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <CardContent className="p-0 overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16 text-center">Rank</TableHead>
-                          <TableHead>Student Name</TableHead>
-                          <TableHead>College / Institution</TableHead>
-                          <TableHead>Chest No</TableHead>
-                          <TableHead className="text-center">Blind Code</TableHead>
-                          <TableHead className="text-center">Mark (%)</TableHead>
-                          <TableHead className="text-center">Grade</TableHead>
-                          <TableHead className="text-right">Points Got</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {agg.enrichedParticipants.map(p => (
-                          <TableRow key={p.id || p.code_letter} className="hover:bg-[var(--bg-hover)]">
-                            <TableCell className="text-center">
-                              {Number(p.rank) === 1 ? (
-                                <Badge variant="amber" size="sm" className="font-bold">
-                                  🥇 1st
-                                </Badge>
-                              ) : Number(p.rank) === 2 ? (
-                                <Badge variant="outline" size="sm" className="font-bold text-slate-600">
-                                  🥈 2nd
-                                </Badge>
-                              ) : Number(p.rank) === 3 ? (
-                                <Badge variant="secondary" size="sm" className="font-bold">
-                                  🥉 3rd
-                                </Badge>
-                              ) : (
-                                <span className="text-xs font-mono text-[var(--text-muted)]">
-                                  {p.rank ? `Rank ${p.rank}` : '—'}
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-bold text-xs text-[var(--text-primary)]">
-                                {p.studentName}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium text-xs text-[var(--text-primary)]">
-                                {p.collegeName}
-                              </div>
-                              <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                                {p.collegeCode}
-                              </span>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs font-bold text-[var(--text-primary)]">
-                              {p.displayChestNo}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--brand-navy)] text-white font-mono font-extrabold text-xs">
-                                {p.code_letter}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center font-mono text-xs font-semibold text-[var(--text-primary)]">
-                              {p.mark_percentage}%
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                                {p.grade || '—'}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className="font-mono font-extrabold text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-lg">
-                                {p.points} pts
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+        <ResultVerificationTab
+          verificationList={filteredVerificationList}
+        />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 -- Migration: 20261011000004_seed_max_participation_quotas.sql
--- Description: Seed festival category quotas into max_participation table
+-- Description: Seed fest category quotas into max_participation table
 
 INSERT INTO public.max_participation (phase, off_max, on_max, total_max, group_max)
 VALUES

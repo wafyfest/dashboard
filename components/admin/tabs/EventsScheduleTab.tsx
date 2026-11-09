@@ -237,28 +237,32 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+          <div className="bg-[var(--f-saffron)] text-[#090d1a] px-4 py-3 rounded-xl shadow-xl shadow-amber-500/20 [box-shadow:var(--shadow-card),var(--glass-highlight)] flex items-center gap-2.5 text-xs font-bold font-sans">
+            <CheckCircle2 className="w-4 h-4 text-[#090d1a]" />
             <span>{toastMessage}</span>
           </div>
         </div>
       )}
 
       {/* Header Banner */}
-      <Card>
+      <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)] border-[var(--border-subtle)]">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-emerald-500" />
-              Festival Events & Stage Schedule Matrix
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Configure stage allocations, performance timing, and operational live status for all catalog events.
-            </CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--f-saffron)] text-[#090d1a] flex items-center justify-center font-bold shadow-md shadow-amber-500/20 shrink-0">
+              <Calendar className="w-5 h-5 text-[#090d1a]" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold font-heading text-[var(--text-primary)] flex items-center gap-2">
+                Fest Events & Stage Schedule Matrix
+              </CardTitle>
+              <CardDescription className="text-xs text-[var(--text-secondary)] font-sans">
+                Configure stage allocations, performance timing, and operational live status for all catalog events.
+              </CardDescription>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3.5 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] font-medium">
-              Scheduled: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{schedules.length}</strong> / {items.length} Events
+            <div className="px-3.5 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] font-sans">
+              Scheduled: <strong className="text-[var(--f-saffron-text-strong)] font-mono tabular-nums font-bold">{schedules.length}</strong> / <span className="font-mono tabular-nums">{items.length}</span> Events
             </div>
           </div>
         </CardHeader>
@@ -268,13 +272,13 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-subtle)]">
             {/* Search Input */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search event code or title..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full pl-8 pr-3 py-1.5 text-xs font-sans bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
@@ -283,7 +287,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <select
                 value={selectedStageFilter}
                 onChange={e => setSelectedStageFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none pr-8"
+                className="w-full px-3 py-1.5 text-xs font-sans bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer appearance-none pr-8 transition-all"
               >
                 <option value="all">All Stages ({stages.length})</option>
                 {stages.map(st => (
@@ -292,7 +296,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             {/* Phase / Category Filter */}
@@ -300,7 +304,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <select
                 value={selectedPhaseFilter}
                 onChange={e => setSelectedPhaseFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none pr-8"
+                className="w-full px-3 py-1.5 text-xs font-sans bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer appearance-none pr-8 transition-all"
               >
                 <option value="all">All Categories</option>
                 {phaseOptions.map(cat => (
@@ -309,7 +313,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             {/* Status Filter */}
@@ -317,42 +321,42 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <select
                 value={selectedStatusFilter}
                 onChange={e => setSelectedStatusFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none pr-8"
+                className="w-full px-3 py-1.5 text-xs font-sans bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer appearance-none pr-8 transition-all"
               >
                 <option value="all">All Statuses</option>
                 <option value="Upcoming">Upcoming</option>
                 <option value="Starting_Soon">Starting Soon</option>
-                <option value="Next_Item">Next Item</option>
+                <option value="Next_Item">Next Event</option>
                 <option value="On_Going">Live / On Going</option>
                 <option value="Ended">Ended</option>
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Events Schedule Table */}
-      <Card>
+      <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)] border-[var(--border-subtle)]">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12 text-center">#</TableHead>
-                <TableHead>Item Code</TableHead>
-                <TableHead>English Name</TableHead>
-                <TableHead>Phase</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Starting Time</TableHead>
-                <TableHead>Ending Time</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right w-28">Actions</TableHead>
+            <TableHeader className="bg-[var(--bg-subtle)]">
+              <TableRow className="border-b border-[var(--border-subtle)]">
+                <TableHead className="w-12 text-center text-xs font-semibold text-[var(--text-secondary)]">#</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">Event Code</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">English Name</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">Phase</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">Stage</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">Starting Time</TableHead>
+                <TableHead className="text-xs font-semibold text-[var(--text-secondary)]">Ending Time</TableHead>
+                <TableHead className="text-center text-xs font-semibold text-[var(--text-secondary)]">Status</TableHead>
+                <TableHead className="text-right w-28 text-xs font-semibold text-[var(--text-secondary)]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-sm">
+                  <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-sm font-sans">
                     No events match the selected filters.
                   </TableCell>
                 </TableRow>
@@ -363,19 +367,19 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   const currentStatus = (sch?.status as StageStatus) || 'Upcoming';
 
                   return (
-                    <TableRow key={item.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                      <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
+                    <TableRow key={item.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)] transition-colors">
+                      <TableCell className="text-center font-mono tabular-nums text-[var(--text-muted)] text-xs">
                         {idx + 1}
                       </TableCell>
                       <TableCell className="font-mono font-bold text-xs text-[var(--text-primary)]">
                         {item.item_code || item.code || `ITM-${item.item_id}`}
                       </TableCell>
                       <TableCell>
-                        <div className="font-semibold text-xs text-[var(--text-primary)]">
+                        <div className="font-bold font-heading text-xs text-[var(--text-primary)]">
                           {item.name_eng || item.name}
                         </div>
                         {item.name_mal && (
-                          <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                          <div className="text-[11px] text-[var(--text-muted)] font-sans mt-0.5">
                             {item.name_mal}
                           </div>
                         )}
@@ -386,23 +390,23 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                       <TableCell>
                         {sch ? (
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[var(--text-primary)]">
+                            <span className="font-mono tabular-nums text-xs font-bold px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                               Stage {sch.stage_number}
                             </span>
                             {stageObj && (
-                              <span className="text-[11px] text-[var(--text-muted)] truncate max-w-[120px]" title={stageObj.name}>
+                              <span className="text-[11px] text-[var(--text-muted)] font-sans truncate max-w-[120px]" title={stageObj.name}>
                                 {stageObj.name.replace(/^Stage \d+:\s*/, '')}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-[var(--text-muted)] italic">Unassigned</span>
+                          <span className="text-xs text-[var(--text-muted)] italic font-sans">Unassigned</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      <TableCell className="text-xs font-mono tabular-nums text-[var(--f-saffron-text-strong)] font-semibold whitespace-nowrap">
                         {sch?.starting ? `${formatDate(sch.starting)} · ${formatTime(sch.starting)}` : 'TBD'}
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">
+                      <TableCell className="text-xs font-mono tabular-nums text-[var(--text-secondary)] whitespace-nowrap">
                         {sch?.ending ? `${formatDate(sch.ending)} · ${formatTime(sch.ending)}` : 'TBD'}
                       </TableCell>
                       <TableCell className="text-center">
@@ -410,7 +414,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                           <select
                             value={currentStatus}
                             onChange={e => handleQuickStatusChange(Number(item.item_id || item.id), e.target.value as StageStatus)}
-                            className="text-[11px] font-semibold py-1 px-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            className="text-[11px] font-sans font-semibold py-1 px-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
                           >
                             <option value="Upcoming">Upcoming</option>
                             <option value="Starting_Soon">Starting Soon</option>
@@ -425,7 +429,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                           size="xs"
                           variant="outline"
                           onClick={() => handleOpenEditModal(item)}
-                          className="gap-1.5 font-medium border-slate-300 dark:border-slate-700 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                          className="gap-1.5 font-medium border-[var(--border-medium)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--f-saffron)] hover:bg-[var(--bg-hover)]"
                         >
                           <Edit className="w-3.5 h-3.5" />
                           <span>Edit</span>
@@ -445,7 +449,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
         isOpen={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
         title={`Edit Schedule: ${editingItem?.name_eng || editingItem?.name}`}
-        description={`Item Code: ${editingItem?.item_code || editingItem?.code} · Category: ${editingItem?.phase || editingItem?.category}`}
+        description={`Event Code: ${editingItem?.item_code || editingItem?.code} · Category: ${editingItem?.phase || editingItem?.category}`}
         maxWidth="lg"
       >
         {editingItem && (
@@ -458,7 +462,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <select
                 value={editForm.stageNumber}
                 onChange={e => setEditForm({ ...editForm, stageNumber: parseInt(e.target.value, 10) })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium transition-all"
                 required
               >
                 {stages.map(st => (
@@ -479,7 +483,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   type="date"
                   value={editForm.startDate}
                   onChange={e => setEditForm({ ...editForm, startDate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono tabular-nums transition-all"
                   required
                 />
               </div>
@@ -491,7 +495,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   type="time"
                   value={editForm.startTime}
                   onChange={e => setEditForm({ ...editForm, startTime: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono tabular-nums transition-all"
                   required
                 />
               </div>
@@ -507,7 +511,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   type="date"
                   value={editForm.endDate}
                   onChange={e => setEditForm({ ...editForm, endDate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono tabular-nums transition-all"
                   required
                 />
               </div>
@@ -519,7 +523,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                   type="time"
                   value={editForm.endTime}
                   onChange={e => setEditForm({ ...editForm, endTime: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono tabular-nums transition-all"
                   required
                 />
               </div>
@@ -533,11 +537,11 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <select
                 value={editForm.status}
                 onChange={e => setEditForm({ ...editForm, status: e.target.value as StageStatus })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium transition-all"
               >
                 <option value="Upcoming">Upcoming</option>
                 <option value="Starting_Soon">Starting Soon</option>
-                <option value="Next_Item">Next Item</option>
+                <option value="Next_Item">Next Event</option>
                 <option value="On_Going">Live / On Going</option>
                 <option value="Ended">Ended</option>
               </select>
@@ -557,9 +561,9 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
               <Button
                 type="submit"
                 size="sm"
-                variant="primary"
+                variant="saffron"
                 disabled={isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                className="font-bold shadow-md shadow-amber-500/20"
               >
                 {isSaving ? 'Saving...' : 'Save Schedule'}
               </Button>

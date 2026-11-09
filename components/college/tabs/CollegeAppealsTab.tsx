@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { AppealStatusBadge } from '@/components/ui/badge';
+import { AppealStatusBadge, Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Appeal, Student, Item, College, Registration } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
@@ -184,14 +184,14 @@ export function CollegeAppealsTab({
 
   return (
     <div className="space-y-6">
-      {/* Top Segmented Tab Navigation - Clean dark/light theme styling */}
-      <div className="bg-slate-200/60 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-300/60 dark:border-slate-800/80 flex items-center shadow-2xs">
+      {/* Top Segmented Tab Navigation - Fest Saffron/Surface tokens */}
+      <div className="bg-[var(--bg-subtle)] p-1 rounded-2xl border border-[var(--border-subtle)] flex items-center shadow-xs">
         <button
           type="button"
           onClick={() => setActiveSubTab('form')}
-          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center ${activeSubTab === 'form'
-            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
-            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-heading rounded-xl transition-all duration-200 text-center cursor-pointer ${activeSubTab === 'form'
+            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm border border-[var(--border-subtle)] font-bold'
+            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] font-medium'
             }`}
         >
           Appeal Form
@@ -199,27 +199,35 @@ export function CollegeAppealsTab({
         <button
           type="button"
           onClick={() => setActiveSubTab('status')}
-          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeSubTab === 'status'
-            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700/60'
-            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          className={`flex-1 py-2.5 px-4 text-xs sm:text-sm font-heading rounded-xl transition-all duration-200 text-center flex items-center justify-center gap-2 cursor-pointer ${activeSubTab === 'status'
+            ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm border border-[var(--border-subtle)] font-bold'
+            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] font-medium'
             }`}
         >
           Appeal Status
           {appeals.length > 0 && (
-            <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-500/15 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full border border-blue-500/20">
+            <Badge variant="saffron" size="sm" className="font-mono font-bold">
               {appeals.length}
-            </span>
+            </Badge>
           )}
         </button>
       </div>
 
       {/* SUB-TAB 1: APPEAL FORM */}
       {activeSubTab === 'form' && (
-        <Card className="shadow-xs">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
             <div>
-              <CardTitle>Submit a New Appeal</CardTitle>
-              <CardDescription>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
+                </span>
+                <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+                  Submit a New Appeal
+                </CardTitle>
+              </div>
+              <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
                 Fill out the details below to submit a formal appeal for an event.
               </CardDescription>
             </div>
@@ -231,8 +239,8 @@ export function CollegeAppealsTab({
                 <div className="w-14 h-14 rounded-full bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 animate-bounce">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Appeal Submitted Successfully</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">
+                <h3 className="text-base font-bold font-heading text-[var(--text-primary)]">Appeal Submitted Successfully</h3>
+                <p className="text-xs font-sans text-[var(--text-secondary)] max-w-md">
                   Your formal appeal has been lodged with the Fest Executive Committee. Redirecting to Appeal Status...
                 </p>
               </div>
@@ -247,7 +255,7 @@ export function CollegeAppealsTab({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Name of the Participant - Dynamic filtering based on event selection */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Name of the Participant
                       {selectedItemId && availableStudents.length > 0 && (
                         <span className="ml-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
@@ -259,7 +267,7 @@ export function CollegeAppealsTab({
                       <select
                         value={selectedStudentId}
                         onChange={e => handleStudentSelect(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:focus:ring-blue-500/20 appearance-none transition-colors"
+                        className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                       >
                         {!selectedItemId ? (
                           <>
@@ -283,26 +291,26 @@ export function CollegeAppealsTab({
                           </>
                         )}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-[var(--text-muted)] absolute right-3 top-3 pointer-events-none" />
                     </div>
                   </div>
 
                   {/* Name of the College */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Name of the College
                     </label>
                     <input
                       type="text"
                       readOnly
                       value={collegeName}
-                      className="w-full bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide cursor-not-allowed select-none"
+                      className="w-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2.5 text-xs font-heading font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-not-allowed select-none"
                     />
                   </div>
 
                   {/* Chest No (Optional) */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Chest No (Optional)
                     </label>
                     <input
@@ -310,20 +318,20 @@ export function CollegeAppealsTab({
                       placeholder="Enter chest number if applicable"
                       value={chestNo}
                       onChange={e => setChestNo(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:focus:ring-blue-500/20 transition-colors"
+                      className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-mono font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-colors"
                     />
                   </div>
 
                   {/* Name of the Event */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Name of the Event
                     </label>
                     <div className="relative">
                       <select
                         value={selectedItemId}
                         onChange={e => handleItemSelect(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:focus:ring-blue-500/20 appearance-none transition-colors"
+                        className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                         required
                       >
                         <option value="">Select an event...</option>
@@ -333,14 +341,14 @@ export function CollegeAppealsTab({
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-[var(--text-muted)] absolute right-3 top-3 pointer-events-none" />
                     </div>
                   </div>
                 </div>
 
                 {/* Grounds and Brief Description of Appeal */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                     Grounds and Brief Description of Appeal
                   </label>
                   <textarea
@@ -348,7 +356,7 @@ export function CollegeAppealsTab({
                     placeholder="Provide a clear and concise reason for your appeal..."
                     value={grounds}
                     onChange={e => setGrounds(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:focus:ring-blue-500/20 transition-colors resize-none"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl p-3.5 text-xs font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-colors resize-none"
                     required
                   />
                 </div>
@@ -356,29 +364,29 @@ export function CollegeAppealsTab({
                 {/* Fee Payment Mode & Paid To */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Fee Payment Mode
                     </label>
                     <div className="flex items-center gap-6 pt-2">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800 dark:text-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-sans font-medium text-[var(--text-primary)]">
                         <input
                           type="radio"
                           name="paymentMode"
                           value="Cash"
                           checked={paymentMode === 'Cash'}
                           onChange={() => setPaymentMode('Cash')}
-                          className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500"
+                          className="w-4 h-4 text-[var(--f-saffron)] border-[var(--border-medium)] focus:ring-[var(--f-saffron)] accent-amber-500 cursor-pointer"
                         />
                         <span>Cash</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-800 dark:text-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-sans font-medium text-[var(--text-primary)]">
                         <input
                           type="radio"
                           name="paymentMode"
                           value="GPay"
                           checked={paymentMode === 'GPay'}
                           onChange={() => setPaymentMode('GPay')}
-                          className="w-4 h-4 text-blue-600 border-slate-300 dark:border-slate-700 focus:ring-blue-500"
+                          className="w-4 h-4 text-[var(--f-saffron)] border-[var(--border-medium)] focus:ring-[var(--f-saffron)] accent-amber-500 cursor-pointer"
                         />
                         <span>GPay</span>
                       </label>
@@ -386,38 +394,39 @@ export function CollegeAppealsTab({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Paid To
                     </label>
                     <div className="relative">
                       <select
                         value={paidTo}
                         onChange={e => setPaidTo(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:focus:ring-blue-500/20 appearance-none transition-colors"
+                        className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                       >
                         <option value="Fazil">Fazil</option>
                         <option value="Accounts Office">Accounts Office</option>
                         <option value="Convenor">Convenor</option>
                         <option value="Treasurer">Treasurer</option>
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-[var(--text-muted)] absolute right-3 top-3 pointer-events-none" />
                     </div>
                   </div>
                 </div>
 
                 {/* Form Buttons */}
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border-subtle)]">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={resetForm}
-                    className="border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 px-5 py-2 rounded-xl text-xs font-medium transition-colors"
+                    className="font-heading"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="bg-[#132238] hover:bg-[#1a2e4a] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-medium px-5 py-2 rounded-xl text-xs shadow-2xs transition-colors"
+                    variant="saffron"
+                    className="font-heading font-bold"
                   >
                     Submit Appeal
                   </Button>
@@ -430,67 +439,70 @@ export function CollegeAppealsTab({
 
       {/* SUB-TAB 2: APPEAL STATUS TABLE */}
       {activeSubTab === 'status' && (
-        <Card className="shadow-xs">
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div>
-              <CardTitle>Submitted Grievances & Appeals</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+                Submitted Grievances & Appeals
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
                 Track the status and admin decision for your institution&apos;s submitted appeals
               </CardDescription>
             </div>
             <Button
               size="sm"
+              variant="saffron"
               onClick={() => setActiveSubTab('form')}
-              className="bg-[#132238] hover:bg-[#1a2e4a] dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs font-medium px-3.5 rounded-xl"
+              className="font-heading font-bold"
             >
               + New Appeal
             </Button>
           </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
+          <CardContent className="space-y-4">
+            <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs font-semibold">Event</TableHead>
-                  <TableHead className="text-xs font-semibold">Participant / Chest No</TableHead>
-                  <TableHead className="text-xs font-semibold">Grounds & Description</TableHead>
-                  <TableHead className="text-xs font-semibold">Payment Details</TableHead>
-                  <TableHead className="text-xs font-semibold">Status</TableHead>
-                  <TableHead className="text-xs font-semibold">Admin Remarks</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Participant / Chest No</TableHead>
+                  <TableHead>Grounds & Description</TableHead>
+                  <TableHead>Payment Details</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Admin Remarks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {appeals.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-slate-500 dark:text-slate-400 text-xs">
+                    <TableCell colSpan={6} className="text-center py-12 text-[var(--text-muted)] text-xs">
                       No appeals filed by your institution. Click &quot;Appeal Form&quot; to submit a new appeal.
                     </TableCell>
                   </TableRow>
                 ) : (
                   appeals.map(a => (
                     <TableRow key={a.id}>
-                      <TableCell className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
-                        <div className="font-medium text-slate-900 dark:text-slate-100">
+                      <TableCell className="text-xs">
+                        <div className="font-heading font-bold text-[var(--text-primary)]">
                           {a.item?.name_eng || a.item?.name || `Item #${a.item_id}`}
                         </div>
                         {a.item?.code || a.item?.item_code ? (
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                          <div className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-semibold">
                             {a.item?.code || a.item?.item_code}
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-700 dark:text-slate-300">
-                        <div className="font-medium">{a.participant_name || 'N/A'}</div>
+                      <TableCell className="text-xs">
+                        <div className="font-heading font-semibold text-[var(--text-primary)]">{a.participant_name || 'N/A'}</div>
                         {a.chest_no && (
-                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                          <div className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-semibold">
                             CIC / Chest: {a.chest_no}
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-600 dark:text-slate-300 max-w-xs leading-relaxed">
+                      <TableCell className="text-xs text-[var(--text-secondary)] font-sans max-w-xs leading-relaxed">
                         {a.reason || a.reason_for_appeal || a.appeal_description || 'N/A'}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-600 dark:text-slate-300">
-                        <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                      <TableCell className="text-xs">
+                        <span className="inline-flex items-center gap-1 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] px-2 py-0.5 rounded-lg text-[11px] text-[var(--text-secondary)] font-sans">
                           {a.payment_mode || 'Cash'} {a.paid_to ? `• ${a.paid_to}` : ''}
                         </span>
                         {a.fee_receipt_url && (
@@ -499,7 +511,7 @@ export function CollegeAppealsTab({
                               href={a.fee_receipt_url}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-blue-600 dark:text-blue-400 text-[11px] hover:underline flex items-center gap-1"
+                              className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] text-[11px] hover:underline flex items-center gap-1 font-semibold"
                             >
                               <FileText className="w-3 h-3" /> Proof
                             </a>
@@ -509,7 +521,7 @@ export function CollegeAppealsTab({
                       <TableCell>
                         <AppealStatusBadge status={a.status || a.current_status || 'Pending'} />
                       </TableCell>
-                      <TableCell className="text-xs text-slate-500 dark:text-slate-400 italic">
+                      <TableCell className="text-xs text-[var(--text-muted)] italic font-sans">
                         {a.admin_remarks || 'Pending review'}
                       </TableCell>
                     </TableRow>

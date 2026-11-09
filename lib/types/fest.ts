@@ -482,7 +482,7 @@ export interface SystemAuditLog {
 }
 
 
-// ─── Festival Committee ───────────────────────────────────────────────────────
+// ─── Fest Committee ───────────────────────────────────────────────────────
 export interface CommitteeMember {
   id: string;
   name: string;

@@ -9,6 +9,7 @@ import { Badge, CategoryBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StageStatus } from '@/lib/types/fest';
 import { getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
+import { TilePattern } from '@/components/fest/FestPattern';
 import {
   Dices,
   ArrowLeft,
@@ -229,45 +230,49 @@ export function StageControllerResultView({
       {!selectedEventId && (
         <div className="space-y-6">
           {/* Stage Banner */}
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-xl shadow-sm border border-slate-700/30">
-                <Radio className="w-7 h-7 text-emerald-400" />
+          <div className="relative overflow-hidden bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 sm:p-6 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all">
+            <TilePattern id="stage-venue-pattern" className="opacity-10 text-[var(--f-saffron)]" />
+
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="relative w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] flex items-center justify-center font-bold shadow-2xs shrink-0">
+                <Radio className="w-7 h-7 text-[var(--f-saffron-text)] animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] ring-2 ring-[var(--bg-surface)]" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-mono tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] uppercase font-mono tracking-widest text-[var(--f-saffron-text)] font-extrabold flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_6px_var(--f-saffron)] animate-pulse" />
                     STAGE {currentStage?.stage_number}
                   </span>
-                  <Badge variant="navy" size="sm">Active Venue</Badge>
+                  <Badge variant="saffron" size="sm" className="font-semibold">Active Venue</Badge>
                 </div>
-                <h2 className="text-xl font-bold text-[var(--text-primary)] mt-0.5">
+                <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-[var(--text-primary)] tracking-tight mt-0.5">
                   {currentStage?.name || `Stage ${currentStageNumber}`}
                 </h2>
-                <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-1">
-                  <MapPin className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                  <span>{currentStage?.location || 'Campus Festival Ground'}</span>
+                <p className="text-xs font-sans text-[var(--text-secondary)] flex items-center gap-1.5 mt-1">
+                  <MapPin className="w-3.5 h-3.5 text-[var(--f-saffron-text)]" />
+                  <span>{currentStage?.location || 'Campus Fest Ground'}</span>
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="relative z-10 flex items-center gap-3">
               <div className="px-4 py-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-right">
-                <span className="block text-[11px] font-semibold text-[var(--text-muted)] uppercase">Events Scheduled</span>
+                <span className="block text-[11px] font-heading font-semibold text-[var(--text-muted)] uppercase tracking-wider">Events Scheduled</span>
                 <span className="text-lg font-extrabold text-[var(--text-primary)] font-mono">{stageSchedules.length}</span>
               </div>
             </div>
           </div>
 
           {/* Events Schedule Table */}
-          <Card>
+          <Card className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
               <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-emerald-500" />
+                <CardTitle className="text-base font-heading font-extrabold flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[var(--f-saffron)]" />
                   Scheduled Events on {currentStage?.name}
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs font-sans">
                   Click on any event row to view registered participants and allocate anonymous blind code letters (A, B, C...)
                 </CardDescription>
               </div>
@@ -277,21 +282,21 @@ export function StageControllerResultView({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12 text-center">#</TableHead>
-                    <TableHead>Event Code</TableHead>
-                    <TableHead>English Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time Start</TableHead>
-                    <TableHead>Time End</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Code Letters</TableHead>
+                    <TableHead className="w-12 text-center font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">#</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Event Code</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">English Name</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Category</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Date</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Time Start</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Time End</TableHead>
+                    <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Status</TableHead>
+                    <TableHead className="text-center font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Code Letters</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {stageSchedules.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-sm">
+                      <TableCell colSpan={9} className="text-center py-12 text-[var(--text-muted)] text-sm font-sans">
                         No events are currently scheduled for this stage in the schedule table.
                       </TableCell>
                     </TableRow>
@@ -306,18 +311,18 @@ export function StageControllerResultView({
                           className="hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
                           onClick={() => setSelectedEventId(Number(sch.item_id))}
                         >
-                          <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
+                          <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs font-mono">
                             {idx + 1}
                           </TableCell>
-                          <TableCell className="font-mono font-bold text-[var(--text-primary)]">
+                          <TableCell className="font-mono font-bold text-xs text-[var(--text-primary)]">
                             {item?.item_code || item?.code || `ITM-${sch.item_id}`}
                           </TableCell>
                           <TableCell>
-                            <div className="font-semibold text-[var(--text-primary)]">
-                              {item?.name_eng || item?.name || 'Festival Event'}
+                            <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
+                              {item?.name_eng || item?.name || 'Fest Event'}
                             </div>
                             {item?.name_mal && (
-                              <div className="text-[11px] text-[var(--text-muted)] mt-0.5 font-normal">
+                              <div className="text-[11px] font-sans text-[var(--text-muted)] mt-0.5 font-normal">
                                 {item.name_mal}
                               </div>
                             )}
@@ -325,10 +330,10 @@ export function StageControllerResultView({
                           <TableCell>
                             <CategoryBadge category={item?.phase || item?.category || 'General'} />
                           </TableCell>
-                          <TableCell className="text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap">
+                          <TableCell className="text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap font-sans">
                             {formatDate(sch.starting)}
                           </TableCell>
-                          <TableCell className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                          <TableCell className="text-xs font-mono font-semibold text-[var(--f-saffron-text)] whitespace-nowrap">
                             {formatTime(sch.starting)}
                           </TableCell>
                           <TableCell className="text-xs font-mono text-[var(--text-secondary)] whitespace-nowrap">
@@ -346,11 +351,11 @@ export function StageControllerResultView({
                               value={sch.status || 'Upcoming'}
                               onChange={(e) => handleStatusChange(Number(sch.item_id), e.target.value as StageStatus)}
                               disabled={isProcessing}
-                              className="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs hover:border-emerald-400"
+                              className="text-xs font-heading font-semibold rounded-xl px-2.5 py-1.5 border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 focus:outline-none shadow-2xs"
                             >
                               <option value="Upcoming">Upcoming</option>
                               <option value="Starting_Soon">Starting Soon</option>
-                              <option value="Next_Item">Next Item</option>
+                              <option value="Next_Item">Next Event</option>
                               <option value="On_Going">On Going (Live)</option>
                               <option value="Ended">Ended</option>
                             </select>
@@ -359,7 +364,7 @@ export function StageControllerResultView({
                             {sch.registrationsCount === 0 ? (
                               <span className="text-[11px] text-[var(--text-muted)] font-mono">0/0</span>
                             ) : isComplete ? (
-                              <Badge variant="success" size="sm" className="font-mono font-bold">
+                              <Badge variant="saffron" size="sm" className="font-mono font-bold">
                                 {sch.allocatedCount}/{sch.registrationsCount}
                               </Badge>
                             ) : sch.allocatedCount > 0 ? (
@@ -390,7 +395,7 @@ export function StageControllerResultView({
           <div className="flex items-center justify-between">
             <button
               onClick={() => setSelectedEventId(null)}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-500 bg-[var(--bg-surface)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--f-saffron-text)] hover:border-[var(--f-saffron)] bg-[var(--bg-surface)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back to {currentStage?.name} Events</span>
@@ -407,24 +412,24 @@ export function StageControllerResultView({
                 }
               }}
               disabled={isLoadingParticipants}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-emerald-600 bg-[var(--bg-surface)] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--f-saffron-text)] hover:border-[var(--f-saffron)] bg-[var(--bg-surface)] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] shadow-2xs transition-colors cursor-pointer"
               title="Refresh participants and code letters"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingParticipants ? 'animate-spin text-emerald-500' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingParticipants ? 'animate-spin text-[var(--f-saffron)]' : ''}`} />
               <span>Refresh Roster</span>
             </button>
           </div>
 
           {/* Event Header Card */}
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 shadow-sm">
+          <div className="relative overflow-hidden bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[var(--brand-navy)] text-white flex items-center justify-center font-bold text-xl shadow-sm border border-slate-700/30 shrink-0">
-                  <Dices className="w-7 h-7 text-emerald-400" />
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] flex items-center justify-center font-bold text-xl shadow-2xs shrink-0">
+                  <Dices className="w-7 h-7 text-[var(--f-saffron-text)]" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-lg">
+                    <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
                       {selectedItem.item_code || selectedItem.code}
                     </span>
                     <CategoryBadge category={selectedItem.phase || selectedItem.category} />
@@ -432,11 +437,11 @@ export function StageControllerResultView({
                       {selectedItem.point_type === 'group' ? 'Group Event' : 'Single Event'}
                     </Badge>
                   </div>
-                  <h2 className="text-2xl font-bold text-[var(--text-primary)] mt-1.5">
+                  <h2 className="text-2xl font-heading font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
                     {selectedItem.name_eng || selectedItem.name}
                   </h2>
                   {selectedItem.name_mal && (
-                    <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                    <p className="text-sm font-sans text-[var(--text-secondary)] mt-0.5">
                       {selectedItem.name_mal}
                     </p>
                   )}
@@ -446,12 +451,12 @@ export function StageControllerResultView({
               {/* Event Timing & Allocation Stats */}
               <div className="flex items-center gap-4 bg-[var(--bg-subtle)] p-4 rounded-xl border border-[var(--border-subtle)] flex-wrap sm:flex-nowrap">
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Scheduled Time</span>
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">Scheduled Time</span>
                   <span className="text-xs font-mono font-bold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
-                    <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                    <Clock className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                     {formatTime(selectedSchedule?.starting)} - {formatTime(selectedSchedule?.ending)}
                     {checkIsOverrun(selectedSchedule?.ending, selectedSchedule?.status) && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 animate-pulse">
                         <AlertTriangle className="w-3 h-3 text-amber-500" /> Overrun
                       </span>
                     )}
@@ -459,7 +464,7 @@ export function StageControllerResultView({
                 </div>
                 <div className="h-8 w-px bg-[var(--border-subtle)] hidden sm:block" />
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Letter Pool</span>
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">Letter Pool</span>
                   <span className="text-xs font-mono font-bold text-[var(--text-primary)]">
                     {eventParticipants.length > 0
                       ? `A to ${String.fromCharCode(64 + Math.min(eventParticipants.length, 26))}`
@@ -468,24 +473,24 @@ export function StageControllerResultView({
                 </div>
                 <div className="h-8 w-px bg-[var(--border-subtle)] hidden sm:block" />
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Allocated</span>
-                  <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">Allocated</span>
+                  <span className="text-xs font-mono font-bold text-[var(--f-saffron-text)]">
                     {eventParticipants.filter(p => Boolean(p.codeLetter)).length} / {eventParticipants.length}
                   </span>
                 </div>
                 <div className="h-8 w-px bg-[var(--border-subtle)] hidden sm:block" />
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">Stage Status</span>
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block mb-1">Stage Status</span>
                   <div className="flex items-center gap-2">
                     <select
                       value={selectedSchedule?.status || 'Upcoming'}
                       onChange={(e) => handleStatusChange(Number(selectedItem.item_id), e.target.value as StageStatus)}
                       disabled={isProcessing}
-                      className="text-xs font-bold rounded-lg px-2.5 py-1 border border-emerald-400/60 dark:border-emerald-700 bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer shadow-2xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="text-xs font-heading font-bold rounded-xl px-2.5 py-1.5 border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] cursor-pointer shadow-2xs focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 focus:outline-none"
                     >
                       <option value="Upcoming">Upcoming</option>
                       <option value="Starting_Soon">Starting Soon</option>
-                      <option value="Next_Item">Next Item</option>
+                      <option value="Next_Item">Next Event</option>
                       <option value="On_Going">On Going (Live)</option>
                       <option value="Ended">Ended</option>
                     </select>
@@ -496,14 +501,14 @@ export function StageControllerResultView({
           </div>
 
           {/* Participants Table with Individual Random Selection & Verification Modal */}
-          <Card>
+          <Card className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
               <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="w-4 h-4 text-emerald-500" />
+                <CardTitle className="text-base font-heading font-extrabold flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[var(--f-saffron)]" />
                   Registered Participants & Code Letters
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs font-sans">
                   Click on a student row or the &quot;Draw Code&quot; button to verify participant credentials and allocate their anonymous blind code letter.
                 </CardDescription>
               </div>
@@ -512,8 +517,8 @@ export function StageControllerResultView({
             <CardContent className="p-0 overflow-x-auto">
               {isLoadingParticipants ? (
                 <div className="py-16 text-center space-y-3">
-                  <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto" />
-                  <p className="text-xs text-[var(--text-muted)]">
+                  <Loader2 className="w-8 h-8 text-[var(--f-saffron)] animate-spin mx-auto" />
+                  <p className="text-xs font-sans text-[var(--text-muted)]">
                     Loading registered participants and code letters from Supabase database...
                   </p>
                 </div>
@@ -521,19 +526,19 @@ export function StageControllerResultView({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12 text-center">#</TableHead>
-                      <TableHead>Student Name</TableHead>
-                      <TableHead>College / Institution</TableHead>
-                      <TableHead>Chest No</TableHead>
-                      <TableHead>Adm / CIC No</TableHead>
-                      <TableHead className="text-center">Assigned Code Letter</TableHead>
-                      <TableHead className="text-right w-44">Action</TableHead>
+                      <TableHead className="w-12 text-center font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">#</TableHead>
+                      <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Student Name</TableHead>
+                      <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">College / Institution</TableHead>
+                      <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Chest No</TableHead>
+                      <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Adm / CIC No</TableHead>
+                      <TableHead className="text-center font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Assigned Code Letter</TableHead>
+                      <TableHead className="text-right w-44 font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {eventParticipants.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-12 text-[var(--text-muted)] text-sm">
+                        <TableCell colSpan={7} className="text-center py-12 text-[var(--text-muted)] text-sm font-sans">
                           No students are currently registered for this event in the registrations table.
                         </TableCell>
                       </TableRow>
@@ -549,26 +554,26 @@ export function StageControllerResultView({
                             className="hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
                             onClick={() => setVerifyingParticipant(p)}
                           >
-                            <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs">
+                            <TableCell className="text-center font-medium text-[var(--text-muted)] text-xs font-mono">
                               {idx + 1}
                             </TableCell>
                             <TableCell>
-                              <div className="font-semibold text-[var(--text-primary)]">
+                              <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
                                 {student?.full_name || student?.name || `Participant (${p.canonicalChestNo || p.chestNo})`}
                               </div>
-                              <span className="text-[11px] text-[var(--text-muted)]">
+                              <span className="text-[11px] font-sans text-[var(--text-muted)]">
                                 {student?.category || student?.phase || selectedItem.phase || 'Senior'}
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="font-medium text-xs text-[var(--text-primary)]">
+                              <div className="font-medium text-xs font-sans text-[var(--text-primary)]">
                                 {college?.name || `College #${p.registration.college_affl_no}`}
                               </div>
                               <span className="text-[10px] font-mono text-[var(--text-muted)]">
                                 Affl No: {p.registration.college_affl_no}
                               </span>
                             </TableCell>
-                            <TableCell className="font-mono font-bold text-xs text-slate-700 dark:text-slate-300">
+                            <TableCell className="font-mono font-bold text-xs text-[var(--text-primary)]">
                               {p.canonicalChestNo}
                             </TableCell>
                             <TableCell className="font-mono text-xs text-[var(--text-secondary)]">
@@ -576,8 +581,8 @@ export function StageControllerResultView({
                             </TableCell>
                             <TableCell className="text-center">
                               {hasCode ? (
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[var(--f-saffron-text)]">
+                                  <Sparkles className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                                   <span className="font-mono text-base font-extrabold tracking-wider">
                                     {p.codeLetter}
                                   </span>
@@ -595,18 +600,18 @@ export function StageControllerResultView({
                                     size="xs"
                                     variant="outline"
                                     onClick={() => setVerifyingParticipant(p)}
-                                    className="gap-1.5 font-semibold border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                    className="gap-1.5 font-heading font-semibold border-amber-500/40 text-[var(--f-saffron-text)] hover:bg-amber-500/10 rounded-xl"
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                                     <span>Verified ({p.codeLetter})</span>
                                   </Button>
                                 ) : (
                                   <Button
                                     size="xs"
-                                    variant="primary"
+                                    variant="saffron"
                                     disabled={isProcessing}
                                     onClick={() => setVerifyingParticipant(p)}
-                                    className="gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs cursor-pointer"
+                                    className="gap-1.5 font-heading font-bold shadow-sm cursor-pointer rounded-xl"
                                   >
                                     <Dices className="w-3.5 h-3.5" />
                                     <span>Draw Code</span>
@@ -628,19 +633,19 @@ export function StageControllerResultView({
 
       {/* Participant Verification & Single Lot Draw Modal Popup */}
       {activeVerifyingParticipant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-[var(--bg-surface)] w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-elevated)] w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-elevated),var(--glass-highlight)] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-6 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-subtle)]">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-[var(--bg-subtle)] to-transparent">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-[var(--f-saffron-text)] border border-amber-500/30 flex items-center justify-center">
                   <UserCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                  <h3 className="text-base font-heading font-bold text-[var(--text-primary)]">
                     Participant Verification
                   </h3>
-                  <p className="text-xs text-[var(--text-muted)]">
+                  <p className="text-xs font-sans text-[var(--text-muted)]">
                     Confirm scholar identity before drawing random code letter
                   </p>
                 </div>
@@ -648,6 +653,7 @@ export function StageControllerResultView({
               <button
                 onClick={() => setVerifyingParticipant(null)}
                 className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                aria-label="Close participant verification"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -657,14 +663,14 @@ export function StageControllerResultView({
             <div className="p-6 space-y-5">
               <div className="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs">
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Candidate Name</span>
-                  <span className="font-bold text-[var(--text-primary)] text-sm mt-0.5 block">
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">Candidate Name</span>
+                  <span className="font-heading font-bold text-[var(--text-primary)] text-sm mt-0.5 block">
                     {activeVerifyingParticipant.student?.full_name || activeVerifyingParticipant.student?.name || `Participant (${activeVerifyingParticipant.canonicalChestNo})`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">College / Institution</span>
-                  <span className="font-semibold text-[var(--text-primary)] mt-0.5 block truncate">
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">College / Institution</span>
+                  <span className="font-semibold text-[var(--text-primary)] font-sans mt-0.5 block truncate">
                     {activeVerifyingParticipant.college?.name || `College #${activeVerifyingParticipant.registration.college_affl_no}`}
                   </span>
                   <span className="text-[10px] font-mono text-[var(--text-muted)]">
@@ -672,21 +678,21 @@ export function StageControllerResultView({
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">Chest Number</span>
-                  <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">Chest Number</span>
+                  <span className="font-mono font-bold text-sm text-[var(--f-saffron-text)] mt-0.5 block">
                     {activeVerifyingParticipant.canonicalChestNo || activeVerifyingParticipant.chestNo}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)] block">CIC / Admission No</span>
+                  <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] block">CIC / Admission No</span>
                   <span className="font-mono font-semibold text-[var(--text-primary)] mt-0.5 block">
                     {activeVerifyingParticipant.admissionNo || 'N/A'}
                   </span>
                 </div>
                 <div className="col-span-2 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-semibold text-[var(--text-muted)] block">Event</span>
-                    <span className="font-semibold text-[var(--text-primary)]">
+                    <span className="text-[10px] font-heading font-semibold text-[var(--text-muted)] block">Event</span>
+                    <span className="font-sans font-semibold text-[var(--text-primary)]">
                       {selectedItem?.item_code}: {selectedItem?.name_eng || selectedItem?.name}
                     </span>
                   </div>
@@ -696,15 +702,15 @@ export function StageControllerResultView({
 
               {/* Status Section */}
               {activeVerifyingParticipant.codeLetter ? (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-600 text-white font-mono font-extrabold text-2xl shadow-sm">
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[var(--f-saffron)] text-[#090d1a] font-mono font-extrabold text-2xl shadow-md shadow-amber-500/25">
                     {activeVerifyingParticipant.codeLetter}
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                    <span className="text-xs font-heading font-bold text-[var(--f-saffron-text)] block">
                       Code Letter Allotted: {activeVerifyingParticipant.codeLetter}
                     </span>
-                    <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                    <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1">
                       This participant has drawn their lot. Code letters are saved to the database. Re-rolls and resets are disabled.
                     </p>
                   </div>
@@ -712,9 +718,9 @@ export function StageControllerResultView({
               ) : (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
                   <div className="flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <span className="font-bold text-amber-800 dark:text-amber-300 block">
+                    <Sparkles className="w-4 h-4 text-[var(--f-saffron)] shrink-0 mt-0.5" />
+                    <div className="text-xs font-sans">
+                      <span className="font-heading font-bold text-[var(--f-saffron-text)] block">
                         One-Time Random Lot Draw
                       </span>
                       <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
@@ -732,14 +738,14 @@ export function StageControllerResultView({
                 variant="outline"
                 size="sm"
                 onClick={() => setVerifyingParticipant(null)}
-                className="text-xs"
+                className="text-xs font-heading"
               >
                 {activeVerifyingParticipant.codeLetter ? 'Done' : 'Cancel'}
               </Button>
 
               {!activeVerifyingParticipant.codeLetter && (
                 <Button
-                  variant="primary"
+                  variant="saffron"
                   size="sm"
                   disabled={isProcessing}
                   onClick={() =>
@@ -748,7 +754,7 @@ export function StageControllerResultView({
                       activeVerifyingParticipant.registration.college_affl_no
                     )
                   }
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs font-semibold shadow-sm cursor-pointer"
+                  className="gap-2 text-xs font-heading font-bold shadow-md cursor-pointer"
                 >
                   {isProcessing ? (
                     <>

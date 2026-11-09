@@ -511,17 +511,17 @@ export function CollegeVolunteersTab({
   return (
     <div className="space-y-6">
       {/* Top Banner Notice: Aliya & PG Phase Scoping */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card backdrop-blur-md">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#132238] dark:bg-[#1A2E4A] text-white flex items-center justify-center shrink-0 shadow-xs border border-[#1E3558] dark:border-[#2E476B]/60">
-            <HeartHandshake className="w-5 h-5 text-emerald-400" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20 border border-amber-500/30">
+            <HeartHandshake className="w-5 h-5 text-[#090d1a]" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+              <h3 className="text-sm sm:text-base font-bold font-heading text-[var(--text-primary)]">
                 Volunteer Registration (Aliya & PG Phases)
               </h3>
-              <Badge variant="navy" size="sm">
+              <Badge variant="saffron" size="sm" className="font-heading font-bold">
                 Senior & PG Wings
               </Badge>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -529,7 +529,7 @@ export function CollegeVolunteersTab({
                 Live Sync
               </span>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            <p className="text-xs font-sans text-[var(--text-secondary)] mt-0.5">
               Only scholars enrolled in the <strong>Aliya or PG phases</strong> ({college?.name || `College #${collegeAfflNo}`}) are eligible for official Fest Volunteer duties.
             </p>
           </div>
@@ -549,10 +549,10 @@ export function CollegeVolunteersTab({
           </Button>
 
           <Button
-            variant="outline"
+            variant="saffron"
             size="sm"
             onClick={handlePrintRoster}
-            className="text-xs"
+            className="text-xs font-heading font-bold"
           >
             <Printer className="w-3.5 h-3.5 mr-1.5" />
             Print Volunteer List
@@ -562,63 +562,63 @@ export function CollegeVolunteersTab({
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Eligible Scholars
             </span>
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] flex items-center justify-center border border-amber-500/20">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono">
             {eligibleStudents.length}
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             {aliyaCount} Aliya {pgCount > 0 ? `• ${pgCount} PG` : ''}
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
               Registered Volunteers
             </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
             {registeredCount}
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             Assigned to active fest duties
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Available to Register
             </span>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center border border-sky-500/20">
               <UserPlus className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono">
             {availableCount}
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             Unassigned Aliya/PG scholars
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-heading font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Enrolled Ratio
             </span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] flex items-center justify-center border border-amber-500/20">
               <Award className="w-4 h-4" />
             </div>
           </div>
@@ -630,7 +630,7 @@ export function CollegeVolunteersTab({
           </div>
           <div className="w-full bg-[var(--bg-subtle)] rounded-full h-1.5 mt-2 overflow-hidden border border-[var(--border-subtle)]">
             <div
-              className="bg-[#132238] dark:bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
+              className="bg-[var(--f-saffron)] h-1.5 rounded-full transition-all duration-300"
               style={{ width: `${Math.min(100, (registeredCount / Math.max(1, eligibleStudents.length)) * 100)}%` }}
             />
           </div>
@@ -638,11 +638,11 @@ export function CollegeVolunteersTab({
       </div>
 
       {/* Main Table Card */}
-      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card overflow-hidden">
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] shadow-card overflow-hidden">
         <CardHeader className="p-4 sm:p-5 border-b border-[var(--border-subtle)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-              <HeartHandshake className="w-4 h-4 text-[#132238] dark:text-slate-300" />
+            <CardTitle className="text-sm sm:text-base font-bold font-heading text-[var(--text-primary)] flex items-center gap-2">
+              <HeartHandshake className="w-4 h-4 text-[var(--f-saffron)]" />
               Aliya & PG Volunteer Directory
               <span className="px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                 {displayedStudents.length} Scholars
@@ -661,10 +661,10 @@ export function CollegeVolunteersTab({
               </span>
               <Button
                 size="sm"
-                variant="success"
+                variant="saffron"
                 onClick={handleBatchRegister}
                 disabled={isSubmitting}
-                className="text-xs h-8"
+                className="text-xs h-8 font-heading font-bold"
               >
                 <UserPlus className="w-3.5 h-3.5 mr-1.5" />
                 Register Selected
@@ -673,7 +673,7 @@ export function CollegeVolunteersTab({
                 size="sm"
                 variant="ghost"
                 onClick={() => setSelectedStudentIds(new Set())}
-                className="text-xs h-8 text-[var(--text-muted)]"
+                className="text-xs h-8 text-[var(--text-muted)] font-heading"
               >
                 Clear
               </Button>
@@ -691,7 +691,7 @@ export function CollegeVolunteersTab({
               placeholder="Search scholar by name, CIC No, class, or phase..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238] font-medium"
+              className="w-full pl-9 pr-8 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans font-medium"
             />
             {searchQuery && (
               <button
@@ -704,12 +704,12 @@ export function CollegeVolunteersTab({
           </div>
 
           {/* Phase Segmented Filter */}
-          <div className="flex items-center rounded-lg p-0.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs">
+          <div className="flex items-center rounded-xl p-0.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs font-heading">
             <button
               onClick={() => setPhaseFilter('all')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 phaseFilter === 'all'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -717,9 +717,9 @@ export function CollegeVolunteersTab({
             </button>
             <button
               onClick={() => setPhaseFilter('aliya')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 phaseFilter === 'aliya'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -728,9 +728,9 @@ export function CollegeVolunteersTab({
             {pgCount > 0 && (
               <button
                 onClick={() => setPhaseFilter('pg')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                   phaseFilter === 'pg'
-                    ? 'bg-amber-600 text-white shadow-xs'
+                    ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -740,12 +740,12 @@ export function CollegeVolunteersTab({
           </div>
 
           {/* Status Segmented Filter */}
-          <div className="flex items-center rounded-lg p-0.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs">
+          <div className="flex items-center rounded-xl p-0.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs font-heading">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 statusFilter === 'all'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -753,9 +753,9 @@ export function CollegeVolunteersTab({
             </button>
             <button
               onClick={() => setStatusFilter('registered')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 statusFilter === 'registered'
-                  ? 'bg-emerald-600 text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -763,9 +763,9 @@ export function CollegeVolunteersTab({
             </button>
             <button
               onClick={() => setStatusFilter('unregistered')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 statusFilter === 'unregistered'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -813,7 +813,7 @@ export function CollegeVolunteersTab({
                         setSelectedStudentIds(new Set());
                       }
                     }}
-                    className="rounded border-[var(--border-medium)] text-[#132238] focus:ring-[#132238]/30 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 w-3.5 h-3.5 cursor-pointer"
                   />
                 </TableHead>
                 <TableHead className="w-12 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">#</TableHead>
@@ -833,10 +833,10 @@ export function CollegeVolunteersTab({
                       <div className="w-12 h-12 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] flex items-center justify-center mx-auto border border-[var(--border-subtle)]">
                         <HeartHandshake className="w-6 h-6" />
                       </div>
-                      <div className="text-sm font-semibold text-[var(--text-primary)]">
+                      <div className="text-sm font-semibold font-heading text-[var(--text-primary)]">
                         No Scholars Match Filter
                       </div>
-                      <p className="text-xs text-[var(--text-muted)]">
+                      <p className="text-xs text-[var(--text-muted)] font-sans">
                         {searchQuery
                           ? `No scholars found matching "${searchQuery}".`
                           : 'No Aliya or PG scholars match the selected filter criteria.'}
@@ -886,7 +886,7 @@ export function CollegeVolunteersTab({
                             else copy.delete(student.id);
                             setSelectedStudentIds(copy);
                           }}
-                          className="rounded border-[var(--border-medium)] text-[#132238] focus:ring-[#132238]/30 w-3.5 h-3.5 disabled:opacity-30 cursor-pointer"
+                          className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 w-3.5 h-3.5 disabled:opacity-30 cursor-pointer"
                         />
                       </TableCell>
 
@@ -901,22 +901,22 @@ export function CollegeVolunteersTab({
                           <div
                             className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 border ${
                               isPg
-                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                                : 'bg-[#132238]/10 dark:bg-[#1A2E4A] text-[#132238] dark:text-slate-200 border-[#132238]/20'
+                                ? 'bg-amber-500/15 text-amber-900 dark:text-amber-300 border-amber-500/30'
+                                : 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-subtle)]'
                             }`}
                           >
                             {(student.name || student.full_name || 'S').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                            <div className="text-xs font-bold font-heading text-[var(--text-primary)] flex items-center gap-1.5">
                               {student.name || student.full_name}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span
-                                className={`font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
+                                className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border ${
                                   isPg
                                     ? 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
-                                    : 'text-[#132238] dark:text-slate-300 bg-[var(--bg-subtle)] border-[var(--border-subtle)]'
+                                    : 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] bg-amber-500/10 border-amber-500/20'
                                 }`}
                               >
                                 {getCanonicalChestNo(student)}
@@ -1031,9 +1031,9 @@ export function CollegeVolunteersTab({
                         ) : (
                           <Button
                             size="xs"
-                            variant="primary"
+                            variant="saffron"
                             onClick={() => handleOpenRegister(student)}
-                            className="font-semibold text-xs"
+                            className="font-heading font-bold text-xs"
                           >
                             <HeartHandshake className="w-3.5 h-3.5 mr-1" />
                             Register
@@ -1069,19 +1069,19 @@ export function CollegeVolunteersTab({
               return (
                 <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between">
                   <div>
-                    <div className="text-xs font-bold text-[var(--text-primary)]">
+                    <div className="text-xs font-bold font-heading text-[var(--text-primary)]">
                       {targetStudent.name || targetStudent.full_name}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-mono text-xs font-semibold text-[#132238] dark:text-slate-300">
+                      <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                         {getCanonicalChestNo(targetStudent)}
                       </span>
-                      <span className="text-[10px] text-[var(--text-muted)]">
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">
                         Class: {targetStudent.class || (isModalPg ? 'PG' : 'AL')}
                       </span>
                     </div>
                   </div>
-                  <Badge variant={isModalPg ? 'warning' : 'navy'} size="sm">
+                  <Badge variant={isModalPg ? 'category-pg' : 'category-aliya'} size="sm">
                     {isModalPg ? 'PG Phase' : 'Aliya Phase'}
                   </Badge>
                 </div>
@@ -1090,13 +1090,13 @@ export function CollegeVolunteersTab({
 
             {/* Duty Selection */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
                 Volunteer Duty Assignment <span className="text-rose-500">*</span>
               </label>
               <select
                 value={dutyPreference}
                 onChange={e => setDutyPreference(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               >
                 {VOLUNTEER_DUTIES.map(duty => (
@@ -1110,7 +1110,7 @@ export function CollegeVolunteersTab({
             {/* Contact Phone & T-Shirt Size */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
                   Contact Phone / WhatsApp
                 </label>
                 <div className="relative">
@@ -1120,13 +1120,13 @@ export function CollegeVolunteersTab({
                     placeholder="e.g. 9847123456"
                     value={contactPhone}
                     onChange={e => setContactPhone(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
                   Fest T-Shirt Size
                 </label>
                 <div className="flex items-center gap-1.5">
@@ -1135,10 +1135,10 @@ export function CollegeVolunteersTab({
                       key={size}
                       type="button"
                       onClick={() => setTshirtSize(size)}
-                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition-all ${
                         tshirtSize === size
-                          ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white border-[#132238] dark:border-[#2E476B]'
-                          : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-amber-500 shadow-xs'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-medium)] hover:bg-[var(--bg-subtle)]'
                       }`}
                     >
                       {size}
@@ -1150,7 +1150,7 @@ export function CollegeVolunteersTab({
 
             {/* Special Skills / Notes */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
                 Special Skills / Notes (Optional)
               </label>
               <textarea
@@ -1158,7 +1158,7 @@ export function CollegeVolunteersTab({
                 placeholder="e.g., Fluent in Arabic/English, First Aid, Sound & Audio mixer experience..."
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
               />
             </div>
 
@@ -1169,16 +1169,16 @@ export function CollegeVolunteersTab({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsModalOpen(false)}
-                className="text-xs"
+                className="text-xs font-heading"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                variant="primary"
+                variant="saffron"
                 size="sm"
                 disabled={isSubmitting}
-                className="text-xs font-semibold"
+                className="text-xs font-heading font-bold"
               >
                 {isSubmitting ? (
                   'Saving...'

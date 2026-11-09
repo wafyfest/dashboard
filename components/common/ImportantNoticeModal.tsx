@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Announcement, NoticePriority } from '@/lib/types/fest';
@@ -30,13 +31,37 @@ export function ImportantNoticeModal() {
   // until explicitly deleted from the Admin Panel.
   const [sessionDismissedIds, setSessionDismissedIds] = useState<Set<string>>(new Set());
 
-  // Active student identity for student portal
+  const pathname = usePathname();
+
+  // Determine current active portal role with route isolation
+  // (Prevents manager alerts from leaking to students, visitors, or unauthenticated guests)
+  const effectiveRole = useMemo(() => {
+    if (pathname?.startsWith('/student')) return 'student';
+    if (pathname?.startsWith('/college')) return 'college';
+    if (pathname?.startsWith('/admin')) return 'admin';
+    if (pathname?.startsWith('/stage-controller')) return 'stage_controller';
+    if (pathname?.startsWith('/convenor')) return 'convenor';
+    if (pathname?.startsWith('/result-entry')) return 'result_entry';
+    return currentRole;
+  }, [pathname, currentRole]);
+
+  // Active student identity for student login / dashboard
   const [activeStudentId, setActiveStudentId] = useState<string>('');
 
   useEffect(() => {
     setIsMounted(true);
     if (typeof window !== 'undefined') {
-      const studentChest = localStorage.getItem('student_chest_no') || '';
+      let studentChest = localStorage.getItem('student_chest_no') || '';
+      try {
+        const studentSessionStr = localStorage.getItem('arts_fest_student_session');
+        if (studentSessionStr) {
+          const parsed = JSON.parse(studentSessionStr);
+          if (parsed) {
+            studentChest = parsed.chest_no || (parsed.cic_no ? `ST-${parsed.cic_no}` : studentChest);
+          }
+        }
+      } catch (e) { }
+
       setActiveStudentId(studentChest.trim().toUpperCase());
 
       // Clear any legacy persistent storage so notices always show on fresh sessions
@@ -44,7 +69,7 @@ export function ImportantNoticeModal() {
         localStorage.removeItem('wsf_dismissed_notices');
       } catch (e) { }
     }
-  }, [currentRole]);
+  }, [effectiveRole]);
 
   // Synchronize announcements callback
   const syncNotices = useCallback(async () => {
@@ -88,6 +113,12 @@ export function ImportantNoticeModal() {
     };
     window.addEventListener('wsf_announcements_change', handleCustomChange);
 
+    // Reopen modal trigger from Header notification bell
+    const handleOpenFromHeader = () => {
+      setSessionDismissedIds(new Set());
+    };
+    window.addEventListener('wsf_open_notices', handleOpenFromHeader);
+
     // 4. Supabase Realtime WebSocket Channel
     let unsubRealtime: (() => void) | null = null;
     const supabase = createClient();
@@ -124,6 +155,7 @@ export function ImportantNoticeModal() {
       bc?.close();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('wsf_announcements_change', handleCustomChange);
+      window.removeEventListener('wsf_open_notices', handleOpenFromHeader);
       unsubRealtime?.();
       clearInterval(heartbeat);
     };
@@ -143,50 +175,62 @@ export function ImportantNoticeModal() {
       // 2. ROLE-BASED: Broadcast to all logins of a specific role
       if (notice.target_type === 'role') {
         if (notice.target_role === 'all') return true;
-        if (notice.target_role === currentRole) return true;
-        if (currentRole === 'admin') return true;
+        // Admins can inspect notices across all roles in admin view
+        if (effectiveRole === 'admin') return true;
+        // Strict match against user's current effective role
+        if (notice.target_role === effectiveRole) return true;
         return false;
       }
 
       // 3. SPECIFIC COLLEGE: Targeted only to one specific college affl_no
       if (notice.target_type === 'college') {
+        // Only college managers of that college can view college-targeted notices
         if (
-          currentRole === 'college' &&
+          effectiveRole === 'college' &&
           notice.target_college_affl_no &&
           Number(currentCollegeAfflNo) === Number(notice.target_college_affl_no)
         ) {
           return true;
         }
-        if (currentRole === 'admin') return true;
+        if (effectiveRole === 'admin') return true;
         return false;
       }
 
       // 4. SPECIFIC STUDENT: Targeted by Chest No or CIC No
       if (notice.target_type === 'student') {
-        if (currentRole === 'student' && notice.target_chest_no) {
+        if (effectiveRole === 'student' && notice.target_chest_no) {
           const target = notice.target_chest_no.trim().toUpperCase();
           if (activeStudentId && (activeStudentId === target || activeStudentId.includes(target))) {
             return true;
           }
         }
-        if (currentRole === 'admin') return true;
+        if (effectiveRole === 'admin') return true;
         return false;
       }
 
       // 5. SPECIFIC STAGE: Targeted to Stage Controller
       if (notice.target_type === 'stage') {
-        if (currentRole === 'stage_controller' || currentRole === 'admin') return true;
+        if (effectiveRole === 'stage_controller' || effectiveRole === 'admin') return true;
         return false;
       }
 
       return false;
     });
-  }, [announcements, currentRole, currentCollegeAfflNo, activeStudentId]);
+  }, [announcements, effectiveRole, currentCollegeAfflNo, activeStudentId]);
 
   // Notices that haven't been dismissed in this active window session
   const unacknowledgedNotices = useMemo(() => {
     return allEligibleNotices.filter(notice => !sessionDismissedIds.has(notice.id));
   }, [allEligibleNotices, sessionDismissedIds]);
+
+  // Broadcast eligible notices count to Header icon
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('wsf_notices_count', { detail: { count: allEligibleNotices.length } })
+      );
+    }
+  }, [allEligibleNotices.length]);
 
   // Current active notice in queue
   const activeNotice = unacknowledgedNotices[0] || null;
@@ -208,24 +252,10 @@ export function ImportantNoticeModal() {
   // Prevent SSR hydration mismatch: render nothing during server pass
   if (!isMounted) return null;
 
-  // If all matching notices have been temporarily acknowledged in this session,
-  // display a floating reminder pill so user can easily re-read it anytime until deleted.
+  // When all active notices have been temporarily acknowledged in this session,
+  // return null so nothing floats over tables, drawers, or sidebar menus.
+  // The notification bell in Header allows users to reopen bulletins anytime.
   if (!activeNotice) {
-    if (allEligibleNotices.length > 0) {
-      return (
-        <div className="fixed bottom-4 right-4 z-40 animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <button
-            onClick={handleReopen}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-card text-xs font-medium backdrop-blur-md transition-all cursor-pointer"
-            title="Click to view active festival announcement"
-          >
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-            <BellRing className="w-3.5 h-3.5 text-rose-500" />
-            <span>Notifications ({allEligibleNotices.length})</span>
-          </button>
-        </div>
-      );
-    }
     return null;
   }
 
@@ -238,9 +268,9 @@ export function ImportantNoticeModal() {
       btnVariant: 'destructive' as const
     },
     warning: {
-      badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20',
+      badgeClass: 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-300 border border-yellow-500/20',
       badgeLabel: 'IMPORTANT NOTICE',
-      icon: <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />,
+      icon: <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0" />,
       btnVariant: 'primary' as const
     },
     info: {
@@ -255,7 +285,7 @@ export function ImportantNoticeModal() {
       icon: <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />,
       btnVariant: 'success' as const
     }
-  }[activeNotice.priority] || {
+  }[(activeNotice.priority as 'urgent' | 'warning' | 'info' | 'success')] || {
     badgeClass: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/20',
     badgeLabel: 'ANNOUNCEMENT',
     icon: <Info className="w-5 h-5 text-slate-500 shrink-0" />,

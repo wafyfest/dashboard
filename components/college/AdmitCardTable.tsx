@@ -8,12 +8,16 @@ import {
   FileText,
   UserCheck,
   Loader2,
-  CheckCircle2,
-  Printer
+  Printer,
+  Sparkles
 } from 'lucide-react';
 import { Student, College, Registration, FestSettings } from '@/lib/types/fest';
 import { generateAdmitCardPdf } from '@/lib/utils/admitCardPdf';
 import { getCanonicalChestNo, registrationContainsStudent } from '@/lib/utils/studentIdentity';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface AdmitCardTableProps {
   students: Student[];
@@ -35,7 +39,7 @@ export function AdmitCardTable({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  // Derive stable chest number for each student
+  // Derive stable canonical chest number for each student
   const getChestNo = (student: Student): string => {
     return getCanonicalChestNo(student);
   };
@@ -96,7 +100,6 @@ export function AdmitCardTable({
 
       // Filter registrations specifically for this student
       const studentRegs = registrations.filter(r => registrationContainsStudent(r, student, students));
-
       const chestNo = getChestNo(student);
 
       const doc = generateAdmitCardPdf({
@@ -132,171 +135,164 @@ export function AdmitCardTable({
   };
 
   return (
-    <div
-      className={`rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-card ${className}`}
-    >
-      {/* Header section matching reference arrangement */}
-      <div className="pb-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#132238]">
-              Admit Card Generation
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Download the official admit card for any registered participant from your college.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-500 font-medium px-2.5 py-1 rounded-lg bg-slate-100">
-              {registeredStudents.length} Registered Participants
+    <Card className={`[box-shadow:var(--shadow-card),var(--glass-highlight)] ${className}`}>
+      {/* Header section with Bulk Download Button */}
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
             </span>
+            <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+              Admit Card Generation
+            </CardTitle>
           </div>
+          <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
+            Download the official admit card for any registered participant from your college.
+          </CardDescription>
         </div>
 
-        {/* Search Bar matching reference arrangement */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Badge variant="saffron" size="md" className="font-mono font-bold">
+            {registeredStudents.length} Registered
+          </Badge>
+          <Button
+            variant="saffron"
+            size="sm"
+            onClick={handleDownloadAll}
+            disabled={filteredStudents.length === 0 || downloadingId !== null}
+            title="Batch Download Filtered Admit Cards"
+            className="font-heading font-bold"
+          >
+            <Printer className="w-4 h-4 mr-1.5" />
+            Batch Download (PDF)
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Search Bar with Glass Surface */}
         <div className="relative w-full">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search by Name, CIC No, or Chest No..."
-            className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#132238] rounded-xl px-4 py-3 text-sm text-[#132238] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#132238] transition-all pr-10 font-medium"
+            className="w-full bg-[var(--bg-subtle)]/75 hover:bg-[var(--bg-surface)] focus:bg-[var(--bg-surface)] border border-[var(--border-medium)] focus:border-[var(--f-saffron)] rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 transition-all font-sans font-medium"
           />
-          {searchQuery ? (
+          {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
               aria-label="Clear search"
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
-          ) : (
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           )}
         </div>
-      </div>
 
-      {/* Main Table: #, Name, CIC No, Chest No, Action */}
-      <div className="rounded-xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75 text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6 w-16">#</th>
-                <th className="py-3.5 px-4 sm:px-6">Name</th>
-                <th className="py-3.5 px-4 sm:px-6">CIC No</th>
-                <th className="py-3.5 px-4 sm:px-6">Chest No</th>
-                <th className="py-3.5 px-4 sm:px-6 text-right w-36">Action</th>
-              </tr>
-            </thead>
+        {/* Modern Glass Table */}
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">#</TableHead>
+              <TableHead>Participant Name</TableHead>
+              <TableHead>CIC Identifier</TableHead>
+              <TableHead>Chest Number</TableHead>
+              <TableHead className="text-right w-36">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredStudents.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-12 text-center text-[var(--text-muted)]">
+                  <div className="max-w-md mx-auto space-y-2">
+                    <UserCheck className="w-8 h-8 mx-auto text-[var(--text-muted)] opacity-50" />
+                    <p className="font-heading font-semibold text-[var(--text-secondary)]">
+                      {searchQuery
+                        ? `No registered participants matching "${searchQuery}"`
+                        : 'No registered participants found. Admit cards are generated only for students registered in events.'}
+                    </p>
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="text-xs text-[var(--f-saffron-text)] hover:underline font-semibold font-sans"
+                      >
+                        Clear search filter
+                      </button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredStudents.map((student, idx) => {
+                const cicNumber =
+                  student.admission_no ??
+                  student.cic_no ??
+                  student.cic_number ??
+                  '—';
+                const chestNo = getChestNo(student);
+                const isDownloading = downloadingId === (student.id || `idx-${idx}`);
 
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 px-6 text-center text-slate-400">
-                    <div className="max-w-md mx-auto space-y-2">
-                      <UserCheck className="w-8 h-8 text-slate-300 mx-auto" />
-                      <p className="font-semibold text-slate-600">
-                        {searchQuery
-                          ? `No registered participants matching "${searchQuery}"`
-                          : 'No registered participants found. Admit cards are generated only for students registered in events.'}
-                      </p>
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="text-xs text-blue-600 hover:text-blue-700 underline font-medium"
-                        >
-                          Clear search filter
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredStudents.map((student, idx) => {
-                  const cicNumber =
-                    student.admission_no ??
-                    student.cic_no ??
-                    student.cic_number ??
-                    '—';
-                  const chestNo = getChestNo(student);
-                  const isDownloading = downloadingId === (student.id || `idx-${idx}`);
-
-                  return (
-                    <tr
-                      key={student.id || `stu-${idx}`}
-                      className="hover:bg-slate-50/80 transition-colors"
-                    >
-                      {/* # (Serial No) */}
-                      <td className="py-4 px-4 sm:px-6 font-semibold text-slate-500 text-sm">
-                        {idx + 1}
-                      </td>
-
-                      {/* Name */}
-                      <td className="py-4 px-4 sm:px-6">
-                        <div className="font-bold text-[#132238] text-sm uppercase tracking-wide">
-                          {student.name || student.full_name || 'N/A'}
-                        </div>
-                      </td>
-
-                      {/* CIC No */}
-                      <td className="py-4 px-4 sm:px-6 font-semibold text-slate-700 text-sm font-mono tracking-wider">
-                        {cicNumber}
-                      </td>
-
-                      {/* Chest No */}
-                      <td className="py-4 px-4 sm:px-6 font-bold text-slate-900 text-sm font-mono tracking-wider">
+                return (
+                  <TableRow key={student.id || `stu-${idx}`}>
+                    <TableCell className="font-mono text-xs text-[var(--text-muted)]">
+                      {idx + 1}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-heading font-bold text-[var(--text-primary)] uppercase tracking-wide text-xs sm:text-sm">
+                        {student.name || student.full_name || 'N/A'}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono font-semibold text-[var(--text-secondary)] text-xs sm:text-sm tracking-wider">
+                      {cicNumber}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] text-xs sm:text-sm tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/25">
                         {chestNo}
-                      </td>
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="saffron"
+                        size="xs"
+                        onClick={() => handleDownload(student, idx)}
+                        disabled={isDownloading}
+                        title="Download Student Admit Card PDF"
+                      >
+                        {isDownloading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download</span>
+                          </>
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
 
-                      {/* Action Button: Download */}
-                      <td className="py-4 px-4 sm:px-6 text-right">
-                        <button
-                          onClick={() => handleDownload(student, idx)}
-                          disabled={isDownloading}
-                          title="Download Student Admit Card PDF"
-                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
-                        >
-                          {isDownloading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Saving...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Download className="w-3.5 h-3.5" />
-                              <span>Download</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        {/* Footer info */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[var(--text-muted)] pt-2 px-1">
+          <div>
+            Showing <strong className="text-[var(--text-primary)] font-mono">{filteredStudents.length}</strong> of{' '}
+            <strong className="text-[var(--text-primary)] font-mono">{registeredStudents.length}</strong> registered participants
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">
+            Admit cards include candidate identity, category, and participating events roster.
+          </div>
         </div>
-      </div>
-
-      {/* Footer Info */}
-      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 px-1">
-        <div>
-          Showing <span className="font-semibold text-slate-800">{filteredStudents.length}</span> of{' '}
-          <span className="font-semibold text-slate-800">{registeredStudents.length}</span> registered participants
-          {searchQuery && (
-            <span>
-              {' '}
-              matching &ldquo;<span className="text-slate-800 font-medium">{searchQuery}</span>&rdquo;
-            </span>
-          )}
-        </div>
-
-        <div className="text-[11px] text-slate-400">
-          Admit cards include candidate identity, category, and participating events roster.
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

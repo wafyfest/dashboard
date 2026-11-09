@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   GraduationCap,
   LogIn,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
-import { TilePattern } from './FestivalPattern';
+import { TilePattern } from './FestPattern';
 
 interface HeroSlide {
   id: string;
@@ -23,12 +24,6 @@ interface HeroSlide {
 }
 
 const HERO_SLIDES: HeroSlide[] = [
-  {
-    id: 'concept',
-    src: '/hero-fest.png',
-    alt: 'Wafy Wafiyya State Arts Fest 2024-25 official identity poster and Islamic emblem',
-    objectFit: 'object-contain bg-white',
-  },
   {
     id: 'stage',
     src: '/fest-stage.jpg',
@@ -42,63 +37,33 @@ const HERO_SLIDES: HeroSlide[] = [
     objectFit: 'object-cover',
   },
   {
+    id: 'concept',
+    src: '/hero-fest.png',
+    alt: 'Wafy Wafiyya State Arts Fest official identity and emblem',
+    objectFit: 'object-contain bg-white',
+  },
+  {
     id: 'convocation',
     src: '/image.png',
-    alt: '14th State Arts Fest & Convocation Ceremony plenary gathering',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'auditorium',
-    src: '/test-fest-1.jpg',
-    alt: 'Grand Auditorium filled with collegiate participants and scholars',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'architecture',
-    src: '/test-2-architecture.jpg',
-    alt: 'Traditional Islamic Geometric Heritage Architecture with arched corridors',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'performance',
-    src: '/test-3-stage.jpg',
-    alt: 'Dramatic stage illumination during cultural speech and choral competition',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'penmanship',
-    src: '/test-4-calligraphy.jpg',
-    alt: 'Master calligrapher demonstrating classical Arabic script penmanship',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'trophy',
-    src: '/test-5-trophy.jpg',
-    alt: 'State Championship Rolling Trophy and institutional awards of excellence',
-    objectFit: 'object-cover',
-  },
-  {
-    id: 'celebration',
-    src: '/test-6-celebration.jpg',
-    alt: 'Wafy Students Federation audience celebrating festival results',
+    alt: 'State Arts Fest & Convocation Ceremony plenary gathering',
     objectFit: 'object-cover',
   },
 ];
 
 const delay = (ms: number) => ({ '--d': `${ms}ms` } as React.CSSProperties);
 
-export function FestivalHero() {
+export function FestHero() {
   const { festSettings, isAuthenticated, currentRole } = useFest();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isManuallyPaused, setIsManuallyPaused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Statistics state backed by live festival data service with reliable official benchmarks
+  // Statistics state backed by live fest data service with reliable official benchmarks
   const [statsData, setStatsData] = useState([
     { value: '14th', label: 'Edition', detail: 'Biennial since 1997' },
-    { value: '62+', label: 'Colleges', detail: 'Affiliated across Kerala' },
-    { value: '1,700+', label: 'Participants', detail: 'Four academic phases' },
-    { value: '84+', label: 'Events', detail: 'Onstage & offstage categories' },
+    { value: '25+', label: 'Colleges', detail: 'Affiliated across Kerala' },
+    { value: '1,776', label: 'Participants', detail: 'Four academic phases' },
+    { value: '59', label: 'Unique Events', detail: '84 phase categories' },
   ]);
 
   useEffect(() => {
@@ -107,22 +72,27 @@ export function FestivalHero() {
       const items = festService.getItems();
       const students = festService.getStudents();
 
+      // Deduplicate by event name
+      const uniqueEventNames = new Set(
+        items.map(i => (i.name_eng || i.name || '').trim().toLowerCase()).filter(Boolean)
+      );
+
       setStatsData([
         { value: '14th', label: 'Edition', detail: 'Biennial since 1997' },
         {
-          value: colleges.length > 0 ? `${colleges.length}+` : '62+',
+          value: colleges.length > 0 ? `${colleges.length}+` : '25+',
           label: 'Colleges',
           detail: 'Affiliated across Kerala',
         },
         {
-          value: students.length > 0 ? `${students.length.toLocaleString()}+` : '1,700+',
+          value: students.length > 0 ? `${students.length.toLocaleString()}` : '1,776',
           label: 'Participants',
           detail: 'Four academic phases',
         },
         {
-          value: items.length > 0 ? `${items.length}+` : '84+',
-          label: 'Events',
-          detail: 'Onstage & offstage categories',
+          value: uniqueEventNames.size > 0 ? `${uniqueEventNames.size}` : '59',
+          label: 'Unique Events',
+          detail: `${items.length || 84} phase categories`,
         },
       ]);
     } catch {
@@ -235,7 +205,7 @@ export function FestivalHero() {
   return (
     <section
       id="hero"
-      aria-label="Festival Hero & Overview"
+      aria-label="Fest Hero & Overview"
       className="relative overflow-hidden bg-[var(--f-canvas)] text-[var(--f-text-primary)] min-h-[92svh] lg:min-h-[100svh] flex flex-col justify-between w-full max-w-full"
     >
       {/* Background Islamic Tile Pattern */}
@@ -261,9 +231,9 @@ export function FestivalHero() {
           <div className="f-rise flex items-center justify-center lg:justify-start gap-2" style={delay(50)}>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs sm:text-xs font-semibold tracking-wider uppercase text-white/90 backdrop-blur-sm shadow-sm">
               <span className="h-2 w-2 rounded-full bg-[var(--f-saffron)] animate-pulse" />
-              <span>Official Cultural Festival</span>
+              <span>State Fest</span>
             </span>
-            <span className="text-xs sm:text-xs font-medium text-white/60">WSF · CIC</span>
+            <span className="text-xs sm:text-xs font-medium text-white/80">WSF · CIC</span>
           </div>
 
           {/* Main Title */}
@@ -290,8 +260,8 @@ export function FestivalHero() {
             className="f-rise mt-3 sm:mt-4 max-w-lg text-xs sm:text-sm lg:text-base leading-relaxed text-[var(--f-text-secondary)] text-center lg:text-left mx-auto lg:mx-0 font-sans"
             style={delay(280)}
           >
-            The premier inter-collegiate arts festival of the Wafy and Wafiyya colleges. Uniting
-            oratory, literature, Quranic recitation, and performing arts from more than 62 institutions
+            Inter-collegiate arts fest of Wafy and Wafiyya colleges, featuring
+            oratory, literature, Quranic recitation, and stage arts from 25+ institutions
             across Kerala.
           </p>
 
@@ -299,17 +269,17 @@ export function FestivalHero() {
           <div className="f-rise mt-5 sm:mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3" style={delay(360)}>
             <Link
               href="/student-login"
-              className="f-focus group inline-flex items-center gap-2 rounded-xl bg-[var(--f-saffron)] px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold text-[var(--f-ink)] shadow-lg shadow-amber-500/20 transition-all duration-200 hover:bg-white hover:scale-[1.02] active:scale-[0.98]"
+              className="f-focus group inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition-all duration-200 hover:bg-amber-400 hover:text-black hover:shadow-xl hover:shadow-amber-500/30 hover:scale-[1.02] active:scale-[0.98]"
             >
               <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:scale-110" />
-              <span>Student Portal</span>
+              <span>Student Login</span>
               <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" />
             </Link>
 
             {isAuthenticated ? (
               <Link
                 href={getPortalRoute()}
-                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/10 active:scale-[0.98]"
+                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white/50 hover:bg-white/10 active:scale-[0.98]"
               >
                 <span>Dashboard</span>
                 <ArrowRight className="h-4 w-4 text-[var(--f-saffron)]" />
@@ -317,10 +287,10 @@ export function FestivalHero() {
             ) : (
               <Link
                 href="/login"
-                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white hover:bg-white/10 active:scale-[0.98]"
+                className="f-focus inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 sm:px-6 py-2.5 sm:py-3.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-200 hover:border-white/50 hover:bg-white/10 active:scale-[0.98]"
               >
                 <LogIn className="h-4 w-4 text-[var(--f-saffron)]" />
-                <span>Officer / College Login</span>
+                <span>College/Official Login</span>
               </Link>
             )}
           </div>
@@ -332,7 +302,7 @@ export function FestivalHero() {
             tabIndex={0}
             ref={archRef}
             role="region"
-            aria-label="Festival Gallery Carousel. Use left and right arrow keys to browse slides."
+            aria-label="Fest Gallery Carousel. Use left and right arrow keys to browse slides."
             onKeyDown={handleKeyDown}
             className="f-rise relative mx-auto w-full max-w-[210px] sm:max-w-[250px] md:max-w-[280px] lg:max-w-[340px] xl:max-w-[370px] aspect-[3/4] select-none my-2 sm:my-4 lg:my-auto focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)] rounded-t-[999px]"
             style={{
@@ -420,11 +390,13 @@ export function FestivalHero() {
                     ${borderStyle}
                   `}
                 >
-                  <img
+                  <Image
                     src={slide.src}
                     alt={slide.alt}
-                    className={`h-full w-full ${slide.objectFit} object-center transition-transform duration-700 ease-out group-hover:scale-105`}
-                    loading={i < 3 ? 'eager' : 'lazy'}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 420px"
+                    className={`${slide.objectFit} object-center transition-transform duration-700 ease-out group-hover:scale-105`}
+                    priority={i < 3}
                   />
 
                   {/* Accessible Controls on Front Arch */}
@@ -463,7 +435,7 @@ export function FestivalHero() {
                           }}
                           aria-label={isManuallyPaused ? 'Resume slideshow' : 'Pause slideshow'}
                           aria-pressed={!isManuallyPaused}
-                          className="f-focus text-white/70 hover:text-[var(--f-saffron)] transition-colors cursor-pointer"
+                          className="f-focus text-white/90 hover:text-[var(--f-saffron)] transition-colors cursor-pointer"
                         >
                           {isManuallyPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
                         </button>
@@ -478,14 +450,14 @@ export function FestivalHero() {
                               }}
                               aria-label={`Jump to slide ${dotIdx + 1}`}
                               className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${currentIndex === dotIdx
-                                  ? 'w-3.5 h-1.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]'
-                                  : 'w-1 h-1 bg-white/40 hover:bg-white/80'
+                                ? 'w-3.5 h-1.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]'
+                                : 'w-1 h-1 bg-white/60 hover:bg-white/80'
                                 }`}
                             />
                           ))}
                         </div>
 
-                        <span className="text-xs font-bold text-white/70 ml-1 pl-1.5 border-l border-white/20 tabular-nums font-mono">
+                        <span className="text-xs font-bold text-white/90 ml-1 pl-1.5 border-l border-white/20 tabular-nums font-mono">
                           {currentIndex + 1}/{HERO_SLIDES.length}
                         </span>
                       </div>

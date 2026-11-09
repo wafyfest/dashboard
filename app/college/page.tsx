@@ -115,7 +115,7 @@ export default function CollegePortalPage() {
     const list = festService.getStudents(currentCollegeId);
     setStudents(list);
 
-    const affl = currentCollegeAfflNo || (college ? college.affl_no : 11);
+    const affl = currentCollegeAfflNo || (college ? college.affl_no : 0);
     if (affl) {
       festService.fetchStudentsForCollege(affl).then(fresh => {
         if (fresh && fresh.length > 0) {
@@ -409,12 +409,12 @@ export default function CollegePortalPage() {
         onSelectNavItem={setActiveTab}
       >
         <div className="space-y-6 max-w-7xl mx-auto">
-          <div className="h-24 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
-          <div className="h-40 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          <div className="h-24 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
+          <div className="h-40 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
           <div className="grid grid-cols-3 gap-4">
-            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
-            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
-            <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
+            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
+            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
           </div>
         </div>
       </DashboardLayout>
@@ -474,7 +474,7 @@ export default function CollegePortalPage() {
           {activeTab === 'students' && (
             <StudentsListTable
               college={college}
-              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 0}
             />
           )}
 
@@ -482,7 +482,7 @@ export default function CollegePortalPage() {
           {activeTab === 'volunteers' && (
             <CollegeVolunteersTab
               college={college}
-              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 0}
               students={students}
               onRefresh={triggerRefresh}
             />
@@ -501,7 +501,7 @@ export default function CollegePortalPage() {
             <AdmitCardTable
               students={students}
               college={college}
-              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 11}
+              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 0}
               registrations={registrations}
               festSettings={festSettings}
             />
@@ -543,34 +543,34 @@ export default function CollegePortalPage() {
         >
           <form onSubmit={handleCreateStudent} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Student Name</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Full Student Name</label>
               <input
                 type="text"
                 value={newStudent.full_name || ''}
                 onChange={e => setNewStudent({ ...newStudent, full_name: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all font-sans"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">College Admission / Roll No</label>
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">College Admission / Roll No</label>
                 <input
                   type="text"
                   placeholder="e.g. ST-2023-551"
                   value={newStudent.admission_no || ''}
                   onChange={e => setNewStudent({ ...newStudent, admission_no: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 font-mono dark:bg-slate-900 dark:text-slate-100"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono font-semibold"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Category</label>
                 <select
                   value={newStudent.category || 'Foundation'}
                   onChange={e => setNewStudent({ ...newStudent, category: e.target.value as StudentCategory })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans cursor-pointer"
                 >
                   <option value="Foundation">Foundation</option>
                   <option value="Thamheediyya">Thamheediyya</option>
@@ -582,21 +582,21 @@ export default function CollegePortalPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Phone</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Contact Phone</label>
               <input
                 type="tel"
                 placeholder="+91 98..."
                 value={newStudent.phone || ''}
                 onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono"
               />
             </div>
 
-            <div className="pt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsStudentModalOpen(false)}>
+            <div className="pt-4 flex justify-end gap-2 border-t border-[var(--border-subtle)]">
+              <Button type="button" variant="outline" className="font-heading" onClick={() => setIsStudentModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Add Student</Button>
+              <Button type="submit" variant="saffron" className="font-heading font-bold">Add Student</Button>
             </div>
           </form>
         </Modal>
@@ -606,7 +606,7 @@ export default function CollegePortalPage() {
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
           title={`Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`}
-          description={`Item Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg?.no_of_participants || 1} participant(s)`}
+          description={`Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg?.no_of_participants || 1} participant(s)`}
           maxWidth="xl"
         >
           {selectedItemForReg && (() => {
@@ -618,13 +618,13 @@ export default function CollegePortalPage() {
 
             return (
               <form onSubmit={handleConfirmRegistration} className="space-y-4">
-                <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="bg-[var(--bg-subtle)]/75 p-3.5 rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Category: </span>
+                    <span className="font-heading font-semibold text-[var(--text-secondary)]">Category: </span>
                     <CategoryBadge category={selectedItemForReg.phase || selectedItemForReg.category || 'General'} />
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Type / Mode: </span>
+                    <span className="font-heading font-semibold text-[var(--text-secondary)]">Type / Mode: </span>
                     <ItemTypeBadge
                       type={selectedItemForReg.point_type === 'group' ? 'Group' : 'Individual'}
                       mode={selectedItemForReg.mode}
@@ -636,19 +636,19 @@ export default function CollegePortalPage() {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   {/* Search Input */}
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       placeholder="Search student name, chest no, admission/CIC no..."
                       value={regModalSearch}
                       onChange={e => setRegModalSearch(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 transition-all shadow-2xs"
+                      className="w-full pl-9 pr-8 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all font-sans font-medium"
                     />
                     {regModalSearch && (
                       <button
                         type="button"
                         onClick={() => setRegModalSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded-full"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -657,11 +657,11 @@ export default function CollegePortalPage() {
 
                   {/* Student Phase Filter */}
                   <div className="relative shrink-0 sm:w-44">
-                    <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Filter className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <select
                       value={regModalPhaseFilter}
                       onChange={e => setRegModalPhaseFilter(e.target.value)}
-                      className="w-full appearance-none pl-8 pr-7 py-2 text-xs font-semibold border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#132238]/20 cursor-pointer shadow-2xs"
+                      className="w-full appearance-none pl-8 pr-7 py-2 text-xs font-heading font-semibold border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer"
                     >
                       <option value="All">All Phases</option>
                       {availableStudentPhases.map(ph => (
@@ -670,13 +670,13 @@ export default function CollegePortalPage() {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
 
                 {/* Hidden Selected Alert */}
                 {hiddenSelectedCount > 0 && (
-                  <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 px-3 py-1.5 rounded-xl flex items-center justify-between">
+                  <div className="text-[11px] text-amber-900 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 px-3 py-1.5 rounded-xl flex items-center justify-between font-sans">
                     <span>{hiddenSelectedCount} selected student(s) currently hidden by active filter.</span>
                     <button
                       type="button"
@@ -684,7 +684,7 @@ export default function CollegePortalPage() {
                         setRegModalSearch('');
                         setRegModalPhaseFilter('All');
                       }}
-                      className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-200 ml-2"
+                      className="underline font-semibold hover:text-[var(--f-saffron-text)] ml-2"
                     >
                       Clear filter
                     </button>
@@ -693,25 +693,25 @@ export default function CollegePortalPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Select Participants ({selectedStudentIds.size} / {maxPart} selected)
                     </label>
-                    <span className="text-[11px] text-slate-500 font-medium">
+                    <span className="text-[11px] font-sans text-[var(--text-muted)] font-medium">
                       Showing {filteredModalStudents.length} of {students.length}
                     </span>
                   </div>
 
-                  <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
+                  <div className="max-h-60 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
                     {filteredModalStudents.length === 0 ? (
-                      <div className="py-8 text-center text-xs text-slate-500">
-                        <p className="font-semibold text-slate-600 dark:text-slate-400">No participants match your criteria</p>
-                        <p className="text-[11px] text-slate-400 mt-1">Try clearing the search query or phase filter</p>
+                      <div className="py-8 text-center text-xs text-[var(--text-muted)]">
+                        <p className="font-heading font-semibold text-[var(--text-secondary)]">No participants match your criteria</p>
+                        <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">Try clearing the search query or phase filter</p>
                         {(regModalSearch || regModalPhaseFilter !== 'All') && (
                           <Button
                             type="button"
                             size="xs"
                             variant="outline"
-                            className="mt-3 text-xs"
+                            className="mt-3 text-xs font-heading"
                             onClick={() => {
                               setRegModalSearch('');
                               setRegModalPhaseFilter('All');
@@ -737,8 +737,8 @@ export default function CollegePortalPage() {
                           <label
                             key={s.id}
                             className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
-                                ? 'opacity-40 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed select-none'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
+                              ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
+                              : 'hover:bg-[var(--bg-hover)] cursor-pointer'
                               }`}
                             title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
                           >
@@ -763,25 +763,25 @@ export default function CollegePortalPage() {
                                     });
                                   }
                                 }}
-                                className="rounded border-slate-300 dark:border-slate-700 text-[#132238] focus:ring-[#132238] shrink-0"
+                                className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 shrink-0 cursor-pointer"
                               />
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-semibold text-[#132238] dark:text-slate-100 truncate">
+                                  <span className="font-heading font-bold text-[var(--text-primary)] truncate">
                                     {s.full_name || s.name}
                                   </span>
                                   {isQuotaComplete && !isSelected && (
-                                    <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
+                                    <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5 font-sans">
                                       {quotaCheck.reason}
                                     </Badge>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5 flex-wrap">
+                                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono mt-0.5 flex-wrap">
                                   <span>Chest: {getCanonicalChestNo(s)}</span>
                                   <span>•</span>
                                   <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
                                   <span>•</span>
-                                  <span className="text-slate-500 dark:text-slate-400 font-sans">
+                                  <span className="text-[var(--text-secondary)] font-sans">
                                     On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
                                   </span>
                                 </div>
@@ -797,16 +797,16 @@ export default function CollegePortalPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex items-center justify-between">
+                <div className="pt-4 flex items-center justify-between border-t border-[var(--border-subtle)]">
                   <div className="text-xs">
                     {selectedStudentIds.size < minPart && (
-                      <span className="text-rose-600 font-medium">
+                      <span className="text-rose-600 font-sans font-medium">
                         Need at least {minPart} participant(s).
                       </span>
                     )}
                     {selectedStudentIds.size >= minPart &&
                       selectedStudentIds.size <= maxPart && (
-                        <span className="text-emerald-600 font-medium">Capacity verified!</span>
+                        <span className="text-emerald-600 font-sans font-semibold">Capacity verified!</span>
                       )}
                   </div>
                   <div className="flex gap-2">
@@ -814,18 +814,20 @@ export default function CollegePortalPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-heading"
                         onClick={() => handleUnregisterRegistration(selectedItemForReg)}
                       >
                         <Trash2 className="w-3.5 h-3.5 mr-1" />
                         Remove Registration
                       </Button>
                     )}
-                    <Button type="button" variant="outline" onClick={() => setIsRegisterModalOpen(false)}>
+                    <Button type="button" variant="outline" className="font-heading" onClick={() => setIsRegisterModalOpen(false)}>
                       Cancel
                     </Button>
                     <Button
                       type="submit"
+                      variant="saffron"
+                      className="font-heading font-bold"
                       disabled={
                         selectedStudentIds.size < minPart ||
                         selectedStudentIds.size > maxPart
@@ -849,11 +851,11 @@ export default function CollegePortalPage() {
         >
           <form onSubmit={handleSubmitAppeal} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Contested Event</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Contested Event</label>
               <select
                 value={appealForm.itemId}
                 onChange={e => setAppealForm({ ...appealForm, itemId: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               >
                 <option value="">-- Select Event --</option>
@@ -866,33 +868,33 @@ export default function CollegePortalPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Reason for Appeal</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Reason for Appeal</label>
               <textarea
                 rows={3}
                 placeholder="State the factual basis..."
                 value={appealForm.reason}
                 onChange={e => setAppealForm({ ...appealForm, reason: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Fee Receipt Document URL</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Fee Receipt Document URL</label>
               <input
                 type="url"
                 placeholder="https://drive.google.com/..."
                 value={appealForm.feeReceiptUrl}
                 onChange={e => setAppealForm({ ...appealForm, feeReceiptUrl: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 font-mono dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono"
               />
             </div>
 
-            <div className="pt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsAppealModalOpen(false)}>
+            <div className="pt-4 flex justify-end gap-2 border-t border-[var(--border-subtle)]">
+              <Button type="button" variant="outline" className="font-heading" onClick={() => setIsAppealModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Submit Appeal</Button>
+              <Button type="submit" variant="saffron" className="font-heading font-bold">Submit Appeal</Button>
             </div>
           </form>
         </Modal>
@@ -901,16 +903,16 @@ export default function CollegePortalPage() {
         <Modal
           isOpen={isReplacementModalOpen}
           onClose={() => setIsReplacementModalOpen(false)}
-          title="Emergency Participant Substitution"
+          title="Emergency Participant Replacement"
           description="Replace a registered student in case of illness, injury, or severe clash"
         >
           <form onSubmit={handleSubmitReplacement} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Registered Event</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Registered Event</label>
               <select
                 value={replacementForm.registrationId}
                 onChange={e => setReplacementForm({ ...replacementForm, registrationId: e.target.value, originalStudentId: '', replacementStudentId: '' })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               >
                 <option value="">-- Select Registered Event --</option>
@@ -924,11 +926,11 @@ export default function CollegePortalPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Student to Replace</label>
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Student to Replace</label>
                 <select
                   value={replacementForm.originalStudentId}
                   onChange={e => setReplacementForm({ ...replacementForm, originalStudentId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                   required
                   disabled={!replacementForm.registrationId}
                 >
@@ -944,11 +946,11 @@ export default function CollegePortalPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">New Substitute Student</label>
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">New Substitute Student</label>
                 <select
                   value={replacementForm.replacementStudentId}
                   onChange={e => setReplacementForm({ ...replacementForm, replacementStudentId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                   required
                   disabled={!replacementForm.registrationId}
                 >
@@ -965,22 +967,22 @@ export default function CollegePortalPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Reason for Substitution</label>
+              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Reason for Substitution</label>
               <input
                 type="text"
                 placeholder="e.g. Medical emergency"
                 value={replacementForm.reason}
                 onChange={e => setReplacementForm({ ...replacementForm, reason: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#132238]/20 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               />
             </div>
 
-            <div className="pt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsReplacementModalOpen(false)}>
+            <div className="pt-4 flex justify-end gap-2 border-t border-[var(--border-subtle)]">
+              <Button type="button" variant="outline" className="font-heading" onClick={() => setIsReplacementModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Submit Request</Button>
+              <Button type="submit" variant="saffron" className="font-heading font-bold">Submit Request</Button>
             </div>
           </form>
         </Modal>

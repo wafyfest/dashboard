@@ -228,25 +228,25 @@ export function EventRegistrationsTab() {
   return (
     <div className="space-y-4 w-full">
       {/* 1. CLEAN HEADER & METRICS BAR */}
-      <Card className="p-4 sm:p-5 bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+      <Card className="p-4 sm:p-5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)]">
+              <h2 className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)]">
                 Event Registrations Roster
               </h2>
-              <span className="text-xs font-mono px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)] font-medium">
+              <span className="text-xs font-mono px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-medium">
                 {items.length} Events Total
               </span>
             </div>
-            <p className="text-xs text-[var(--text-muted)]">
+            <p className="text-xs text-[var(--text-muted)] font-sans">
               Click the arrow (<ChevronRight className="w-3.5 h-3.5 inline text-[var(--text-secondary)]" />) on any event row to view registered students across all participating colleges.
             </p>
           </div>
 
           {/* Clean Metric Counters & Expand/Collapse */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-xs">
+            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs">
               <div>
                 <span className="text-[var(--text-muted)]">Active Events: </span>
                 <strong className="text-[var(--text-primary)] font-mono font-semibold">
@@ -292,22 +292,22 @@ export function EventRegistrationsTab() {
               placeholder="Search event code, title, student name, chest #, or college..."
               value={eventSearchQuery}
               onChange={e => setEventSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-canvas)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-slate-400 font-medium"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium font-sans"
             />
           </div>
 
           {/* Simple Neutral Filters */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Status Filter */}
-            <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
+            <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
               {(['All', 'Registered', 'Empty'] as const).map(st => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setStatusFilter(st)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-all cursor-pointer ${
                     statusFilter === st
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -321,15 +321,15 @@ export function EventRegistrationsTab() {
             </div>
 
             {/* Mode Filter */}
-            <div className="flex items-center gap-1 bg-[var(--bg-canvas)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
+            <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
               {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setModeFilter(m)}
-                  className={`px-2 py-1 rounded text-xs font-medium capitalize transition-all ${
+                  className={`px-2 py-1 rounded text-xs font-semibold capitalize transition-all cursor-pointer ${
                     modeFilter === m
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -343,16 +343,16 @@ export function EventRegistrationsTab() {
         {/* Phase Filter Tabs */}
         {distinctPhases.length > 2 && (
           <div className="flex items-center gap-1 overflow-x-auto text-xs mt-2.5 pt-1">
-            <span className="text-[11px] font-medium text-[var(--text-muted)] mr-1 shrink-0">Phase:</span>
+            <span className="text-[11px] font-heading font-semibold text-[var(--text-muted)] mr-1 shrink-0">Phase:</span>
             {distinctPhases.map(ph => (
               <button
                 key={ph}
                 type="button"
                 onClick={() => setPhaseFilter(ph)}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-all border shrink-0 ${
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-all border shrink-0 cursor-pointer ${
                   phaseFilter.toLowerCase() === ph.toLowerCase()
-                    ? 'bg-slate-900 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-200'
-                    : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
+                    ? 'bg-[var(--f-saffron)] text-[#090d1a] border-[var(--f-saffron)] font-bold shadow-xs'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 {ph}
@@ -371,7 +371,7 @@ export function EventRegistrationsTab() {
                 No events matched your search or filter criteria.
               </p>
               <p className="text-xs text-[var(--text-muted)]">
-                Try resetting your search query or choosing "All" in the filters above.
+                Try resetting your search query or choosing &quot;All&quot; in the filters above.
               </p>
             </div>
           </Card>
@@ -386,10 +386,10 @@ export function EventRegistrationsTab() {
             return (
               <div
                 key={itmId || item.id}
-                className={`rounded-lg border transition-colors bg-[var(--bg-surface)] overflow-hidden ${
+                className={`rounded-xl border transition-all bg-[var(--bg-surface)] overflow-hidden ${
                   isExpanded
-                    ? 'border-slate-400 dark:border-slate-600'
-                    : 'border-[var(--border-subtle)] hover:border-slate-300 dark:hover:border-slate-700'
+                    ? 'border-[var(--f-saffron)]/50 ring-1 ring-[var(--f-saffron)]/30 [box-shadow:var(--shadow-card),var(--glass-highlight)]'
+                    : 'border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
                 }`}
               >
                 {/* Event Row Header */}
@@ -397,8 +397,8 @@ export function EventRegistrationsTab() {
                   onClick={() => toggleExpand(itmId)}
                   className={`p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 cursor-pointer select-none transition-colors ${
                     isExpanded
-                      ? 'bg-[var(--bg-canvas)]/70 border-b border-[var(--border-subtle)]'
-                      : 'hover:bg-[var(--bg-canvas)]/40'
+                      ? 'bg-[var(--bg-subtle)]/75 border-b border-[var(--border-subtle)]'
+                      : 'hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   {/* Left: Arrow + Code + Event Name + Metadata Badges */}
@@ -409,22 +409,22 @@ export function EventRegistrationsTab() {
                       aria-label={isExpanded ? 'Collapse registered students' : 'Expand registered students'}
                       className={`w-6 h-6 rounded flex items-center justify-center shrink-0 transition-transform duration-150 ${
                         isExpanded
-                          ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 rotate-90'
-                          : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs rotate-90'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Event Code Pill */}
-                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-semibold shrink-0">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold shrink-0">
                       {item.code}
                     </span>
 
                     {/* Title & Category Info */}
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate" title={item.name}>
+                        <h3 className="font-heading font-bold text-sm text-[var(--text-primary)] truncate" title={item.name}>
                           {item.name}
                         </h3>
                         {item.name_mal && (
@@ -454,7 +454,7 @@ export function EventRegistrationsTab() {
                     {/* Participant Counts Badge */}
                     <div className="flex items-center gap-1.5 text-xs">
                       {participants.length > 0 ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-primary)] font-medium">
+                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] font-medium">
                           <span className="font-mono font-semibold">{participants.length}</span>
                           <span className="text-[var(--text-muted)]">{participants.length === 1 ? 'Student' : 'Students'}</span>
                           <span className="text-[var(--text-muted)]">•</span>
@@ -462,7 +462,7 @@ export function EventRegistrationsTab() {
                           <span className="text-[var(--text-muted)]">{collegeCount === 1 ? 'College' : 'Colleges'}</span>
                         </div>
                       ) : (
-                        <span className="px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-muted)] text-xs italic">
+                        <span className="px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-muted)] text-xs italic">
                           No Registrations
                         </span>
                       )}
@@ -483,7 +483,7 @@ export function EventRegistrationsTab() {
                         className="h-7 text-xs gap-1 font-medium whitespace-nowrap"
                         title={`Download official participants PDF for ${item.name}`}
                       >
-                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        <FileText className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
                         <span className="hidden sm:inline">Export PDF</span>
                       </Button>
                     )}
@@ -492,7 +492,7 @@ export function EventRegistrationsTab() {
 
                 {/* Expanded Students Roll Table */}
                 {isExpanded && (
-                  <div className="p-3.5 bg-slate-50/50 dark:bg-slate-900/30 border-t border-[var(--border-subtle)]">
+                  <div className="p-3.5 bg-[var(--bg-subtle)]/30 border-t border-[var(--border-subtle)]">
                     {participants.length === 0 ? (
                       <div className="py-8 text-center bg-[var(--bg-surface)] rounded-lg border border-dashed border-[var(--border-subtle)]">
                         <Users className="w-8 h-8 mx-auto text-[var(--text-muted)] opacity-30 mb-2" />
@@ -505,12 +505,12 @@ export function EventRegistrationsTab() {
                       </div>
                     ) : (
                       <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-xs overflow-hidden">
-                        <div className="p-2.5 px-3.5 bg-[var(--bg-canvas)]/70 border-b border-[var(--border-subtle)] flex items-center justify-between text-xs">
+                        <div className="p-2.5 px-3.5 bg-[var(--bg-subtle)]/80 border-b border-[var(--border-subtle)] flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-[var(--text-primary)]">
+                            <span className="font-heading font-bold text-[var(--text-primary)]">
                               Enrolled Participants
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-200/70 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-amber-500/30">
                               {participants.length}
                             </span>
                           </div>
@@ -529,14 +529,14 @@ export function EventRegistrationsTab() {
                         <div className="overflow-x-auto">
                           <Table className="w-full text-xs">
                             <TableHeader>
-                              <TableRow className="border-b border-[var(--border-subtle)]">
-                                <TableHead className="w-10 text-center font-semibold py-2.5">#</TableHead>
-                                <TableHead className="w-56 font-semibold py-2.5 pl-3">Student & Chest #</TableHead>
-                                <TableHead className="w-64 font-semibold py-2.5">College / Institution</TableHead>
-                                <TableHead className="w-36 font-semibold py-2.5">Admission / Phone</TableHead>
-                                <TableHead className="w-24 font-semibold py-2.5 text-center">Blind Code</TableHead>
-                                <TableHead className="w-28 font-semibold py-2.5 text-center">Entry Status</TableHead>
-                                <TableHead className="w-40 font-semibold py-2.5 text-right pr-4">Registered (IST)</TableHead>
+                              <TableRow className="border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60">
+                                <TableHead className="w-10 text-center font-heading font-semibold py-2.5">#</TableHead>
+                                <TableHead className="w-56 font-heading font-semibold py-2.5 pl-3">Student & Chest #</TableHead>
+                                <TableHead className="w-64 font-heading font-semibold py-2.5">College / Institution</TableHead>
+                                <TableHead className="w-36 font-heading font-semibold py-2.5">Admission / Phone</TableHead>
+                                <TableHead className="w-24 font-heading font-semibold py-2.5 text-center">Blind Code</TableHead>
+                                <TableHead className="w-28 font-heading font-semibold py-2.5 text-center">Entry Status</TableHead>
+                                <TableHead className="w-40 font-heading font-semibold py-2.5 text-right pr-4">Registered (IST)</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -555,7 +555,7 @@ export function EventRegistrationsTab() {
                                 return (
                                   <TableRow
                                     key={p.id}
-                                    className="border-b border-[var(--border-subtle)]/40 hover:bg-slate-50/90 dark:hover:bg-slate-800/50 transition-colors"
+                                    className="border-b border-[var(--border-subtle)]/40 hover:bg-[var(--bg-hover)] transition-colors"
                                   >
                                     {/* Index */}
                                     <TableCell className="py-2.5 text-center font-mono text-[var(--text-muted)] text-[11px]">
@@ -565,18 +565,18 @@ export function EventRegistrationsTab() {
                                     {/* Student Name & Chest */}
                                     <TableCell className="py-2.5 pl-3 align-middle">
                                       <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className="w-7 h-7 rounded-md bg-slate-100 dark:bg-slate-800 border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-secondary)] flex items-center justify-center shrink-0">
+                                        <div className="w-7 h-7 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] flex items-center justify-center shrink-0">
                                           {initials}
                                         </div>
                                         <div className="space-y-0.5 min-w-0">
-                                          <div className="font-bold text-[var(--text-primary)] text-xs truncate max-w-[170px]" title={stuName}>
+                                          <div className="font-heading font-bold text-[var(--text-primary)] text-xs truncate max-w-[170px]" title={stuName}>
                                             {stuName}
                                           </div>
                                           <div className="flex items-center gap-1.5">
                                             <button
                                               type="button"
                                               onClick={() => handleCopy(chestNo, `chest-${p.id}`)}
-                                              className="group/btn inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-slate-400 dark:hover:border-slate-500 text-[var(--text-secondary)] transition-colors"
+                                              className="group/btn inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] hover:border-[var(--f-saffron)] text-[var(--text-secondary)] transition-colors cursor-pointer"
                                               title="Click to copy Chest Number"
                                             >
                                               <span>{chestNo}</span>
@@ -601,14 +601,14 @@ export function EventRegistrationsTab() {
                                       {p.college ? (
                                         <div className="space-y-0.5">
                                           <div className="flex items-center gap-1.5">
-                                            <span className="font-mono text-[10px] px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] font-semibold">
+                                            <span className="font-mono text-[10px] px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold">
                                               #{p.college.affl_no}
                                             </span>
-                                            <span className="font-bold text-xs text-[var(--text-primary)] truncate max-w-[190px]" title={p.college.name}>
+                                            <span className="font-heading font-bold text-xs text-[var(--text-primary)] truncate max-w-[190px]" title={p.college.name}>
                                               {p.college.short_name || p.college.name}
                                             </span>
                                           </div>
-                                          <div className="text-[10.5px] text-[var(--text-muted)] truncate max-w-[210px]" title={p.college.name}>
+                                          <div className="text-[10.5px] text-[var(--text-muted)] truncate max-w-[210px] font-sans" title={p.college.name}>
                                             {p.college.name}
                                           </div>
                                         </div>
@@ -639,7 +639,7 @@ export function EventRegistrationsTab() {
                                     {/* Blind Code */}
                                     <TableCell className="py-2.5 align-middle text-center">
                                       {p.codeLetter ? (
-                                        <span className="font-mono font-extrabold text-xs px-2 py-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-primary)] shadow-2xs">
+                                        <span className="font-mono font-extrabold text-xs px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] shadow-xs">
                                           {p.codeLetter}
                                         </span>
                                       ) : (
@@ -655,7 +655,7 @@ export function EventRegistrationsTab() {
                                           Late Entry
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
                                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                           On Time
                                         </span>
@@ -674,12 +674,12 @@ export function EventRegistrationsTab() {
                         </div>
 
                         {/* Summary Footer */}
-                        <div className="p-2 px-3.5 bg-[var(--bg-canvas)]/40 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+                        <div className="p-2 px-3.5 bg-[var(--bg-subtle)]/40 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
                           <span>
                             Total: <strong className="text-[var(--text-primary)] font-mono">{participants.length}</strong> registered students
                           </span>
                           <span>
-                            Item Code: <strong className="text-[var(--text-primary)] font-mono">{item.code}</strong>
+                            Event Code: <strong className="text-[var(--text-primary)] font-mono">{item.code}</strong>
                           </span>
                         </div>
                       </div>

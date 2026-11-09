@@ -86,11 +86,37 @@ class FestService {
         return this.cache[key] as T;
       }
     }
+    // Attempt hydration from persistent client session storage if memory cache is empty
+    if (this.isClient) {
+      try {
+        const item = sessionStorage.getItem('arts_fest_' + key);
+        if (item) {
+          const parsed = JSON.parse(item);
+          if (parsed !== null && parsed !== undefined) {
+            this.cache[key] = parsed;
+            return parsed as T;
+          }
+        }
+      } catch (e) {
+        // Ignore sessionStorage quota or access errors
+      }
+    }
     return fallback;
   }
 
   private setStorage<T>(key: string, value: T): void {
     this.cache[key] = value;
+    if (this.isClient) {
+      try {
+        // Cache core metadata in sessionStorage for instant reload without network delay
+        const cacheKeys = ['colleges', 'festSettings', 'results', 'students', 'items', 'stages', 'schedules', 'points_matrix'];
+        if (cacheKeys.includes(key) && value !== null && value !== undefined) {
+          sessionStorage.setItem('arts_fest_' + key, JSON.stringify(value));
+        }
+      } catch (e) {
+        // Ignore storage errors (e.g. quota)
+      }
+    }
   }
 
   public async clearCacheAndRefetch(): Promise<void> {
@@ -113,6 +139,14 @@ class FestService {
       maxParticipation: [],
       points_matrix: []
     };
+    if (this.isClient) {
+      try {
+        const cacheKeys = ['colleges', 'festSettings', 'results', 'students', 'items', 'stages', 'schedules', 'points_matrix'];
+        for (const k of cacheKeys) {
+          sessionStorage.removeItem('arts_fest_' + k);
+        }
+      } catch (e) {}
+    }
     this.scopeSyncTimes.clear();
     await this.syncWithSupabase(undefined, true);
   }
@@ -658,14 +692,18 @@ class FestService {
       };
     }
 
-    // Event globally locked by fest admin
-    if (item.is_locked) {
-      return { canRegister: false, reason: 'Event is locked by fest admin', isFinePeriod: false };
+    // 2. Specific 2D Matrix cell configuration for this college & item takes precedence over generic item lock
+    if (cell !== undefined) {
+      if (!cell.is_open) {
+        return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
+      }
+      // If cell is explicitly marked open by admin, permit registration (even past normal deadline or if event was globally locked)
+      return { canRegister: true, isFinePeriod: false, reason: 'Admin Matrix Permission Active' };
     }
 
-    // Event closed for this specific college in 2D Entry Locks matrix
-    if (cell && !cell.is_open) {
-      return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
+    // 3. Fallback to event-level lock when no specific college override exists
+    if (item.is_locked) {
+      return { canRegister: false, reason: 'Event is locked by fest admin', isFinePeriod: false };
     }
 
     const regDeadline = item.reg_deadline ? new Date(item.reg_deadline) : new Date(settings.reg_deadline);
@@ -677,11 +715,6 @@ class FestService {
 
     if (now <= fineDeadline) {
       return { canRegister: true, isFinePeriod: true, reason: 'Late Registration Fine Applicable' };
-    }
-
-    // Past deadline: if admin explicitly marked open in matrix, permit registration
-    if (cell && cell.is_open) {
-      return { canRegister: true, isFinePeriod: true, reason: 'Admin Matrix Permission Active' };
     }
 
     return { canRegister: false, reason: 'Registration deadline has passed', isFinePeriod: false };
@@ -1076,7 +1109,7 @@ class FestService {
     return this.batchUpdateItemDeadlines(itemIds, null, null);
   }
 
-  // --- Entry Locks Matrix ---
+  // --- Registration Lock Matrix ---
   public getEntryLocks(): EntryLock[] {
     const raw = this.getStorage<EntryLock[]>('entryLocks', []);
     const colleges = this.getColleges();
@@ -1273,8 +1306,8 @@ class FestService {
   public async setCollegeItemLock(collegeAfflNoOrId: number | string, itemIdOrCode: number | string, isUnlocked: boolean): Promise<EntryLock> {
     const college = this.getCollege(collegeAfflNoOrId);
     const item = this.getItem(itemIdOrCode);
-    const affl = college ? college.affl_no : Number(collegeAfflNoOrId) || 11;
-    const itmId = item ? item.item_id : Number(itemIdOrCode) || 1;
+    const affl = college ? college.affl_no : Number(collegeAfflNoOrId) || 0;
+    const itmId = item ? item.item_id : Number(itemIdOrCode) || 0;
     return this.setEntryLockCell(itmId, affl, isUnlocked);
   }
 

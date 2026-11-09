@@ -28,10 +28,58 @@ interface FestContextType {
 const FestContext = createContext<FestContextType | undefined>(undefined);
 
 export function FestProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRoleState] = useState<UserRole>('college');
-  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('col-1');
-  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(1);
-  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(false);
+  const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const studentSession = localStorage.getItem('arts_fest_student_session');
+        if (studentSession) return 'student';
+        const role = localStorage.getItem('arts_fest_active_role');
+        if (role) return role as UserRole;
+      } catch {}
+    }
+    return 'student';
+  });
+
+  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const studentSessionStr = localStorage.getItem('arts_fest_student_session');
+        if (studentSessionStr) {
+          const parsed = JSON.parse(studentSessionStr);
+          if (parsed && parsed.college_affl_no) return Number(parsed.college_affl_no);
+        }
+        const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+        if (savedAffl) return Number(savedAffl);
+      } catch {}
+    }
+    return 0;
+  });
+
+  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const studentSessionStr = localStorage.getItem('arts_fest_student_session');
+        if (studentSessionStr) {
+          const parsed = JSON.parse(studentSessionStr);
+          if (parsed && parsed.college_affl_no) return `col-${parsed.college_affl_no}`;
+        }
+        const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+        if (savedAffl) return `col-${savedAffl}`;
+      } catch {}
+    }
+    return '';
+  });
+
+  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem('arts_fest_student_session')) return true;
+        if (localStorage.getItem('arts_fest_active_role')) return true;
+      } catch {}
+    }
+    return false;
+  });
+
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
@@ -114,8 +162,14 @@ export function FestProvider({ children }: { children: ReactNode }) {
                 setCurrentCollegeIdState(`col-${sAffl}`);
                 setIsAuthenticated(true);
                 hasStudentSession = true;
-                const connected = await festService.syncWithSupabase(sAffl, true);
-                setIsSupabaseConnected(connected);
+                // Fast background sync without blocking UI
+                festService.syncWithSupabase(sAffl, false).then(connected => {
+                  setIsSupabaseConnected(connected);
+                  if (connected) {
+                    setFestSettings(festService.getFestSettings());
+                    setRefreshKey(prev => prev + 1);
+                  }
+                });
               }
             } catch (e) {
               // Ignore JSON parse error
@@ -127,6 +181,10 @@ export function FestProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(false);
           const connected = await festService.syncWithSupabase(undefined, false);
           setIsSupabaseConnected(connected);
+          if (connected) {
+            setFestSettings(festService.getFestSettings());
+            setRefreshKey(prev => prev + 1);
+          }
         }
       }
       setIsLoadingAuth(false);
@@ -135,10 +193,24 @@ export function FestProvider({ children }: { children: ReactNode }) {
     // Subscribe to Supabase Auth State Changes (login, logout, token refresh, window focus)
     const { data } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        setCurrentRoleState('college');
-        setCurrentCollegeAfflNoState(1);
-        setCurrentCollegeIdState('col-1');
+        const hasStudent = typeof window !== 'undefined' && localStorage.getItem('arts_fest_student_session');
+        if (!hasStudent) {
+          setIsAuthenticated(false);
+          setCurrentRoleState('student');
+          setCurrentCollegeAfflNoState(0);
+          setCurrentCollegeIdState('');
+        } else {
+          try {
+            const studentSession = JSON.parse(localStorage.getItem('arts_fest_student_session') || '{}');
+            if (studentSession && studentSession.college_affl_no) {
+              const sAffl = Number(studentSession.college_affl_no);
+              setCurrentRoleState('student');
+              setCurrentCollegeAfflNoState(sAffl);
+              setCurrentCollegeIdState(`col-${sAffl}`);
+              setIsAuthenticated(true);
+            }
+          } catch {}
+        }
       }
       if (event === 'SIGNED_IN' && session?.user) {
         const isFreshLogin = !isAuthenticatedRef.current;
@@ -270,9 +342,9 @@ export function FestProvider({ children }: { children: ReactNode }) {
       document.cookie = 'arts_fest_student_id=; path=/; max-age=0; SameSite=Lax';
       document.cookie = 'arts_fest_student_cic=; path=/; max-age=0; SameSite=Lax';
     }
-    setCurrentRoleState('college');
-    setCurrentCollegeAfflNoState(1);
-    setCurrentCollegeIdState('col-1');
+    setCurrentRoleState('student');
+    setCurrentCollegeAfflNoState(0);
+    setCurrentCollegeIdState('');
     setIsAuthenticated(false);
   };
 
@@ -295,7 +367,6 @@ export function FestProvider({ children }: { children: ReactNode }) {
 
   const triggerRefresh = () => {
     setRefreshKey(prev => prev + 1);
-    setFestSettings(festService.getFestSettings());
   };
 
   return (
@@ -316,7 +387,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
         theme,
         setTheme,
         toggleTheme,
-        signOut
+        signOut,
       }}
     >
       {children}

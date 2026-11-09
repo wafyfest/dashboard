@@ -25,7 +25,7 @@ export function LocksMatrixTab() {
   // Sort colleges numerically ascending by Affiliation Number (affl_no)
   const colleges = useMemo(() => {
     return [...festService.getColleges()].sort((a, b) => a.affl_no - b.affl_no);
-  }, []);
+  }, [refreshKey]);
 
   // Sort items letter-wise by code
   const items = useMemo(() => {
@@ -36,7 +36,10 @@ export function LocksMatrixTab() {
     });
   }, [refreshKey]);
 
-  const locks = festService.getEntryLocks();
+  // Memoize entry locks to prevent heavy recomputations on keystrokes
+  const locks = useMemo(() => {
+    return festService.getEntryLocks();
+  }, [refreshKey]);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,18 +115,18 @@ export function LocksMatrixTab() {
   return (
     <div className="space-y-5">
       {/* Header Panel - Minimalist Card */}
-      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm">
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-sm">
         <CardHeader className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-semibold text-[var(--text-primary)]">
-                Entry Locks Matrix
+              <CardTitle className="text-lg font-heading font-bold text-[var(--text-primary)]">
+                Registration Lock
               </CardTitle>
-              <Badge variant="navy" className="text-xs font-normal">
+              <Badge variant="saffron" size="sm" className="font-heading font-medium">
                 Permissions Grid
               </Badge>
             </div>
-            <CardDescription className="text-xs text-[var(--text-muted)] mt-1">
+            <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
               Select an event to open or lock registration access per college.
             </CardDescription>
           </div>
@@ -133,7 +136,7 @@ export function LocksMatrixTab() {
             <Button
               size="xs"
               variant="outline"
-              className="text-xs font-medium border-slate-700 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-800"
+              className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
               onClick={async () => {
                 await festService.setAllEntryLocks(true);
                 startTransition(() => {
@@ -141,12 +144,12 @@ export function LocksMatrixTab() {
                 });
               }}
             >
-              <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-400" /> Open All
+              <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> Open All
             </Button>
             <Button
               size="xs"
               variant="outline"
-              className="text-xs font-medium border-slate-700 hover:bg-rose-950/30 hover:text-rose-400 hover:border-rose-800"
+              className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-rose-500/40 hover:bg-rose-500/10 text-rose-700 dark:text-rose-400"
               onClick={async () => {
                 await festService.setAllEntryLocks(false);
                 startTransition(() => {
@@ -154,12 +157,12 @@ export function LocksMatrixTab() {
                 });
               }}
             >
-              <Lock className="w-3.5 h-3.5 mr-1 text-rose-400" /> Lock All
+              <Lock className="w-3.5 h-3.5 mr-1 text-rose-600 dark:text-rose-400" /> Lock All
             </Button>
             <Button
               size="xs"
               variant="ghost"
-              className="text-slate-400 hover:text-slate-200 text-xs"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-heading"
               onClick={expandedItemIds.size === filteredItems.length ? collapseAll : expandAll}
             >
               <Layers className="w-3.5 h-3.5 mr-1" />
@@ -173,19 +176,20 @@ export function LocksMatrixTab() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Minimalist Search Bar */}
             <div className="relative flex-1 max-w-sm">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="text"
                 placeholder="Search event..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder:text-slate-500 focus:outline-none focus:border-slate-600 transition-colors"
+                aria-label="Search events"
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 transition-all font-sans"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] font-medium"
                 >
                   Clear
                 </button>
@@ -201,11 +205,10 @@ export function LocksMatrixTab() {
                     key={phase}
                     type="button"
                     onClick={() => setSelectedPhase(phase)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      selectedPhase === phase
-                        ? 'bg-slate-800 text-slate-100 border border-slate-700'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                    }`}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${selectedPhase === phase
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                      }`}
                   >
                     {phase}
                   </button>
@@ -213,17 +216,16 @@ export function LocksMatrixTab() {
               </div>
 
               {/* Mode Filter Pills */}
-              <div className="flex items-center gap-1 overflow-x-auto pl-2 border-l border-slate-800">
+              <div className="flex items-center gap-1 overflow-x-auto pl-2 border-l border-[var(--border-subtle)]">
                 {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setSelectedMode(m)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      selectedMode === m
-                        ? 'bg-slate-800 text-slate-100 border border-slate-700'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                    }`}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${selectedMode === m
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                      }`}
                   >
                     {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
                   </button>
@@ -237,9 +239,9 @@ export function LocksMatrixTab() {
       {/* Events Dropdown Cards List - Clean Minimalist Style */}
       <div className="space-y-2.5">
         {filteredItems.length === 0 ? (
-          <Card className="p-8 text-center text-slate-500">
+          <Card className="p-8 text-center text-[var(--text-muted)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] rounded-2xl">
             <Filter className="w-6 h-6 mx-auto mb-2 opacity-40" />
-            <p className="text-xs">No events found matching your filter criteria.</p>
+            <p className="text-xs font-sans">No events found matching your filter criteria.</p>
           </Card>
         ) : (
           filteredItems.map(item => {
@@ -273,60 +275,58 @@ export function LocksMatrixTab() {
             return (
               <Card
                 key={item.id}
-                className={`transition-colors border ${
-                  isExpanded
-                    ? 'border-slate-700 bg-[var(--bg-surface)]'
-                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-slate-800'
-                }`}
+                className={`transition-all rounded-2xl overflow-hidden border ${isExpanded
+                    ? 'border-[var(--f-saffron)]/40 bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-medium)]'
+                  }`}
               >
-                {/* Minimalist Event Header */}
+                {/* Event Header */}
                 <div
                   className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
                   onClick={() => toggleExpand(item.item_id)}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     {/* Neutral Code & ID Badges */}
-                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-[var(--bg-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-[var(--border-subtle)] shrink-0">
                       {itemCodeDisplay}
                     </span>
-                    <span className="font-mono text-xs text-slate-400 shrink-0">
+                    <span className="font-mono text-xs font-bold text-[var(--text-muted)] shrink-0">
                       {itemIdDisplay}
                     </span>
 
                     <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate" title={item.name_eng || item.name}>
+                      <h3 className="text-sm font-heading font-bold text-[var(--text-primary)] truncate" title={item.name_eng || item.name}>
                         {item.name_eng || item.name}
                       </h3>
                       {item.name_mal && (
-                        <span className="text-xs text-slate-500">({item.name_mal})</span>
+                        <span className="text-xs text-[var(--text-muted)] font-malayalam">({item.name_mal})</span>
                       )}
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <span className="px-1.5 py-0.2 rounded bg-slate-800/60 text-slate-400 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] text-[11px] font-sans">
                           {item.phase || item.category}
                         </span>
                         <ItemModeBadge mode={item.mode} size="sm" />
                         <span>•</span>
-                        <span className="text-[11px]">
+                        <span className="text-[11px] font-sans">
                           {item.point_type === 'group' || item.item_type === 'Group' ? 'Group' : 'Single'}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Minimalist Summary & Row Lock Button */}
+                  {/* Summary & Row Lock Button */}
                   <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0" onClick={e => e.stopPropagation()}>
                     {/* Status Badge */}
-                    <span className={`text-xs px-2.5 py-0.5 rounded-md font-medium border ${
-                      isAllOpen
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border ${isAllOpen
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
                         : isAllClosed
-                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                    }`}>
+                          ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30'
+                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                      }`}>
                       {openCollegesCount}/{colleges.length} Open
                     </span>
 
-                    {/* Minimalist Row Toggle */}
+                    {/* Row Toggle */}
                     <button
                       type="button"
                       onClick={async () => {
@@ -336,20 +336,19 @@ export function LocksMatrixTab() {
                           triggerRefresh();
                         });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium flex items-center gap-1 transition-colors ${
-                        openCollegesCount > 0
-                          ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-rose-950/30 hover:text-rose-400 hover:border-rose-800'
-                          : 'bg-rose-950/30 text-rose-400 border-rose-800/60 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-800'
-                      }`}
+                      className={`px-2.5 py-1 rounded-xl border text-xs font-heading font-semibold flex items-center gap-1 transition-all cursor-pointer ${openCollegesCount > 0
+                          ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-400 hover:border-rose-500/30'
+                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-500/30'
+                        }`}
                     >
                       {openCollegesCount > 0 ? (
                         <>
-                          <Unlock className="w-3 h-3 text-emerald-400" />
+                          <Unlock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                           <span>Open ({openCollegesCount})</span>
                         </>
                       ) : (
                         <>
-                          <Lock className="w-3 h-3 text-rose-400" />
+                          <Lock className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                           <span>Locked</span>
                         </>
                       )}
@@ -358,7 +357,7 @@ export function LocksMatrixTab() {
                     <button
                       type="button"
                       onClick={() => toggleExpand(item.item_id)}
-                      className="p-1 text-slate-400 hover:text-slate-200"
+                      className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg transition-colors cursor-pointer"
                     >
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
@@ -367,14 +366,15 @@ export function LocksMatrixTab() {
 
                 {/* Expanded Dropdown Panel - Clean Grid */}
                 {isExpanded && (
-                  <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]/30 p-3.5 space-y-3 rounded-b-xl">
+                  <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 p-4 space-y-3">
                     {/* Control Bar inside Dropdown */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div className="relative max-w-xs flex-1">
-                        <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                         <input
                           type="text"
                           placeholder="Filter colleges..."
+                          aria-label="Filter colleges for this event"
                           value={collegeSearchQuery[item.item_id] || ''}
                           onChange={e =>
                             setCollegeSearchQuery(prev => ({
@@ -382,14 +382,14 @@ export function LocksMatrixTab() {
                               [item.item_id]: e.target.value
                             }))
                           }
-                          className="w-full pl-7 pr-3 py-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder:text-slate-500 focus:outline-none focus:border-slate-600"
+                          className="w-full pl-7 pr-3 py-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-sans"
                         />
                       </div>
 
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          className="text-xs text-slate-400 hover:text-emerald-400 transition-colors"
+                          className="text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer"
                           onClick={async () => {
                             await festService.setEntryLockRow(item.item_id, true);
                             startTransition(() => {
@@ -399,10 +399,10 @@ export function LocksMatrixTab() {
                         >
                           Open All
                         </button>
-                        <span className="text-slate-600">•</span>
+                        <span className="text-[var(--border-subtle)]">•</span>
                         <button
                           type="button"
-                          className="text-xs text-slate-400 hover:text-rose-400 transition-colors"
+                          className="text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-rose-700 dark:hover:text-rose-400 transition-colors cursor-pointer"
                           onClick={async () => {
                             await festService.setEntryLockRow(item.item_id, false);
                             startTransition(() => {
@@ -415,7 +415,7 @@ export function LocksMatrixTab() {
                       </div>
                     </div>
 
-                    {/* Minimalist Column-Wise Colleges Flow Layout */}
+                    {/* Column-Wise Colleges Flow Layout */}
                     <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-2 space-y-2">
                       {filteredCollegesForEvent.map(col => {
                         const cell = lockMap.get(`${item.item_id}:${col.affl_no}`);
@@ -424,22 +424,21 @@ export function LocksMatrixTab() {
                         return (
                           <div
                             key={col.id}
-                            className={`break-inside-avoid p-2 rounded-lg border flex items-center justify-between gap-2 transition-colors ${
-                              isOpen
-                                ? 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
-                                : 'border-rose-500/20 bg-rose-950/10'
-                            }`}
+                            className={`break-inside-avoid p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${isOpen
+                                ? 'border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)]'
+                                : 'border-rose-500/20 bg-rose-500/5'
+                              }`}
                           >
                             <div className="min-w-0 flex items-center gap-1.5">
-                              <span className="font-mono text-xs font-semibold text-slate-400 px-1.5 py-0.2 rounded bg-slate-800/80">
+                              <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shrink-0">
                                 #{col.affl_no}
                               </span>
-                              <span className="text-xs font-medium text-[var(--text-primary)] truncate" title={col.name}>
+                              <span className="text-xs font-sans font-medium text-[var(--text-primary)] truncate" title={col.name}>
                                 {col.short_name || col.code || col.name}
                               </span>
                             </div>
 
-                            {/* Minimalist College Toggle Button */}
+                            {/* College Toggle Button */}
                             <button
                               type="button"
                               onClick={async () => {
@@ -448,11 +447,10 @@ export function LocksMatrixTab() {
                                   triggerRefresh();
                                 });
                               }}
-                              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors border shrink-0 ${
-                                isOpen
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
-                              }`}
+                              className={`px-2 py-0.5 rounded-lg text-xs font-heading font-bold transition-all border shrink-0 cursor-pointer ${isOpen
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
+                                }`}
                             >
                               {isOpen ? 'Open' : 'Closed'}
                             </button>

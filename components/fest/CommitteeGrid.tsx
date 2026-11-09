@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import Image from 'next/image';
 import { Search, Sparkles, Crown, Award, Wrench, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { CommitteeMember } from '@/lib/types/fest';
@@ -189,31 +190,23 @@ function MemberCard({ member }: { member: CommitteeMember }) {
           aria-hidden="true"
         />
 
-        {/* Photo or Artistic Monochrome Initials Portrait */}
+        {/* Photo or Clean Monogram Portrait */}
         {member.photo_url ? (
-          <img
+          <Image
             src={member.photo_url}
             alt={`${member.name}, ${member.position}`}
-            className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#1e2868] to-[#0a0e30]">
-            <span className="f-kufi text-3xl sm:text-4xl lg:text-5xl font-black text-white/80 transition-transform duration-500 group-hover:scale-110 group-hover:text-[var(--f-saffron)] select-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#182052] to-[#0c1244]">
+            <span className="font-heading text-2xl sm:text-3xl font-bold text-white/40 transition-transform duration-300 group-hover:scale-105 group-hover:text-[var(--f-saffron)] select-none">
               {initials}
             </span>
           </div>
         )}
-
-        {/* Elegant Signature Script Overlay */}
-        <div className="absolute bottom-2.5 inset-x-0 text-center pointer-events-none select-none z-10 px-2">
-          <span
-            style={{ fontFamily: "'Alex Brush', 'Caveat', cursive" }}
-            className="text-2xl sm:text-3xl text-white/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] tracking-wide"
-          >
-            {signatureText}
-          </span>
-        </div>
       </div>
 
       {/* Information below portrait */}
@@ -303,7 +296,7 @@ export function CommitteeGrid() {
   return (
     <section
       id="committee"
-      aria-label="Festival Committee Leadership"
+      aria-label="Fest Committee Leadership"
       className="relative scroll-mt-20 bg-[var(--f-canvas)] py-20 text-[var(--f-text-primary)] sm:py-28"
     >
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
@@ -315,7 +308,7 @@ export function CommitteeGrid() {
               <span>Leadership &amp; Committee</span>
             </div>
             <h2 className="mt-3 text-3xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-white font-heading">
-              Festival Committee
+              Fest Committee
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-[var(--f-text-muted)] max-w-xl font-sans">
               The Chairman, Vice Chairmen, General Secretariat, and Directorate Convenors leading the 14th State Wafy Arts Fest.
@@ -360,7 +353,7 @@ export function CommitteeGrid() {
                   <span>{cat.label}</span>
                   <span
                     className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
-                      isActive ? 'bg-[var(--f-ink)]/15 text-[var(--f-ink)]' : 'bg-white/10 text-white/70'
+                      isActive ? 'bg-[var(--f-ink)]/25 text-[var(--f-ink)]' : 'bg-white/10 text-white/70'
                     }`}
                   >
                     {count}
@@ -442,7 +435,7 @@ export function CommitteeGrid() {
                     Main Convenors Directorate
                   </h3>
                   <span className="text-xs text-[var(--f-text-muted)] hidden sm:inline font-sans">
-                    — State Festival Convenors &amp; Technical Directorate
+                    — State Fest Convenors &amp; Technical Directorate
                   </span>
                 </div>
                 <span lang="ar" dir="rtl" className="f-kufi text-xs sm:text-sm text-[var(--f-saffron)]">

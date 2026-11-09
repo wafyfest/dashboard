@@ -375,7 +375,7 @@ export function ManageVolunteersTab({
     const student = vol.student || students.find(s => s.id === vol.student_id);
     const name = student?.name || student?.full_name || 'this scholar';
 
-    if (!confirm(`Are you sure you want to remove "${name}" from the festival volunteer roster?`)) {
+    if (!confirm(`Are you sure you want to remove "${name}" from the fest volunteer roster?`)) {
       return;
     }
 
@@ -570,25 +570,25 @@ export function ManageVolunteersTab({
   return (
     <div className="space-y-6">
       {/* Top Banner Notice: Admin Management */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#132238] dark:bg-[#1A2E4A] text-white flex items-center justify-center shrink-0 shadow-xs border border-[#1E3558] dark:border-[#2E476B]/60">
-            <HeartHandshake className="w-5 h-5 text-indigo-400" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--f-saffron)] text-[#090d1a] flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+            <HeartHandshake className="w-5 h-5 text-[#090d1a]" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+              <h3 className="text-sm sm:text-base font-bold font-heading text-[var(--text-primary)]">
                 Volunteer Directorate & Duty Allotment
               </h3>
-              <Badge variant="navy" size="sm">
+              <Badge variant="saffron" size="sm">
                 Executive Desk
               </Badge>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-sans">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Sync Active
               </span>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-sans">
               Review institutional volunteer submissions (Aliya & PG scholars), approve rosters, and manage departmental assignments.
             </p>
           </div>
@@ -600,10 +600,10 @@ export function ManageVolunteersTab({
             size="sm"
             onClick={() => syncVolunteers(true)}
             disabled={isSyncing}
-            className="text-xs"
+            className="text-xs border-[var(--border-medium)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--f-saffron)]"
             title="Refresh Live Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin text-indigo-500' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin text-[var(--f-saffron)]' : ''}`} />
             {isSyncing ? 'Syncing...' : 'Live Sync'}
           </Button>
 
@@ -611,17 +611,17 @@ export function ManageVolunteersTab({
             variant="outline"
             size="sm"
             onClick={handlePrintMasterRoster}
-            className="text-xs"
+            className="text-xs border-[var(--border-medium)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--f-saffron)]"
           >
             <Printer className="w-3.5 h-3.5 mr-1.5" />
             Print Master Roster
           </Button>
 
           <Button
-            variant="primary"
+            variant="saffron"
             size="sm"
             onClick={() => setIsAddModalOpen(true)}
-            className="text-xs font-semibold"
+            className="text-xs font-bold shadow-md shadow-amber-500/20"
           >
             <UserPlus className="w-3.5 h-3.5 mr-1.5" />
             Add Volunteer
@@ -631,63 +631,63 @@ export function ManageVolunteersTab({
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] font-sans">
               Total Volunteers
             </span>
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center justify-center">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono">
+          <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono tabular-nums">
             {totalVolunteersCount}
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             Across all 25 participating colleges
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-sans">
               Approved & Active
             </span>
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono tabular-nums">
             {approvedCount}
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             {registeredCount} pending • {standbyCount} standby
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] font-sans">
               Participating Colleges
             </span>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[var(--bg-subtle)] text-[var(--f-saffron-text-strong)] border border-[var(--border-subtle)] flex items-center justify-center">
               <Building2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono">
+          <div className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono tabular-nums">
             {participatingCollegesCount} <span className="text-sm font-normal text-[var(--text-muted)]">/ {colleges.length}</span>
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             Colleges with enrolled volunteers
           </p>
         </Card>
 
-        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all rounded-xl">
+        <Card className="p-4 bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] hover:border-[var(--border-medium)] transition-all rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              T-Shirt Logistics (Total: {totalVolunteersCount})
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] font-sans">
+              T-Shirt Logistics (Total: <span className="font-mono tabular-nums">{totalVolunteersCount}</span>)
             </span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[var(--f-saffron)]/10 text-[var(--f-saffron-text-strong)] border border-[var(--f-saffron)]/20 flex items-center justify-center">
               <Shirt className="w-4 h-4" />
             </div>
           </div>
@@ -695,46 +695,46 @@ export function ManageVolunteersTab({
             {TSHIRT_SIZES.map(s => (
               <span
                 key={s}
-                className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+                className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono tabular-nums bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
               >
                 {s}: {tshirtBreakdown[s] || 0}
               </span>
             ))}
           </div>
-          <p className="text-[10px] text-[var(--text-secondary)] mt-1 font-medium">
+          <p className="text-[10px] text-[var(--text-secondary)] mt-1 font-medium font-sans">
             Procurement sizing matrix
           </p>
         </Card>
       </div>
 
       {/* Main Table Card */}
-      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card overflow-hidden">
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden">
         <CardHeader className="p-4 sm:p-5 border-b border-[var(--border-subtle)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-sm sm:text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
-              <HeartHandshake className="w-4 h-4 text-[#132238] dark:text-slate-300" />
+            <CardTitle className="text-sm sm:text-base font-bold font-heading text-[var(--text-primary)] flex items-center gap-2">
+              <HeartHandshake className="w-4 h-4 text-[var(--f-saffron-text-strong)]" />
               All Volunteer Registrations
-              <span className="px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+              <span className="px-2 py-0.5 rounded-md text-xs font-mono tabular-nums font-semibold bg-[var(--bg-subtle)] text-[var(--f-saffron-text-strong)] border border-[var(--border-subtle)]">
                 {filteredVolunteers.length} Records
               </span>
             </CardTitle>
-            <CardDescription className="text-xs text-[var(--text-secondary)] mt-0.5">
+            <CardDescription className="text-xs text-[var(--text-secondary)] mt-0.5 font-sans">
               Filter by institution, phase, duty department, and verification status.
             </CardDescription>
           </div>
 
           {/* Batch Controls */}
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap font-sans">
               <span className="text-xs font-medium text-[var(--text-secondary)]">
-                {selectedIds.size} selected
+                <span className="font-mono tabular-nums font-bold">{selectedIds.size}</span> selected
               </span>
               <Button
                 size="sm"
                 variant="success"
                 onClick={() => handleBatchStatus('Approved')}
                 disabled={isSubmitting}
-                className="text-xs h-8"
+                className="text-xs h-8 font-semibold"
               >
                 <ShieldCheck className="w-3.5 h-3.5 mr-1" />
                 Approve Selected
@@ -744,7 +744,7 @@ export function ManageVolunteersTab({
                 variant="outline"
                 onClick={() => handleBatchStatus('Standby')}
                 disabled={isSubmitting}
-                className="text-xs h-8 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                className="text-xs h-8 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 font-semibold"
               >
                 Set Standby
               </Button>
@@ -753,7 +753,7 @@ export function ManageVolunteersTab({
                 variant="destructive"
                 onClick={handleBatchDelete}
                 disabled={isSubmitting}
-                className="text-xs h-8"
+                className="text-xs h-8 font-semibold"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1" />
                 Remove
@@ -771,7 +771,7 @@ export function ManageVolunteersTab({
         </CardHeader>
 
         {/* Toolbar: Search & Filters */}
-        <div className="p-3 sm:p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex flex-wrap items-center justify-between gap-3">
+        <div className="p-3 sm:p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex flex-wrap items-center justify-between gap-3 font-sans">
           {/* Search Input */}
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -780,7 +780,7 @@ export function ManageVolunteersTab({
               placeholder="Search volunteer by scholar name, CIC, phone, or notes..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238] font-medium"
+              className="w-full pl-9 pr-8 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
             />
             {searchQuery && (
               <button
@@ -793,7 +793,7 @@ export function ManageVolunteersTab({
           </div>
 
           {/* College Dropdown */}
-          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-medium)] text-xs text-[var(--text-secondary)]">
             <Building2 className="w-3.5 h-3.5 text-[var(--text-muted)]" />
             <select
               value={collegeFilter}
@@ -810,12 +810,12 @@ export function ManageVolunteersTab({
           </div>
 
           {/* Phase Filter (All / Aliya / PG) */}
-          <div className="flex items-center rounded-lg p-0.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs">
+          <div className="flex items-center rounded-lg p-0.5 bg-[var(--bg-surface)] border border-[var(--border-medium)] text-xs">
             <button
               onClick={() => setPhaseFilter('all')}
               className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
                 phaseFilter === 'all'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -825,7 +825,7 @@ export function ManageVolunteersTab({
               onClick={() => setPhaseFilter('aliya')}
               className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
                 phaseFilter === 'aliya'
-                  ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -835,7 +835,7 @@ export function ManageVolunteersTab({
               onClick={() => setPhaseFilter('pg')}
               className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
                 phaseFilter === 'pg'
-                  ? 'bg-amber-600 text-white shadow-xs'
+                  ? 'bg-amber-500 text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -844,7 +844,7 @@ export function ManageVolunteersTab({
           </div>
 
           {/* Duty Filter */}
-          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-medium)] text-xs text-[var(--text-secondary)]">
             <Filter className="w-3.5 h-3.5 text-[var(--text-muted)]" />
             <select
               value={dutyFilter}
@@ -866,22 +866,22 @@ export function ManageVolunteersTab({
               onClick={() => setStatusFilter('all')}
               className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
                 statusFilter === 'all'
-                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              All ({totalVolunteersCount})
+              All (<span className="font-mono tabular-nums">{totalVolunteersCount}</span>)
             </button>
             <button
               onClick={() => setStatusFilter('Registered')}
               className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1.5 ${
                 statusFilter === 'Registered'
-                  ? 'bg-amber-600 text-white shadow-xs'
+                  ? 'bg-amber-500 text-[#090d1a] shadow-xs'
                   : 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Not Approved ({registeredCount})
+              Not Approved (<span className="font-mono tabular-nums">{registeredCount}</span>)
             </button>
             <button
               onClick={() => setStatusFilter('Approved')}
@@ -892,17 +892,17 @@ export function ManageVolunteersTab({
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Approved ({approvedCount})
+              Approved (<span className="font-mono tabular-nums">{approvedCount}</span>)
             </button>
             <button
               onClick={() => setStatusFilter('Standby')}
               className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
                 statusFilter === 'Standby'
-                  ? 'bg-zinc-700 text-white shadow-xs'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-medium)] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Standby ({standbyCount})
+              Standby (<span className="font-mono tabular-nums">{standbyCount}</span>)
             </button>
           </div>
         </div>
@@ -910,7 +910,7 @@ export function ManageVolunteersTab({
         {/* Volunteers Table */}
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-[var(--bg-subtle)]/75">
+            <TableHeader className="bg-[var(--bg-subtle)]">
               <TableRow className="border-b border-[var(--border-subtle)]">
                 <TableHead className="w-10 text-center">
                   <input
@@ -926,17 +926,17 @@ export function ManageVolunteersTab({
                         setSelectedIds(new Set());
                       }
                     }}
-                    className="rounded border-[var(--border-medium)] text-[#132238] focus:ring-[#132238]/30 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)]/40 w-3.5 h-3.5 cursor-pointer"
                   />
                 </TableHead>
-                <TableHead className="w-12 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">#</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Scholar & CIC</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Institution</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Phase / Class</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Duty Assignment</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Size & Phone</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Status</TableHead>
-                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Actions</TableHead>
+                <TableHead className="w-12 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">#</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Scholar & CIC</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Institution</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Phase / Class</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Duty Assignment</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Size & Phone</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Status</TableHead>
+                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] font-sans">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -947,10 +947,10 @@ export function ManageVolunteersTab({
                       <div className="w-12 h-12 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] flex items-center justify-center mx-auto border border-[var(--border-subtle)]">
                         <HeartHandshake className="w-6 h-6" />
                       </div>
-                      <div className="text-sm font-semibold text-[var(--text-primary)]">
+                      <div className="text-sm font-semibold text-[var(--text-primary)] font-heading">
                         No Volunteer Records Found
                       </div>
-                      <p className="text-xs text-[var(--text-muted)]">
+                      <p className="text-xs text-[var(--text-muted)] font-sans">
                         {searchQuery
                           ? `No records found matching "${searchQuery}".`
                           : 'No volunteers enrolled matching current filters.'}
@@ -976,7 +976,7 @@ export function ManageVolunteersTab({
                     <TableRow
                       key={vol.id || idx}
                       className={`hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] ${
-                        isPending ? 'border-l-[3px] border-l-amber-500' : ''
+                        isPending ? 'border-l-[3px] border-l-[var(--f-saffron)]' : ''
                       }`}
                     >
                       {/* Checkbox */}
@@ -990,12 +990,12 @@ export function ManageVolunteersTab({
                             else copy.delete(vol.id);
                             setSelectedIds(copy);
                           }}
-                          className="rounded border-[var(--border-medium)] text-[#132238] focus:ring-[#132238]/30 w-3.5 h-3.5 cursor-pointer"
+                          className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)]/40 w-3.5 h-3.5 cursor-pointer"
                         />
                       </TableCell>
 
                       {/* Index */}
-                      <TableCell className="text-center text-xs font-mono text-[var(--text-muted)]">
+                      <TableCell className="text-center text-xs font-mono tabular-nums text-[var(--text-muted)]">
                         {idx + 1}
                       </TableCell>
 
@@ -1020,10 +1020,10 @@ export function ManageVolunteersTab({
                             )}
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-[var(--text-primary)]">
+                            <div className="text-xs font-bold font-heading text-[var(--text-primary)]">
                               {student?.name || student?.full_name || 'Enrolled Scholar'}
                             </div>
-                            <span className="font-mono text-[10px] text-[#132238] dark:text-slate-300 font-semibold">
+                            <span className="font-mono tabular-nums text-[10px] text-[var(--f-saffron-text-strong)] font-semibold">
                               {getCanonicalChestNo(student)}
                             </span>
                           </div>
@@ -1036,7 +1036,7 @@ export function ManageVolunteersTab({
                           <span className="text-xs font-semibold text-[var(--text-primary)] line-clamp-1 max-w-[180px]">
                             {col?.name || `College #${vol.college_affl_no}`}
                           </span>
-                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono tabular-nums font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                             Affl #{vol.college_affl_no}
                           </span>
                         </div>
@@ -1045,7 +1045,7 @@ export function ManageVolunteersTab({
                       {/* Phase & Class */}
                       <TableCell>
                         <div className="space-y-0.5">
-                          <Badge variant={isPg ? 'warning' : 'navy'} size="sm" className="uppercase text-[9px]">
+                          <Badge variant={isPg ? 'warning' : 'saffron'} size="sm" className="uppercase text-[9px]">
                             {studentPhase}
                           </Badge>
                           {student?.class && (
@@ -1072,14 +1072,14 @@ export function ManageVolunteersTab({
 
                       {/* Size & Phone */}
                       <TableCell>
-                        <div className="space-y-0.5 text-xs text-[var(--text-secondary)]">
+                        <div className="space-y-0.5 text-xs text-[var(--text-secondary)] font-sans">
                           <div className="flex items-center gap-1">
                             <Shirt className="w-3 h-3 text-[var(--text-muted)]" />
-                            <span className="text-[11px] font-semibold text-[var(--text-primary)]">
+                            <span className="text-[11px] font-semibold text-[var(--text-primary)] font-mono">
                               Size {vol.tshirt_size || 'L'}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 font-mono text-[10px]">
+                          <div className="flex items-center gap-1 font-mono tabular-nums text-[10px]">
                             <Phone className="w-2.5 h-2.5 text-[var(--text-muted)]" />
                             <span>{vol.phone || student?.phone || '—'}</span>
                           </div>
@@ -1089,17 +1089,17 @@ export function ManageVolunteersTab({
                       {/* Status */}
                       <TableCell>
                         {isApproved ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 font-sans">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>Approved</span>
                           </div>
                         ) : isStandby ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-500/10 border border-zinc-500/20">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-muted)] bg-[var(--bg-subtle)] border border-[var(--border-subtle)] font-sans">
                             <Clock className="w-3.5 h-3.5" />
                             <span>Standby</span>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs font-sans">
                             <span className="relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -1127,7 +1127,7 @@ export function ManageVolunteersTab({
                               variant="outline"
                               size="xs"
                               onClick={() => handleQuickStatusChange(vol.id, 'Registered')}
-                              className="text-[11px] font-medium text-[var(--text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 h-7 px-2 transition-colors rounded-lg"
+                              className="text-[11px] font-medium text-[var(--text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 h-7 px-2 transition-colors rounded-lg border-[var(--border-medium)]"
                               title="Revoke approval / move to pending"
                             >
                               Revoke
@@ -1147,7 +1147,7 @@ export function ManageVolunteersTab({
                             variant="outline"
                             size="xs"
                             onClick={() => handleOpenEdit(vol)}
-                            className="text-[11px] h-7 w-7 p-0 flex items-center justify-center rounded-lg"
+                            className="text-[11px] h-7 w-7 p-0 flex items-center justify-center rounded-lg border-[var(--border-medium)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--f-saffron)] hover:bg-[var(--bg-hover)]"
                             title="Edit details"
                           >
                             <Edit2 className="w-3 h-3" />
@@ -1183,14 +1183,14 @@ export function ManageVolunteersTab({
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="p-3 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between">
               <div>
-                <div className="text-xs font-semibold text-[var(--text-primary)]">
+                <div className="text-xs font-bold font-heading text-[var(--text-primary)]">
                   {editingVolunteer.student?.name || editingVolunteer.student?.full_name || 'Scholar'}
                 </div>
-                <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                <div className="text-[11px] text-[var(--text-muted)] font-sans mt-0.5">
                   {collegeMap.get(editingVolunteer.college_affl_no)?.name || `College #${editingVolunteer.college_affl_no}`}
                 </div>
               </div>
-              <span className="font-mono text-xs font-semibold text-[#132238] dark:text-slate-300">
+              <span className="font-mono tabular-nums text-xs font-bold text-[var(--f-saffron-text-strong)]">
                 {getCanonicalChestNo(editingVolunteer.student)}
               </span>
             </div>
@@ -1198,13 +1198,13 @@ export function ManageVolunteersTab({
             {/* Duty & Status Selection */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                   Duty Assignment
                 </label>
                 <select
                   value={editDuty}
                   onChange={e => setEditDuty(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
                   required
                 >
                   {VOLUNTEER_DUTIES.map(d => (
@@ -1216,13 +1216,13 @@ export function ManageVolunteersTab({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                   Volunteer Status
                 </label>
                 <select
                   value={editStatus}
                   onChange={e => setEditStatus(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
                 >
                   <option value="Approved">Approved</option>
                   <option value="Registered">Registered (Pending)</option>
@@ -1234,19 +1234,19 @@ export function ManageVolunteersTab({
             {/* Phone & T-Shirt Size */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                   Contact Phone
                 </label>
                 <input
                   type="tel"
                   value={editPhone}
                   onChange={e => setEditPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] font-mono text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] font-mono tabular-nums text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                   T-Shirt Size
                 </label>
                 <div className="flex items-center gap-1">
@@ -1255,10 +1255,10 @@ export function ManageVolunteersTab({
                       key={size}
                       type="button"
                       onClick={() => setEditTshirt(size)}
-                      className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all ${
                         editTshirt === size
-                          ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white border-[#132238] dark:border-[#1A2E4A]'
-                          : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-[var(--f-saffron)] shadow-xs'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
                       }`}
                     >
                       {size}
@@ -1270,7 +1270,7 @@ export function ManageVolunteersTab({
 
             {/* Notes */}
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                 Admin Notes / Special Instructions
               </label>
               <textarea
@@ -1278,7 +1278,7 @@ export function ManageVolunteersTab({
                 value={editNotes}
                 onChange={e => setEditNotes(e.target.value)}
                 placeholder="e.g. Assigned to Kalam Hall stage queue, speaks fluent Arabic..."
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
               />
             </div>
 
@@ -1293,9 +1293,10 @@ export function ManageVolunteersTab({
               </Button>
               <Button
                 type="submit"
-                variant="primary"
+                variant="saffron"
                 size="sm"
                 disabled={isSubmitting}
+                className="font-bold shadow-md shadow-amber-500/20"
               >
                 {isSubmitting ? 'Saving...' : 'Save Updates'}
               </Button>
@@ -1314,7 +1315,7 @@ export function ManageVolunteersTab({
         <form onSubmit={handleSaveNewVolunteer} className="space-y-4">
           {/* College Selection */}
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
               Select Institution <span className="text-rose-500">*</span>
             </label>
             <select
@@ -1323,7 +1324,7 @@ export function ManageVolunteersTab({
                 setNewCollegeAffl(Number(e.target.value));
                 setSelectedStudentId('');
               }}
-              className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+              className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
               required
             >
               {colleges.map(c => (
@@ -1336,11 +1337,11 @@ export function ManageVolunteersTab({
 
           {/* Scholar Selection (Aliya & PG only) */}
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
               Select Scholar (Aliya & PG Only) <span className="text-rose-500">*</span>
             </label>
             {availableCandidatesForNew.length === 0 ? (
-              <div className="p-3 rounded-lg bg-[var(--bg-subtle)] text-[var(--text-muted)] text-xs border border-[var(--border-subtle)]">
+              <div className="p-3 rounded-lg bg-[var(--bg-subtle)] text-[var(--text-muted)] text-xs border border-[var(--border-subtle)] font-sans">
                 No eligible unassigned Aliya or PG scholars available for this institution.
               </div>
             ) : (
@@ -1351,7 +1352,7 @@ export function ManageVolunteersTab({
                   const stu = students.find(s => s.id === e.target.value);
                   if (stu?.phone) setNewPhone(stu.phone);
                 }}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
                 required
               >
                 <option value="">— Choose Scholar ({availableCandidatesForNew.length} Available) —</option>
@@ -1367,13 +1368,13 @@ export function ManageVolunteersTab({
           {/* Duty & Status Selection */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                 Duty Department
               </label>
               <select
                 value={newDuty}
                 onChange={e => setNewDuty(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
                 required
               >
                 {VOLUNTEER_DUTIES.map(d => (
@@ -1385,13 +1386,13 @@ export function ManageVolunteersTab({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                 Approval Status
               </label>
               <select
                 value={newStatus}
                 onChange={e => setNewStatus(e.target.value as any)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
               >
                 <option value="Approved">Approved (Verified)</option>
                 <option value="Registered">Registered (Pending)</option>
@@ -1403,7 +1404,7 @@ export function ManageVolunteersTab({
           {/* Phone & T-Shirt Size */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                 Contact Phone / WhatsApp
               </label>
               <input
@@ -1411,12 +1412,12 @@ export function ManageVolunteersTab({
                 placeholder="e.g. 9847123456"
                 value={newPhone}
                 onChange={e => setNewPhone(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] font-mono text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] font-mono tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
                 Fest T-Shirt Size
               </label>
               <div className="flex items-center gap-1">
@@ -1425,10 +1426,10 @@ export function ManageVolunteersTab({
                     key={size}
                     type="button"
                     onClick={() => setNewTshirt(size)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all ${
                       newTshirt === size
-                        ? 'bg-[#132238] dark:bg-[#1A2E4A] text-white border-[#132238] dark:border-[#1A2E4A]'
-                        : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] border-[var(--f-saffron)] shadow-xs'
+                        : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     {size}
@@ -1440,7 +1441,7 @@ export function ManageVolunteersTab({
 
           {/* Special Skills / Notes */}
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-sans">
               Admin Remarks / Notes
             </label>
             <textarea
@@ -1448,7 +1449,7 @@ export function ManageVolunteersTab({
               placeholder="e.g. Direct admin allocation for VIP Protocol..."
               value={newNotes}
               onChange={e => setNewNotes(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-300 transition-colors"
+              className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans transition-all"
             />
           </div>
 
@@ -1463,9 +1464,10 @@ export function ManageVolunteersTab({
             </Button>
             <Button
               type="submit"
-              variant="primary"
+              variant="saffron"
               size="sm"
               disabled={isSubmitting || availableCandidatesForNew.length === 0}
+              className="font-bold shadow-md shadow-amber-500/20"
             >
               {isSubmitting ? 'Enrolling...' : 'Confirm Enrollment'}
             </Button>

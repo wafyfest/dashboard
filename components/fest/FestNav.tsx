@@ -15,7 +15,7 @@ const SECTIONS: NavSection[] = [
   { id: 'committee', label: 'Committee' },
 ];
 
-export function FestivalNav() {
+export function FestNav() {
   const [activeId, setActiveId] = useState('hero');
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function FestivalNav() {
                 ${
                   isActive
                     ? 'w-2.5 h-2.5 bg-[var(--f-saffron)] ring-2 ring-amber-400/40 shadow-[0_0_8px_rgba(245,158,11,0.8)] scale-110'
-                    : 'w-1.5 h-1.5 bg-slate-500 hover:bg-[var(--f-saffron)] hover:scale-125'
+                    : 'w-1.5 h-1.5 bg-white/40 hover:bg-[var(--f-saffron)] hover:scale-125'
                 }
               `}
             />

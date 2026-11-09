@@ -14,7 +14,8 @@ import {
   HeartHandshake,
   BellRing,
   Layers,
-  ScrollText
+  ScrollText,
+  UserPlus
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -29,19 +30,29 @@ export default function AdminPage() {
   }, []);
 
   const navItems: NavItem[] = [
+    // Main Overview
     { id: 'overview', label: 'Fest Overview', icon: ShieldAlert },
-    { id: 'schedule', label: 'Events Schedule', icon: Calendar },
-    { id: 'locks_matrix', label: 'Entry Locks Matrix', icon: Lock },
-    { id: 'settings', label: 'Deadlines & Fines', icon: Clock },
-    { id: 'items', label: 'Events Catalog', icon: Award },
-    { id: 'event_registrations', label: 'Event Registrations', icon: Layers },
-    { id: 'colleges', label: 'Colleges & Overrides', icon: Building2 },
-    { id: 'college_registrations', label: 'College Registrations', icon: UserCheck },
-    { id: 'volunteers', label: 'Manage Volunteers', icon: HeartHandshake },
-    { id: 'announcements', label: 'Broadcast Alerts', icon: BellRing },
-    { id: 'appeals', label: 'Appeals & Replacements', icon: AlertTriangle },
-    { id: 'results', label: 'Results & Points', icon: Trophy },
-    { id: 'logs', label: 'System Audit Logs', icon: ScrollText }
+
+    // Setup & Rules
+    { id: 'items', label: 'Events Catalog', icon: Award, group: 'Setup' },
+    { id: 'locks_matrix', label: 'Registration Locks', icon: Lock, group: 'Setup' },
+    { id: 'settings', label: 'Deadlines & Fines', icon: Clock, group: 'Setup' },
+
+    // Delegations & Rosters
+    { id: 'college_registrations', label: 'College Delegations', icon: Building2, group: 'Registrations' },
+    { id: 'event_registrations', label: 'Participant Rosters', icon: Layers, group: 'Registrations' },
+    { id: 'colleges', label: 'Institutions & Overrides', icon: UserCheck, group: 'Registrations' },
+    { id: 'volunteers', label: 'Volunteer Force', icon: HeartHandshake, group: 'Registrations' },
+
+    // Live Festival Operations
+    { id: 'schedule', label: 'Stages & Schedules', icon: Calendar, group: 'Live Stage' },
+    { id: 'results', label: 'Results & Points', icon: Trophy, group: 'Live Stage' },
+    { id: 'announcements', label: 'Broadcast Alerts', icon: BellRing, group: 'Live Stage' },
+
+    // Governance & Records
+    { id: 'appeals', label: 'Appeals', icon: AlertTriangle, group: 'Records' },
+    { id: 'replacements', label: 'Replacements', icon: UserPlus, group: 'Records' },
+    { id: 'logs', label: 'System Audit Logs', icon: ScrollText, group: 'Records' }
   ];
 
   if (!isMounted) {
@@ -54,13 +65,13 @@ export default function AdminPage() {
         onSelectNavItem={(id) => setActiveTab(id as AdminTab)}
       >
         <div className="max-w-7xl mx-auto space-y-4">
-          <div className="h-32 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="h-32 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-t-2 border-t-[var(--f-saffron)]/70 [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+              <div key={i} className="h-24 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-t-2 border-t-[var(--f-saffron)]/70 [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
             ))}
           </div>
-          <div className="h-64 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          <div className="h-64 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-t-2 border-t-[var(--f-saffron)]/70 [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
         </div>
       </DashboardLayout>
     );

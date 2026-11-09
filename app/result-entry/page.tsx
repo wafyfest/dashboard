@@ -37,8 +37,13 @@ export default function ResultEntryPage() {
         onSelectNavItem={(id) => setActiveTab(id as ResultEntryTab)}
       >
         <div className="max-w-7xl mx-auto space-y-4">
-          <div className="h-28 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
-          <div className="h-64 rounded-2xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+          <div className="h-28 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
+            ))}
+          </div>
+          <div className="h-64 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
         </div>
       </DashboardLayout>
     );

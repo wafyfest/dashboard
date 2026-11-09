@@ -46,7 +46,7 @@ export function generateParticipantsListPdf({
     { key: 'chest', label: 'CHEST NO', width: 22, align: 'center' as const },
     { key: 'category', label: 'PHASE / CAT', width: 26, align: 'left' as const },
     { key: 'event', label: 'COMPETITION EVENT', width: 68, align: 'left' as const },
-    { key: 'code', label: 'ITEM CODE', width: 22, align: 'center' as const },
+    { key: 'code', label: 'EVENT CODE', width: 22, align: 'center' as const },
     { key: 'mode', label: 'TYPE / MODE', width: 28, align: 'center' as const },
     { key: 'letter', label: 'BLIND CODE', width: 21, align: 'center' as const },
   ];
@@ -86,8 +86,8 @@ export function generateParticipantsListPdf({
 
   // Helper to draw the top banner on Page 1
   const drawPage1Header = () => {
-    // Navy Banner
-    doc.setFillColor(19, 34, 56); // #132238
+    // Midnight Banner
+    doc.setFillColor(9, 13, 26); // #090D1A
     doc.rect(margin, margin, contentWidth, 20, 'F');
 
     // Title
@@ -99,10 +99,10 @@ export function generateParticipantsListPdf({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(190, 210, 235);
-    doc.text('COORDINATION OF ISLAMIC COLLEGES (CIC) • ARTS & CULTURAL FESTIVAL', margin + 8, margin + 14);
+    doc.text('COORDINATION OF ISLAMIC COLLEGES (CIC) • ARTS & CULTURAL FEST', margin + 8, margin + 14);
 
     // Right Badge
-    doc.setFillColor(37, 99, 235); // Blue pill
+    doc.setFillColor(217, 119, 6); // Amber #D97706 pill
     doc.roundedRect(pageWidth - margin - 75, margin + 5, 67, 10, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
@@ -117,7 +117,7 @@ export function generateParticipantsListPdf({
     doc.roundedRect(margin, metaY, contentWidth, 12, 1.5, 1.5, 'FD');
 
     // College Name
-    doc.setTextColor(19, 34, 56);
+    doc.setTextColor(9, 13, 26);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text(collegeName, margin + 4, metaY + 5.5);
@@ -165,7 +165,7 @@ export function generateParticipantsListPdf({
     doc.setLineWidth(0.3);
     doc.rect(margin, margin, contentWidth, 8, 'FD');
 
-    doc.setTextColor(19, 34, 56);
+    doc.setTextColor(9, 13, 26);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.text(`${festName.toUpperCase()} • ${collegeName} (Affl No: ${collegeAfflNo})`, margin + 4, margin + 5.2);
@@ -227,7 +227,7 @@ export function generateParticipantsListPdf({
       doc.text(cicStr, colX[2] + 2, currentY + 4.5);
 
       // Chest No
-      doc.setTextColor(19, 34, 56);
+      doc.setTextColor(9, 13, 26);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7.5);
       doc.text(p.chestNo, colX[3] + cols[3].width / 2, currentY + 4.5, { align: 'center' });

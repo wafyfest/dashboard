@@ -62,16 +62,16 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
   const activeRunningCount = stageStatuses.filter(s => s.overallStatus === 'On_Going').length;
 
   return (
-    <Card className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-4 sm:p-5 shadow-xs">
+    <Card className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-4 sm:p-5 [box-shadow:var(--shadow-card),var(--glass-highlight)]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] flex items-center justify-center font-bold">
             <Radio className="w-4 h-4 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-[var(--text-primary)]">
+              <h3 className="text-sm font-bold font-heading text-[var(--text-primary)]">
                 Live Backstage & Schedule Progression
               </h3>
               <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-mono py-0">
@@ -100,25 +100,24 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
           return (
             <div
               key={stage.id}
-              className={`rounded-xl border p-3.5 flex flex-col justify-between transition-all ${
-                isOngoing
+              className={`rounded-xl border p-3.5 flex flex-col justify-between transition-all ${isOngoing
                   ? 'bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20'
                   : isStartingSoon
-                  ? 'bg-amber-500/5 border-amber-500/30'
-                  : isEnded
-                  ? 'bg-slate-500/5 border-slate-500/20 opacity-80'
-                  : 'bg-[var(--bg-canvas)] border-[var(--border-subtle)]'
-              }`}
+                    ? 'bg-amber-500/5 border-amber-500/30'
+                    : isEnded
+                      ? 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] opacity-75'
+                      : 'bg-[var(--bg-surface)] border-[var(--border-subtle)]'
+                }`}
             >
               {/* Stage Identity */}
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-xs font-mono font-bold flex items-center justify-center">
+                    <span className="w-7 h-7 rounded-xl bg-[var(--f-saffron)] text-[#090d1a] text-xs font-mono font-black flex items-center justify-center shadow-xs">
                       {stage.stage_number}
                     </span>
                     <div>
-                      <h4 className="text-xs font-bold text-[var(--text-primary)] truncate max-w-[140px] sm:max-w-[170px]" title={stage.name}>
+                      <h4 className="text-xs font-bold font-heading text-[var(--text-primary)] truncate max-w-[140px] sm:max-w-[170px]" title={stage.name}>
                         {stage.name}
                       </h4>
                       {stage.location && (
@@ -140,11 +139,11 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                       STARTING SOON
                     </Badge>
                   ) : isEnded ? (
-                    <Badge variant="outline" className="border-slate-400 text-slate-500 text-[10px] font-mono px-2 py-0.5">
+                    <Badge variant="outline" className="border-[var(--border-medium)] text-[var(--text-muted)] text-[10px] font-mono px-2 py-0.5">
                       ENDED
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-sky-400 text-sky-600 text-[10px] font-mono px-2 py-0.5">
+                    <Badge variant="outline" className="border-amber-500/40 text-[var(--f-saffron-text)] bg-amber-500/5 text-[10px] font-mono px-2 py-0.5">
                       UPCOMING
                     </Badge>
                   )}
@@ -156,11 +155,10 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                     <span>Events Completed</span>
                     <span>{endedCount} / {totalItems}</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-500 rounded-full ${
-                        isOngoing ? 'bg-emerald-500' : 'bg-slate-400'
-                      }`}
+                      className={`h-full transition-all duration-500 rounded-full ${isOngoing ? 'bg-emerald-500' : isStartingSoon ? 'bg-[var(--f-saffron)]' : 'bg-[var(--text-muted)]/40'
+                        }`}
                       style={{
                         width: `${totalItems > 0 ? (endedCount / totalItems) * 100 : 0}%`
                       }}
@@ -169,11 +167,11 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                 </div>
 
                 {/* Current Item Box */}
-                <div className="mt-3 p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-1">
+                <div className="mt-3 p-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-500" />
-                      {isOngoing ? 'Current Item' : 'Next Scheduled'}
+                      <Sparkles className="w-3 h-3 text-[var(--f-saffron-text)]" />
+                      {isOngoing ? 'Current Event' : 'Next Scheduled'}
                     </span>
                     {currentItem?.status && (
                       <span className="text-[9px] font-mono text-[var(--text-muted)]">
@@ -183,7 +181,7 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                   </div>
                   {currentItem?.item ? (
                     <div>
-                      <p className="text-xs font-bold text-[var(--text-primary)] leading-tight line-clamp-1">
+                      <p className="text-xs font-bold text-[var(--text-primary)] leading-tight line-clamp-1 font-heading">
                         #{currentItem.item.item_id} — {currentItem.item.name}
                       </p>
                       <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] mt-0.5">
@@ -194,7 +192,7 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                     </div>
                   ) : (
                     <p className="text-xs italic text-[var(--text-muted)]">
-                      {isEnded ? 'All scheduled items concluded' : 'No active item in progress'}
+                      {isEnded ? 'All scheduled events concluded' : 'No active event in progress'}
                     </p>
                   )}
                 </div>
@@ -207,7 +205,7 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                     <ArrowRight className="w-3 h-3 text-[var(--text-muted)] shrink-0" />
                     <span className="truncate">Next: #{nextItem.item.item_id} {nextItem.item.name}</span>
                   </span>
-                  <span className="font-mono text-[10px] shrink-0 text-slate-500">
+                  <span className="font-mono text-[10px] shrink-0 text-[var(--text-muted)]">
                     {nextItem.scheduled_start ? new Date(nextItem.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Upcoming'}
                   </span>
                 </div>

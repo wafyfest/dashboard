@@ -65,7 +65,7 @@ export default function NotFound() {
                 <GraduationCap className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-[var(--text-primary)] truncate">Student Portal</div>
+                <div className="text-xs font-bold text-[var(--text-primary)] truncate">Student Login</div>
                 <div className="text-[11px] text-[var(--text-muted)] truncate">Check admits & schedule</div>
               </div>
             </div>
@@ -80,7 +80,7 @@ export default function NotFound() {
                 <LogIn className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-[var(--text-primary)] truncate">Officer Sign In</div>
+                <div className="text-xs font-bold text-[var(--text-primary)] truncate">College/Official Login</div>
                 <div className="text-[11px] text-[var(--text-muted)] truncate">College & judging console</div>
               </div>
             </div>

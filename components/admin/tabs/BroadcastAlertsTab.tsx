@@ -185,17 +185,17 @@ export function BroadcastAlertsTab({
   return (
     <div className="space-y-6">
       {/* Top Banner Notice */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#132238] dark:bg-[#1A2E4A] text-white flex items-center justify-center shrink-0 shadow-xs border border-[#1E3558] dark:border-[#2E476B]/60">
-            <Radio className="w-5 h-5 animate-pulse text-rose-400" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--f-saffron)] text-[#090d1a] flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+            <Radio className="w-5 h-5 animate-pulse text-[#090d1a]" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)]">
+              <h3 className="text-sm sm:text-base font-heading font-bold text-[var(--text-primary)]">
                 Live Broadcast Console & Important News
               </h3>
-              <Badge variant="navy" size="sm">
+              <Badge variant="saffron" size="sm">
                 Live Bulletin Center
               </Badge>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -203,7 +203,7 @@ export function BroadcastAlertsTab({
                 Realtime Active
               </span>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-sans">
               Send instant high-priority popup notifications to all logins, or laser-target a specific college, scholar, or stage.
             </p>
           </div>
@@ -218,7 +218,7 @@ export function BroadcastAlertsTab({
             className="text-xs"
             title="Refresh Live Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin text-rose-500' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin text-[var(--f-saffron)]' : ''}`} />
             {isSyncing ? 'Syncing...' : 'Live Sync'}
           </Button>
         </div>
@@ -227,38 +227,38 @@ export function BroadcastAlertsTab({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Composer Form (Left 7 Cols) */}
         <div className="lg:col-span-7">
-          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card">
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
             <CardHeader className="pb-3 border-b border-[var(--border-subtle)]">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
-                  <CardTitle className="text-sm sm:text-base flex items-center gap-2 font-bold text-[var(--text-primary)]">
-                    <Send className="w-4 h-4 text-[#132238] dark:text-slate-300" />
+                  <CardTitle className="text-sm sm:text-base flex items-center gap-2 font-heading font-bold text-[var(--text-primary)]">
+                    <Send className="w-4 h-4 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" />
                     Compose Broadcast Bulletin
                   </CardTitle>
-                  <CardDescription className="text-xs text-[var(--text-secondary)]">
+                  <CardDescription className="text-xs text-[var(--text-secondary)] font-sans">
                     Publishes an immediate popup on screens matching your targeting criteria.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-[var(--text-muted)] font-medium mr-1">Presets:</span>
+                  <span className="text-[11px] text-[var(--text-muted)] font-medium mr-1 font-heading">Presets:</span>
                   <button
                     type="button"
                     onClick={() => handlePopulatePreset('rain')}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-colors"
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] text-[var(--text-secondary)] border border-[var(--border-subtle)] transition-colors cursor-pointer"
                   >
                     Weather
                   </button>
                   <button
                     type="button"
                     onClick={() => handlePopulatePreset('appeal')}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-colors"
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] text-[var(--text-secondary)] border border-[var(--border-subtle)] transition-colors cursor-pointer"
                   >
                     College Appeal
                   </button>
                   <button
                     type="button"
                     onClick={() => handlePopulatePreset('stage')}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] transition-colors"
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] text-[var(--text-secondary)] border border-[var(--border-subtle)] transition-colors cursor-pointer"
                   >
                     Scholar Call
                   </button>
@@ -270,30 +270,30 @@ export function BroadcastAlertsTab({
                 {/* 1. Targeting Selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-heading">
                       Target Scope
                     </label>
                     <select
                       value={targetType}
                       onChange={e => setTargetType(e.target.value as NoticeTargetType)}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-500 font-medium cursor-pointer"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium cursor-pointer"
                     >
                       <option value="global">🌐 Global Fest Broadcast (All Logins)</option>
                       <option value="role">👥 Role-Wide (All Colleges, Students, etc.)</option>
                       <option value="college">🏫 Specific College (Single Institution)</option>
                       <option value="student">🎓 Specific Scholar / Student (Chest / CIC)</option>
-                      <option value="stage">🎪 Specific Stage (Stage Crew & Items)</option>
+                      <option value="stage">🎪 Specific Stage (Stage Crew & Events)</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 font-heading">
                       Priority Level
                     </label>
                     <select
                       value={priority}
                       onChange={e => setPriority(e.target.value as NoticePriority)}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238] dark:focus:ring-slate-500 font-semibold cursor-pointer"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-semibold cursor-pointer"
                     >
                       <option value="urgent">🔴 Urgent / Critical (Red Alert)</option>
                       <option value="warning">🟡 Important Warning (Amber Alert)</option>
@@ -306,13 +306,13 @@ export function BroadcastAlertsTab({
                 {/* Granular Target Value Specifics */}
                 {targetType === 'role' && (
                   <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 font-heading">
                       Select Target Role
                     </label>
                     <select
                       value={targetRole}
                       onChange={e => setTargetRole(e.target.value)}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)]"
                     >
                       <option value="college">All 25 Registered Colleges</option>
                       <option value="student">All Students / Participants</option>
@@ -325,13 +325,13 @@ export function BroadcastAlertsTab({
 
                 {targetType === 'college' && (
                   <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 font-heading">
                       Choose Specific Target College
                     </label>
                     <select
                       value={targetCollegeAffl}
                       onChange={e => setTargetCollegeAffl(Number(e.target.value))}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)]"
                     >
                       {colleges.map(c => (
                         <option key={c.affl_no} value={c.affl_no}>
@@ -344,7 +344,7 @@ export function BroadcastAlertsTab({
 
                 {targetType === 'student' && (
                   <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 font-heading">
                       Target Student Chest No or CIC No
                     </label>
                     <input
@@ -353,20 +353,20 @@ export function BroadcastAlertsTab({
                       value={targetChestNo}
                       onChange={e => setTargetChestNo(e.target.value)}
                       required
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)]"
                     />
                   </div>
                 )}
 
                 {targetType === 'stage' && (
                   <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 font-heading">
                       Target Stage Number
                     </label>
                     <select
                       value={targetStageId}
                       onChange={e => setTargetStageId(Number(e.target.value))}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)]"
                     >
                       {[1, 2, 3, 4, 5, 6].map(stg => (
                         <option key={stg} value={stg}>
@@ -379,7 +379,7 @@ export function BroadcastAlertsTab({
 
                 {/* Title & Message */}
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1 font-heading">
                     Bulletin Headline / Title
                   </label>
                   <input
@@ -388,12 +388,12 @@ export function BroadcastAlertsTab({
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     required
-                    className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238] font-medium"
+                    className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium font-sans"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1 font-heading">
                     Announcement Message Body
                   </label>
                   <textarea
@@ -402,14 +402,14 @@ export function BroadcastAlertsTab({
                     value={message}
                     onChange={e => setMessage(e.target.value)}
                     required
-                    className="w-full text-xs p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238] leading-relaxed font-sans"
+                    className="w-full text-xs p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] leading-relaxed font-sans"
                   />
                 </div>
 
                 {/* Action Link & Acknowledgment Requirement */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1 font-heading">
                       Action URL (Optional)
                     </label>
                     <input
@@ -417,12 +417,12 @@ export function BroadcastAlertsTab({
                       placeholder="e.g. /college?tab=appeals"
                       value={actionUrl}
                       onChange={e => setActionUrl(e.target.value)}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1 font-heading">
                       Action Button Label
                     </label>
                     <input
@@ -430,7 +430,7 @@ export function BroadcastAlertsTab({
                       placeholder="View Details"
                       value={actionLabel}
                       onChange={e => setActionLabel(e.target.value)}
-                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[#132238]"
+                      className="w-full text-xs h-9 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-sans"
                     />
                   </div>
                 </div>
@@ -441,20 +441,20 @@ export function BroadcastAlertsTab({
                     id="requireAck"
                     checked={requireAck}
                     onChange={e => setRequireAck(e.target.checked)}
-                    className="rounded border-[var(--border-medium)] text-[#132238] focus:ring-[#132238]/30 w-4 h-4 cursor-pointer"
+                    className="rounded border-[var(--border-medium)] accent-[var(--f-saffron)] text-amber-500 focus:ring-[var(--f-saffron)]/30 w-4 h-4 cursor-pointer"
                   />
-                  <label htmlFor="requireAck" className="text-xs text-[var(--text-secondary)] cursor-pointer select-none">
-                    <strong className="text-[var(--text-primary)]">Mandatory Acknowledgment:</strong> User must click "I Understand" to dismiss (disables clicking outside).
+                  <label htmlFor="requireAck" className="text-xs text-[var(--text-secondary)] cursor-pointer select-none font-sans">
+                    <strong className="text-[var(--text-primary)]">Mandatory Acknowledgment:</strong> User must click &quot;I Understand&quot; to dismiss (disables clicking outside).
                   </label>
                 </div>
 
                 <div className="pt-2 flex justify-end">
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="saffron"
                     disabled={isSubmitting}
                     size="sm"
-                    className="font-semibold text-xs h-9 px-5 rounded-lg shadow-xs flex items-center gap-2"
+                    className="font-bold text-xs h-9 px-5 rounded-xl shadow-xs flex items-center gap-2"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {isSubmitting ? 'Broadcasting...' : 'Broadcast Live Now'}
@@ -467,19 +467,19 @@ export function BroadcastAlertsTab({
 
         {/* Active Broadcasts List (Right 5 Cols) */}
         <div className="lg:col-span-5">
-          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card h-full flex flex-col">
+          <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] h-full flex flex-col">
             <CardHeader className="pb-3 border-b border-[var(--border-subtle)] shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm sm:text-base flex items-center gap-2 font-bold text-[var(--text-primary)]">
+                  <CardTitle className="text-sm sm:text-base flex items-center gap-2 font-heading font-bold text-[var(--text-primary)]">
                     <BellRing className="w-4 h-4 text-rose-500" />
                     Active Live Bulletins
                   </CardTitle>
-                  <CardDescription className="text-xs text-[var(--text-secondary)]">
+                  <CardDescription className="text-xs text-[var(--text-secondary)] font-sans">
                     {announcements.length} announcement{announcements.length !== 1 ? 's' : ''} currently broadcasting.
                   </CardDescription>
                 </div>
-                <Badge variant="default" size="sm">
+                <Badge variant="saffron" size="sm" className="font-mono font-bold">
                   {announcements.length} Active
                 </Badge>
               </div>
@@ -489,7 +489,7 @@ export function BroadcastAlertsTab({
                 <div className="p-8 text-center text-[var(--text-muted)]">
                   <Radio className="w-8 h-8 mx-auto mb-2 opacity-35 text-[var(--text-muted)]" />
                   <p className="text-xs font-medium text-[var(--text-secondary)]">No active broadcasts currently running.</p>
-                  <p className="text-[11px] text-[var(--text-muted)] mt-1">Use the composer to issue a festival-wide bulletin.</p>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">Use the composer to issue a fest-wide bulletin.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-[var(--border-subtle)]">
@@ -538,7 +538,7 @@ export function BroadcastAlertsTab({
                           <div>
                             {ann.target_type === 'global' && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">🌐 All Logins</span>}
                             {ann.target_type === 'college' && (
-                              <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                              <span className="text-[var(--f-saffron-text)] font-medium">
                                 🏫 College #{ann.target_college_affl_no}
                               </span>
                             )}

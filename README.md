@@ -1,8 +1,8 @@
 # WSF Inter-College Arts Fest Management System
 
-A full-stack, enterprise-grade festival management and double-blind tabulation platform built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase** (PostgreSQL, Row Level Security, Auth, Storage, and Realtime).
+A full-stack, enterprise-grade fest management and double-blind tabulation platform built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase** (PostgreSQL, Row Level Security, Auth, Storage, and Realtime).
 
-Designed for high-concurrency inter-college cultural festivals with strict fair-judging guarantees, granular institutional permissions, and touch-optimized backstage consoles.
+Designed for high-concurrency inter-college cultural fests with strict fair-judging guarantees, granular institutional permissions, and touch-optimized backstage consoles.
 
 ---
 
@@ -12,7 +12,7 @@ Designed for high-concurrency inter-college cultural festivals with strict fair-
 - **Master Events Tabulation Console**: High-density interactive matrix tracking live blind code allocations, scoring states, and criteria marks with write-once locking.
 - **Convenor Operations Suite**: Real-time multi-stage queue monitor with instant broadcast announcements directly to team managers.
 - **Granular Institutional Access (RBAC)**: Enforced through authenticated session claims and PostgreSQL Row-Level Security policies.
-- **Dynamic Phase Normalization**: Robust canonical phase filtering (`Foundation`, `Thamheediyya`, `Aliya`, `PG`, `General`) with automated spelling and alias reconciliation.
+- **Dynamic Phase Normalization**: Canonical phase filtering (`Foundation`, `Thamheediyya`, `Aliya`, `PG`, `General`) with automated spelling and alias reconciliation.
 - **Automated Championship Tallies**: Instant point allotment (1st: 5 pts, 2nd: 3 pts, 3rd: 1 pt) upon result publication by the Chief Tabulation Officer.
 - **Audit Trails & Security**: Append-only system audit logging tracking every lock override, appeal decision, and mark entry.
 - **Client-Side PDF Generation**: High-fidelity vector generation for student admit cards with verification QR codes, college participant rosters, and score sheets.
@@ -103,7 +103,7 @@ Copy the sample environment file and populate your project credentials:
 cp .env.example .env.local
 ```
 
-> **Note**: The application includes an in-memory client service fallback (`festService`) pre-populated with realistic festival data, allowing immediate local development and demonstration without requiring a database connection.
+> **Note**: The application includes an in-memory client service fallback (`festService`) pre-populated with realistic fest data, allowing immediate local development and demonstration without requiring a database connection.
 
 ### 3. Run Development Server
 

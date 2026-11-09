@@ -1,6 +1,6 @@
 -- ====================================================================
 -- MIGRATION: 20261102000000_create_fest_committee.sql
--- Festival Committee Members table + committee-photos storage bucket + 14th Fest Seed
+-- Fest Committee Members table + committee-photos storage bucket + 14th Fest Seed
 -- ====================================================================
 
 -- 1. Create fest_committee table

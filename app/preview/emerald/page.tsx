@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FestivalHero } from '@/components/festival/FestivalHero';
+import { FestHero } from '@/components/fest/FestHero';
 
 export default function EmeraldPreviewPage() {
   return (
@@ -18,7 +18,7 @@ export default function EmeraldPreviewPage() {
         </Link>
       </nav>
 
-      <FestivalHero />
+      <FestHero />
     </div>
   );
 }

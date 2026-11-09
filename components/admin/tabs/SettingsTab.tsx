@@ -217,7 +217,7 @@ export function SettingsTab() {
       setGlobalFormDirty(false);
       setToast({
         type: 'success',
-        message: 'Global festival deadlines and configuration successfully saved in IST!'
+        message: 'Global fest deadlines and configuration successfully saved in IST!'
       });
       setTimeout(() => setToast(null), 5000);
     } catch (err: any) {
@@ -282,7 +282,7 @@ export function SettingsTab() {
       triggerRefresh();
       setToast({
         type: 'info',
-        message: `Reset ${itemCode} to inherit global festival registration deadlines.`
+        message: `Reset ${itemCode} to inherit global fest registration deadlines.`
       });
       setTimeout(() => setToast(null), 4000);
     } catch (err: any) {
@@ -328,7 +328,7 @@ export function SettingsTab() {
       setSelectedItemIds([]);
       setToast({
         type: 'info',
-        message: `Reverted ${res.count} selected events to global festival deadlines.`
+        message: `Reverted ${res.count} selected events to global fest deadlines.`
       });
       setTimeout(() => setToast(null), 4000);
     } catch (err: any) {
@@ -378,13 +378,12 @@ export function SettingsTab() {
       {toast && (
         <div
           role="alert"
-          className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs sm:text-sm font-medium shadow-sm transition-all animate-in fade-in slide-in-from-top-2 ${
-            toast.type === 'success'
+          className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs sm:text-sm font-medium shadow-sm transition-all animate-in fade-in slide-in-from-top-2 ${toast.type === 'success'
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
               : toast.type === 'error'
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-              : 'bg-sky-500/10 border-sky-500/30 text-sky-800 dark:text-sky-300'
-          }`}
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                : 'bg-sky-500/10 border-sky-500/30 text-sky-800 dark:text-sky-300'
+            }`}
         >
           <div className="flex items-center gap-2.5">
             {toast.type === 'success' ? (
@@ -406,17 +405,17 @@ export function SettingsTab() {
       )}
 
       {/* Top Banner & IST Indicator */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-sky-500/5 to-purple-500/10 border border-[var(--border-subtle)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] border border-[var(--border-subtle)]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <span className="p-2 rounded-xl bg-[var(--f-saffron-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
               <Clock className="w-5 h-5" />
             </span>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)]">
+              <h1 className="text-lg sm:text-xl font-heading font-extrabold tracking-tight text-[var(--text-primary)]">
                 Deadlines, Fines & Event Extensions
               </h1>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              <p className="text-xs text-[var(--text-secondary)] font-sans mt-0.5">
                 Centralized management for registration cutoffs, late fine windows, and per-event time extensions in IST.
               </p>
             </div>
@@ -425,9 +424,9 @@ export function SettingsTab() {
 
         <div className="flex items-center gap-3">
           <div className="px-3.5 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-medium)] flex items-center gap-2 shadow-xs">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="inline-block w-2 h-2 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] animate-pulse" />
             <div className="text-right">
-              <div className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+              <div className="text-[10px] font-heading font-semibold tracking-wider text-[var(--text-muted)] uppercase">
                 Active Timezone
               </div>
               <div className="text-xs font-mono font-bold text-[var(--text-primary)] flex items-center gap-1">
@@ -441,44 +440,44 @@ export function SettingsTab() {
       {/* ========================================================
           1. GLOBAL REGISTRATION DEADLINES & BRANDING
       ======================================================== */}
-      <Card className="border-[var(--border-subtle)] shadow-xs">
-        <CardHeader className="pb-4">
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-xs">
+        <CardHeader className="pb-4 border-b border-[var(--border-subtle)]/60">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings className="w-4 h-4 text-emerald-500" />
-                Global Registration Deadlines (Festival-Wide)
+              <CardTitle className="text-base font-heading font-bold flex items-center gap-2">
+                <Settings className="w-4 h-4 text-[var(--f-saffron)]" />
+                Global Registration Deadlines (Fest-Wide)
               </CardTitle>
-              <CardDescription className="text-xs mt-1">
+              <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
                 Sets default registration cutoffs for all institutions across all events, unless extended individually below.
               </CardDescription>
             </div>
 
             {globalFormDirty && (
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[11px]">
+              <Badge variant="saffron" size="sm" className="font-heading font-medium">
                 Unsaved Changes
               </Badge>
             )}
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pt-5">
           <form onSubmit={handleSaveGlobalSettings} className="space-y-6">
             {/* Global Deadlines Two-Column Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Regular Deadline (Without Fine) */}
-              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-sky-500/20 hover:border-sky-500/40 transition-colors space-y-3">
+              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--f-saffron)]/40 transition-all space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-sky-500" />
+                  <label className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-[var(--f-saffron)]" />
                     Registration Deadline (Without Fine)
                   </label>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 font-semibold border border-sky-500/20">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--f-saffron-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold border border-amber-500/20">
                     Normal Entry
                   </span>
                 </div>
 
-                <p className="text-[11px] text-[var(--text-muted)]">
+                <p className="text-[11px] text-[var(--text-muted)] font-sans">
                   Institutions can freely submit participant rosters without penalty until this cutoff date & time.
                 </p>
 
@@ -492,7 +491,7 @@ export function SettingsTab() {
                         setGlobalForm({ ...globalForm, reg_deadline_ist: e.target.value });
                         setGlobalFormDirty(true);
                       }}
-                      className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
                       required
                     />
                   </div>
@@ -507,7 +506,7 @@ export function SettingsTab() {
 
                 {/* Quick Presets */}
                 <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)] font-medium mr-1">Quick Extend:</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-medium mr-1 font-sans">Quick Extend:</span>
                   {[
                     { label: '+6 Hours', hours: 6 },
                     { label: '+12 Hours', hours: 12 },
@@ -518,7 +517,7 @@ export function SettingsTab() {
                       key={preset.label}
                       type="button"
                       onClick={() => applyGlobalQuickPreset('reg', preset.hours)}
-                      className="px-2 py-1 text-[10px] rounded-md bg-[var(--bg-subtle)] hover:bg-sky-500/10 hover:text-sky-600 border border-[var(--border-subtle)] text-[var(--text-secondary)] font-medium transition-colors cursor-pointer"
+                      className="px-2 py-1 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-medium transition-colors cursor-pointer"
                     >
                       {preset.label}
                     </button>
@@ -527,18 +526,18 @@ export function SettingsTab() {
               </div>
 
               {/* Fine Period Deadline (With Fine) */}
-              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-amber-500/20 hover:border-amber-500/40 transition-colors space-y-3">
+              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-amber-500/30 hover:border-amber-500/50 transition-all space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                  <label className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center gap-1.5">
                     <Calendar className="w-4 h-4 text-amber-500" />
                     Late Registration Deadline (With Fine)
                   </label>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/20">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold border border-amber-500/30">
                     Fine Window
                   </span>
                 </div>
 
-                <p className="text-[11px] text-[var(--text-muted)]">
+                <p className="text-[11px] text-[var(--text-muted)] font-sans">
                   Late entries are allowed with fine penalty between regular cutoff and this final cutoff.
                 </p>
 
@@ -552,7 +551,7 @@ export function SettingsTab() {
                         setGlobalForm({ ...globalForm, fine_deadline_ist: e.target.value });
                         setGlobalFormDirty(true);
                       }}
-                      className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
                       required
                     />
                   </div>
@@ -567,7 +566,7 @@ export function SettingsTab() {
 
                 {/* Quick Presets */}
                 <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)] font-medium mr-1">Quick Extend:</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-medium mr-1 font-sans">Quick Extend:</span>
                   {[
                     { label: '+6 Hours', hours: 6 },
                     { label: '+12 Hours', hours: 12 },
@@ -578,7 +577,7 @@ export function SettingsTab() {
                       key={preset.label}
                       type="button"
                       onClick={() => applyGlobalQuickPreset('fine', preset.hours)}
-                      className="px-2 py-1 text-[10px] rounded-md bg-[var(--bg-subtle)] hover:bg-amber-500/10 hover:text-amber-600 border border-[var(--border-subtle)] text-[var(--text-secondary)] font-medium transition-colors cursor-pointer"
+                      className="px-2 py-1 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-medium transition-colors cursor-pointer"
                     >
                       {preset.label}
                     </button>
@@ -589,7 +588,7 @@ export function SettingsTab() {
 
             {/* Validation Notice */}
             {!globalValidation.isValid && (
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2 font-sans">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{globalValidation.error}</span>
               </div>
@@ -598,8 +597,8 @@ export function SettingsTab() {
             {/* Fest Branding & Rulebook */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[var(--border-subtle)]">
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                  Festival Official Title
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
+                  Fest Official Title
                 </label>
                 <input
                   id="fest-name-input"
@@ -609,15 +608,15 @@ export function SettingsTab() {
                     setGlobalForm({ ...globalForm, fest_name: e.target.value });
                     setGlobalFormDirty(true);
                   }}
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-medium focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1 flex items-center justify-between">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                    <BookOpen className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
                     Rulebook / Guidelines Document Link
                   </span>
                   {globalForm.rulebook_url && (
@@ -625,7 +624,7 @@ export function SettingsTab() {
                       href={globalForm.rulebook_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] text-purple-500 hover:underline flex items-center gap-0.5"
+                      className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:underline flex items-center gap-0.5"
                     >
                       Preview <ExternalLink className="w-2.5 h-2.5" />
                     </a>
@@ -640,14 +639,14 @@ export function SettingsTab() {
                     setGlobalFormDirty(true);
                   }}
                   placeholder="https://drive.google.com/... or https://..."
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30"
                 />
               </div>
             </div>
 
             {/* Save Button */}
             <div className="flex items-center justify-between pt-2">
-              <div className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
+              <div className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5 font-sans">
                 <Info className="w-3.5 h-3.5 text-emerald-500" />
                 Saves automatically to Supabase database in IST timezone
               </div>
@@ -658,6 +657,7 @@ export function SettingsTab() {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="font-heading"
                     onClick={() => {
                       setGlobalForm({
                         fest_name: festSettings.fest_name,
@@ -675,8 +675,9 @@ export function SettingsTab() {
                   id="save-global-settings-button"
                   type="submit"
                   size="sm"
+                  variant="saffron"
                   disabled={isSavingGlobal || !globalValidation.isValid}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shadow-sm"
+                  className="font-heading font-bold flex items-center gap-1.5 shadow-sm"
                 >
                   {isSavingGlobal ? (
                     <>
@@ -697,47 +698,47 @@ export function SettingsTab() {
       {/* ========================================================
           2. PER-EVENT DEADLINE EXTENSIONS (PRIMARY REQUIREMENT)
       ======================================================== */}
-      <Card className="border-[var(--border-subtle)] shadow-xs">
-        <CardHeader className="pb-4">
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-xs">
+        <CardHeader className="pb-4 border-b border-[var(--border-subtle)]/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CalendarPlus className="w-4 h-4 text-sky-500" />
+                <CardTitle className="text-base font-heading font-bold flex items-center gap-2">
+                  <CalendarPlus className="w-4 h-4 text-[var(--f-saffron)]" />
                   Per-Event Registration Deadline Extensions
                 </CardTitle>
                 {metrics.customCount > 0 && (
-                  <Badge variant="secondary" className="bg-sky-500/15 text-sky-700 dark:text-sky-300 font-bold border-sky-500/30 text-[11px]">
+                  <Badge variant="saffron" size="sm" className="font-heading font-medium">
                     {metrics.customCount} Custom Extended
                   </Badge>
                 )}
               </div>
-              <CardDescription className="text-xs mt-1">
-                Extend registration time for specific events (e.g. off-stage essays, painting, delayed categories) beyond global festival cutoffs.
+              <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
+                Extend registration time for specific events (e.g. off-stage essays, painting, delayed categories) beyond global fest cutoffs.
               </CardDescription>
             </div>
 
             {/* Quick Extension Counters */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)]">
+              <span className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] font-mono">
                 Total: <strong className="text-[var(--text-primary)]">{metrics.total}</strong>
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 font-mono">
                 Open: <strong>{metrics.openCount}</strong>
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-700 dark:text-amber-400 font-mono">
                 In Fine Window: <strong>{metrics.fineCount}</strong>
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+              <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[11px] font-medium text-rose-700 dark:text-rose-400 font-mono">
                 Closed: <strong>{metrics.closedCount}</strong>
               </span>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-5">
           {/* Controls: Search, Phase, Mode, Selection Actions */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
             <div className="flex items-center gap-2 flex-1">
               <div className="relative flex-1 max-w-sm">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -747,7 +748,7 @@ export function SettingsTab() {
                   placeholder="Search by event code, English or Malayalam name..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-sans"
                 />
               </div>
 
@@ -756,7 +757,7 @@ export function SettingsTab() {
                 id="event-phase-filter-select"
                 value={selectedPhase}
                 onChange={e => setSelectedPhase(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="px-2.5 py-1.5 text-xs bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-sans cursor-pointer"
               >
                 <option value="all">All Phases</option>
                 {phases.map(p => (
@@ -779,11 +780,10 @@ export function SettingsTab() {
                 <button
                   key={tab.id}
                   onClick={() => setFilterMode(tab.id as any)}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${
-                    filterMode === tab.id
-                      ? 'bg-sky-600 text-white font-semibold'
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors cursor-pointer ${filterMode === tab.id
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
                       : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -793,10 +793,10 @@ export function SettingsTab() {
 
           {/* Bulk Selection Action Bar (Visible when events are checked) */}
           {selectedItemIds.length > 0 && (
-            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between flex-wrap gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--f-saffron)]/40 [box-shadow:var(--shadow-card),var(--glass-highlight)] flex items-center justify-between flex-wrap gap-2 animate-in fade-in">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-sky-500" />
-                <span className="text-xs font-bold text-sky-900 dark:text-sky-200">
+                <span className="w-2 h-2 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
+                <span className="text-xs font-bold font-heading text-[var(--text-primary)]">
                   {selectedItemIds.length} event{selectedItemIds.length > 1 ? 's' : ''} selected
                 </span>
               </div>
@@ -805,7 +805,7 @@ export function SettingsTab() {
                 <Button
                   id="bulk-extend-button"
                   size="sm"
-                  variant="primary"
+                  variant="saffron"
                   onClick={() => {
                     setBulkForm({
                       reg_deadline_ist: globalForm.reg_deadline_ist,
@@ -813,7 +813,7 @@ export function SettingsTab() {
                     });
                     setBulkModalOpen(true);
                   }}
-                  className="bg-sky-600 hover:bg-sky-700 text-white text-xs h-8"
+                  className="font-heading font-bold text-xs h-8 shadow-xs"
                 >
                   <CalendarPlus className="w-3.5 h-3.5 mr-1" />
                   Extend Deadlines for Selected
@@ -824,7 +824,7 @@ export function SettingsTab() {
                   size="sm"
                   variant="outline"
                   onClick={handleResetSelectedToGlobal}
-                  className="text-xs h-8 text-[var(--text-secondary)] hover:text-rose-600"
+                  className="text-xs h-8 text-[var(--text-secondary)] hover:text-rose-600 font-heading"
                 >
                   <RotateCcw className="w-3.5 h-3.5 mr-1" />
                   Reset to Global Deadlines
@@ -844,22 +844,22 @@ export function SettingsTab() {
                       type="checkbox"
                       checked={isAllSelected}
                       onChange={handleSelectAll}
-                      className="rounded border-[var(--border-medium)] text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="text-xs font-bold">Event Code & Name</TableHead>
-                  <TableHead className="text-xs font-bold">Phase & Mode</TableHead>
-                  <TableHead className="text-xs font-bold">Registration Deadline (No Fine)</TableHead>
-                  <TableHead className="text-xs font-bold">Late Deadline (With Fine)</TableHead>
-                  <TableHead className="text-xs font-bold">Live Status</TableHead>
-                  <TableHead className="text-xs font-bold text-right">Actions</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Event Code & Name</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Phase & Mode</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Registration Deadline (No Fine)</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Late Deadline (With Fine)</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Live Status</TableHead>
+                  <TableHead className="text-xs font-heading font-bold text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
                 {filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-xs text-[var(--text-muted)]">
+                    <TableCell colSpan={7} className="text-center py-8 text-xs text-[var(--text-muted)] font-sans">
                       No events found matching current filter or search criteria.
                     </TableCell>
                   </TableRow>
@@ -874,9 +874,8 @@ export function SettingsTab() {
                     return (
                       <TableRow
                         key={item.item_id}
-                        className={`hover:bg-[var(--bg-subtle)]/60 transition-colors ${
-                          isSelected ? 'bg-sky-500/5' : ''
-                        }`}
+                        className={`hover:bg-[var(--bg-hover)] transition-colors ${isSelected ? 'bg-amber-500/5' : ''
+                          }`}
                       >
                         <TableCell className="text-center">
                           <input
@@ -889,7 +888,7 @@ export function SettingsTab() {
                                 setSelectedItemIds(selectedItemIds.filter(id => id !== item.item_id));
                               }
                             }}
-                            className="rounded border-[var(--border-medium)] text-sky-600 focus:ring-sky-500 cursor-pointer"
+                            className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 cursor-pointer"
                           />
                         </TableCell>
 
@@ -898,12 +897,12 @@ export function SettingsTab() {
                             <span className="font-mono font-bold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
                               {item.item_code || item.code}
                               {isCustom && (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30">
                                   Extended
                                 </span>
                               )}
                             </span>
-                            <span className="text-xs font-medium text-[var(--text-primary)]">
+                            <span className="text-xs font-heading font-semibold text-[var(--text-primary)]">
                               {item.name_eng || item.name}
                             </span>
                             {item.name_mal && (
@@ -916,7 +915,7 @@ export function SettingsTab() {
 
                         <TableCell>
                           <div className="flex flex-col gap-1 items-start">
-                            <Badge variant="outline" size="sm" className="text-[10px]">
+                            <Badge variant="outline" size="sm" className="text-[10px] font-sans">
                               {item.phase}
                             </Badge>
                             <ItemModeBadge mode={item.mode} />
@@ -926,12 +925,12 @@ export function SettingsTab() {
                         {/* Regular Deadline */}
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-mono text-xs text-[var(--text-primary)] font-medium">
+                            <span className="font-mono text-xs text-[var(--text-primary)] font-medium tabular-nums">
                               {formatIstDisplay(effectiveReg)}
                             </span>
-                            <span className="text-[10px] text-[var(--text-muted)]">
+                            <span className="text-[10px] text-[var(--text-muted)] font-sans">
                               {item.reg_deadline ? (
-                                <span className="text-sky-600 font-medium">⚡ Custom Extended</span>
+                                <span className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-medium">⚡ Custom Extended</span>
                               ) : (
                                 <span>Default Global</span>
                               )}
@@ -942,12 +941,12 @@ export function SettingsTab() {
                         {/* Fine Deadline */}
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-mono text-xs text-[var(--text-primary)] font-medium">
+                            <span className="font-mono text-xs text-[var(--text-primary)] font-medium tabular-nums">
                               {formatIstDisplay(effectiveFine)}
                             </span>
-                            <span className="text-[10px] text-[var(--text-muted)]">
+                            <span className="text-[10px] text-[var(--text-muted)] font-sans">
                               {item.fine_deadline ? (
-                                <span className="text-amber-600 font-medium">⚡ Custom Extended</span>
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">⚡ Custom Extended</span>
                               ) : (
                                 <span>Default Global</span>
                               )}
@@ -961,13 +960,12 @@ export function SettingsTab() {
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border ${deadlineStatus.badgeClass}`}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                deadlineStatus.status === 'open'
+                              className={`w-1.5 h-1.5 rounded-full ${deadlineStatus.status === 'open'
                                   ? 'bg-emerald-500'
                                   : deadlineStatus.status === 'fine'
-                                  ? 'bg-amber-500'
-                                  : 'bg-rose-500'
-                              }`}
+                                    ? 'bg-amber-500'
+                                    : 'bg-rose-500'
+                                }`}
                             />
                             {deadlineStatus.label}
                           </span>
@@ -981,7 +979,7 @@ export function SettingsTab() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleOpenExtensionModal(item)}
-                              className="text-xs h-7 px-2.5 font-medium border-[var(--border-subtle)] hover:border-sky-500 hover:text-sky-600"
+                              className="text-xs h-7 px-2.5 font-heading font-medium border-[var(--border-subtle)] hover:border-[var(--f-saffron)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)]"
                             >
                               <CalendarPlus className="w-3 h-3 mr-1" />
                               {isCustom ? 'Adjust' : 'Extend'}
@@ -1023,7 +1021,7 @@ export function SettingsTab() {
           </div>
           <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">System Reset & Cache Management</CardTitle>
           <CardDescription className="text-xs">
-            Administrative controls to reset cached festival records and re-fetch clean database state.
+            Administrative controls to reset cached fest records and re-fetch clean database state.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
@@ -1082,9 +1080,9 @@ export function SettingsTab() {
             <div className="space-y-3">
               {/* Event Normal Deadline Input */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
                   <span>Extended Registration Deadline (Without Fine)</span>
-                  <span className="text-[10px] text-sky-600 font-mono">IST</span>
+                  <span className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono">IST</span>
                 </label>
                 <input
                   id="event-reg-deadline-modal-input"
@@ -1093,10 +1091,10 @@ export function SettingsTab() {
                   onChange={e =>
                     setEventExtensionForm({ ...eventExtensionForm, reg_deadline_ist: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
                 />
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)]">Presets:</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-sans">Presets:</span>
                   {[
                     { label: '+12h', hours: 12 },
                     { label: '+24h (1 Day)', hours: 24 },
@@ -1107,7 +1105,7 @@ export function SettingsTab() {
                       key={p.label}
                       type="button"
                       onClick={() => applyEventQuickPreset('reg', p.hours)}
-                      className="px-2 py-0.5 text-[10px] rounded bg-[var(--bg-subtle)] hover:bg-sky-500/10 hover:text-sky-600 border border-[var(--border-subtle)] cursor-pointer"
+                      className="px-2 py-0.5 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] cursor-pointer"
                     >
                       {p.label}
                     </button>
@@ -1117,9 +1115,9 @@ export function SettingsTab() {
 
               {/* Event Fine Deadline Input */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
                   <span>Extended Late Registration Deadline (With Fine)</span>
-                  <span className="text-[10px] text-amber-600 font-mono">IST</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">IST</span>
                 </label>
                 <input
                   id="event-fine-deadline-modal-input"
@@ -1128,10 +1126,10 @@ export function SettingsTab() {
                   onChange={e =>
                     setEventExtensionForm({ ...eventExtensionForm, fine_deadline_ist: e.target.value })
                   }
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
                 />
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)]">Presets:</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-sans">Presets:</span>
                   {[
                     { label: '+12h', hours: 12 },
                     { label: '+24h (1 Day)', hours: 24 },
@@ -1142,7 +1140,7 @@ export function SettingsTab() {
                       key={p.label}
                       type="button"
                       onClick={() => applyEventQuickPreset('fine', p.hours)}
-                      className="px-2 py-0.5 text-[10px] rounded bg-[var(--bg-subtle)] hover:bg-amber-500/10 hover:text-amber-600 border border-[var(--border-subtle)] cursor-pointer"
+                      className="px-2 py-0.5 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] cursor-pointer"
                     >
                       {p.label}
                     </button>
@@ -1155,6 +1153,7 @@ export function SettingsTab() {
               <Button
                 variant="ghost"
                 size="sm"
+                className="font-heading"
                 onClick={() => setExtensionModalOpen(false)}
               >
                 Cancel
@@ -1169,7 +1168,7 @@ export function SettingsTab() {
                       await handleResetItemToGlobal(editingItem.item_id, editingItem.item_code || '');
                       setExtensionModalOpen(false);
                     }}
-                    className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/20 font-heading"
                   >
                     Reset to Global
                   </Button>
@@ -1177,9 +1176,10 @@ export function SettingsTab() {
                 <Button
                   id="save-event-extension-btn"
                   size="sm"
+                  variant="saffron"
                   disabled={isSavingExtension}
                   onClick={handleSaveItemExtension}
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+                  className="font-heading font-bold"
                 >
                   {isSavingExtension ? 'Saving...' : 'Save Extension (IST)'}
                 </Button>
@@ -1206,7 +1206,7 @@ export function SettingsTab() {
 
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+              <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1">
                 Extended Regular Deadline (Without Fine) - IST
               </label>
               <input
@@ -1214,12 +1214,12 @@ export function SettingsTab() {
                 type="datetime-local"
                 value={bulkForm.reg_deadline_ist}
                 onChange={e => setBulkForm({ ...bulkForm, reg_deadline_ist: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+              <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1">
                 Extended Fine Period Deadline (With Fine) - IST
               </label>
               <input
@@ -1227,21 +1227,22 @@ export function SettingsTab() {
                 type="datetime-local"
                 value={bulkForm.fine_deadline_ist}
                 onChange={e => setBulkForm({ ...bulkForm, fine_deadline_ist: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
               />
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
-            <Button variant="ghost" size="sm" onClick={() => setBulkModalOpen(false)}>
+            <Button variant="ghost" size="sm" className="font-heading" onClick={() => setBulkModalOpen(false)}>
               Cancel
             </Button>
             <Button
               id="confirm-bulk-extend-btn"
               size="sm"
+              variant="saffron"
               disabled={isSavingBulk || !bulkForm.reg_deadline_ist}
               onClick={handleSaveBulkExtension}
-              className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+              className="font-heading font-bold"
             >
               {isSavingBulk ? 'Applying...' : `Apply Extension to ${selectedItemIds.length} Events`}
             </Button>
@@ -1287,7 +1288,7 @@ export function SettingsTab() {
                 setDangerModalOpen(false);
                 setToast({
                   type: 'info',
-                  message: 'Festival cache reset to clean database state.'
+                  message: 'Fest cache reset to clean database state.'
                 });
                 setTimeout(() => setToast(null), 4000);
               }}
