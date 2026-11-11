@@ -76,6 +76,16 @@ export interface College {
   created_at?: string;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  college: College;
+  points: number;
+  gold: number;
+  silver: number;
+  bronze: number;
+  total_medals?: number;
+}
+
 export interface Student {
   id: string;
   name: string;

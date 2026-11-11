@@ -13,7 +13,7 @@ import {
   Sparkles,
   LogIn,
 } from 'lucide-react';
-import { Student, College, Item, formatStudentCategory } from '@/lib/types/fest';
+import { Student, College, Item, LeaderboardEntry, formatStudentCategory } from '@/lib/types/fest';
 import { ResultPosterModal, PosterInitialData } from '@/components/student/ResultPosterModal';
 import {
   findStudentByIdentifier,
@@ -128,7 +128,24 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
   const schedules = useMemo(() => festService.getSchedules(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
   const results = useMemo(() => festService.getResults(), [refreshKey]);
-  const leaderboard = useMemo(() => festService.getLeaderboard(), [refreshKey]);
+  const [serverLeaderboard, setServerLeaderboard] = useState<LeaderboardEntry[]>(() =>
+    festService.getLeaderboard()
+  );
+
+  // Fetch server-computed leaderboard on mount or reactive refresh
+  useEffect(() => {
+    let isMounted = true;
+    festService.fetchServerLeaderboard().then(data => {
+      if (isMounted && data && data.length > 0) {
+        setServerLeaderboard(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey]);
+
+  const leaderboard = serverLeaderboard.length > 0 ? serverLeaderboard : festService.getLeaderboard();
   const festSettings = useMemo(() => festService.getFestSettings(), [refreshKey]);
 
   // Resolve current student strictly from authenticated session

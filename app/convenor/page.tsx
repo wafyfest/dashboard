@@ -22,7 +22,7 @@ export default function ConvenorPage() {
 
   const navItems: NavItem[] = [
     { id: 'all', label: 'All College Contacts', icon: Building2 },
-    { id: 'coordinator', label: 'Staff Co-ordinators', icon: GraduationCap },
+    { id: 'coordinator', label: 'Staff Coordinators', icon: GraduationCap },
     { id: 'manager', label: 'Team Managers', icon: Users },
     { id: 'asst_manager', label: 'Assistant Managers', icon: UserCheck },
     { id: 'stage_monitor', label: 'Stage Progress & Alerts', icon: Radio }

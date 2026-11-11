@@ -80,10 +80,10 @@ export function ClickableNumber({
       onClick={e => onCopy(number, copyKey, e)}
       title="Click number to copy to clipboard"
       className={`group font-mono font-bold text-xs inline-flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none ${isCopied
-          ? 'bg-amber-500/20 text-[var(--f-saffron-text)] border border-amber-500/40 shadow-2xs'
-          : type === 'phone'
-            ? 'text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 hover:text-sky-500 border border-transparent hover:border-sky-500/20'
-            : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-500 border border-transparent hover:border-emerald-500/20'
+        ? 'bg-amber-500/20 text-[var(--f-saffron-text)] border border-amber-500/40 shadow-2xs'
+        : type === 'phone'
+          ? 'text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 hover:text-sky-500 border border-transparent hover:border-sky-500/20'
+          : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-500 border border-transparent hover:border-emerald-500/20'
         }`}
     >
       <span>{number}</span>
@@ -120,8 +120,8 @@ export function ConvenorDirectoryTab({
         <Card
           onClick={() => onTabChange('all')}
           className={`p-4 cursor-pointer transition-all border [box-shadow:var(--shadow-card),var(--glass-highlight)] ${activeTab === 'all'
-              ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
-              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
+            ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
+            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -135,8 +135,8 @@ export function ConvenorDirectoryTab({
             </div>
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeTab === 'all'
-                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
-                  : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
+                : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
                 }`}
             >
               <Building2 className="w-5 h-5" />
@@ -148,18 +148,18 @@ export function ConvenorDirectoryTab({
           </div>
         </Card>
 
-        {/* Tile 2: Staff Co-ordinators */}
+        {/* Tile 2: Staff Coordinators */}
         <Card
           onClick={() => onTabChange('coordinator')}
           className={`p-4 cursor-pointer transition-all border [box-shadow:var(--shadow-card),var(--glass-highlight)] ${activeTab === 'coordinator'
-              ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
-              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
+            ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
+            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
             }`}
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-heading font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Staff Co-ordinators
+                Staff Coordinators
               </p>
               <h3 className="text-2xl font-black text-[var(--text-primary)] mt-1 font-mono tracking-tight">
                 {stats.totalCoordinators}
@@ -167,8 +167,8 @@ export function ConvenorDirectoryTab({
             </div>
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeTab === 'coordinator'
-                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
-                  : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
+                : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
                 }`}
             >
               <UserCheck className="w-5 h-5" />
@@ -184,8 +184,8 @@ export function ConvenorDirectoryTab({
         <Card
           onClick={() => onTabChange('manager')}
           className={`p-4 cursor-pointer transition-all border [box-shadow:var(--shadow-card),var(--glass-highlight)] ${activeTab === 'manager'
-              ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
-              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
+            ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
+            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -199,8 +199,8 @@ export function ConvenorDirectoryTab({
             </div>
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeTab === 'manager'
-                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
-                  : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
+                : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
                 }`}
             >
               <Users className="w-5 h-5" />
@@ -216,8 +216,8 @@ export function ConvenorDirectoryTab({
         <Card
           onClick={() => onTabChange('asst_manager')}
           className={`p-4 cursor-pointer transition-all border [box-shadow:var(--shadow-card),var(--glass-highlight)] ${activeTab === 'asst_manager'
-              ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
-              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
+            ? 'border-[var(--f-saffron)] bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40'
+            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)] hover:bg-[var(--bg-hover)]'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -231,8 +231,8 @@ export function ConvenorDirectoryTab({
             </div>
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${activeTab === 'asst_manager'
-                  ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
-                  : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-md shadow-amber-500/20'
+                : 'bg-amber-500/10 text-[var(--f-saffron-text)]'
                 }`}
             >
               <GraduationCap className="w-5 h-5" />
@@ -293,8 +293,8 @@ export function ConvenorDirectoryTab({
               variant="outline"
               onClick={toggleExpandAll}
               className={`h-8 px-3 font-heading font-semibold transition-all text-xs rounded-xl ${isAllExpanded
-                  ? 'border-amber-500/50 bg-amber-500/10 text-[var(--f-saffron-text)]'
-                  : 'hover:border-[var(--f-saffron)] hover:text-[var(--f-saffron-text)]'
+                ? 'border-amber-500/50 bg-amber-500/10 text-[var(--f-saffron-text)]'
+                : 'hover:border-[var(--f-saffron)] hover:text-[var(--f-saffron-text)]'
                 }`}
               title={isAllExpanded ? 'Collapse all college cards' : 'Expand all college cards'}
             >
@@ -343,8 +343,8 @@ export function ConvenorDirectoryTab({
                 <div
                   key={college.id || college.affl_no}
                   className={`rounded-2xl border transition-all duration-200 overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)] ${isExpanded
-                      ? 'border-amber-500/40 bg-[var(--bg-surface)] shadow-md'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-medium)]'
+                    ? 'border-amber-500/40 bg-[var(--bg-surface)] shadow-md'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-medium)]'
                     }`}
                 >
                   {/* Card Header (Always visible) */}
@@ -393,11 +393,11 @@ export function ConvenorDirectoryTab({
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-2 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 animate-in fade-in duration-150">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {/* 1. Staff Co-ordinator */}
+                        {/* 1. Staff Coordinator */}
                         <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] space-y-2">
                           <div className="flex items-center gap-1.5 text-[var(--f-saffron-text)] font-heading font-bold text-xs">
                             <UserCheck className="w-3.5 h-3.5" />
-                            <span>Staff Co-ordinator</span>
+                            <span>Staff Coordinator</span>
                           </div>
                           <div className="text-xs font-sans font-semibold text-[var(--text-primary)]">
                             {staffCoord || <span className="text-[var(--text-muted)] italic font-normal">Not Registered</span>}
@@ -528,7 +528,7 @@ export function ConvenorDirectoryTab({
         </div>
       )}
 
-      {/* VIEW B: STAFF CO-ORDINATORS ONLY TABLE */}
+      {/* VIEW B: STAFF COORDINATORS ONLY TABLE */}
       {activeTab === 'coordinator' && (
         <div className="w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden [box-shadow:var(--shadow-card),var(--glass-highlight)]">
           <div className="p-3.5 bg-[var(--bg-subtle)] border-b border-[var(--border-subtle)] flex items-center justify-between">
@@ -536,7 +536,7 @@ export function ConvenorDirectoryTab({
               <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_#f59e0b]" />
               <UserCheck className="w-4 h-4 text-[var(--f-saffron-text)]" />
               <span className="font-heading font-bold text-xs text-[var(--text-primary)] tracking-tight">
-                Staff Co-ordinators Registry ({filteredColleges.length})
+                Staff Coordinators Registry ({filteredColleges.length})
               </span>
             </div>
           </div>
@@ -546,7 +546,7 @@ export function ConvenorDirectoryTab({
                 <TableRow>
                   <TableHead className="w-16 font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Affl No</TableHead>
                   <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">College Name</TableHead>
-                  <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Staff Co-ordinator</TableHead>
+                  <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Staff Coordinator</TableHead>
                   <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Phone Number</TableHead>
                   <TableHead className="font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">WhatsApp</TableHead>
                   <TableHead className="text-right font-heading font-bold text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Actions</TableHead>

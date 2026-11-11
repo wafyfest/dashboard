@@ -53,25 +53,23 @@ export function CollegeDashboardTab({
 
       {/* Student Category Stat Cards Row */}
       {categoryCards.length > 0 && (
-        <div className={`grid gap-3 lg:gap-4 ${
-          categoryCards.length === 1
+        <div className={`grid gap-3 lg:gap-4 ${categoryCards.length === 1
             ? 'grid-cols-1 max-w-xs'
             : categoryCards.length === 2
-            ? 'grid-cols-2 max-w-md'
-            : categoryCards.length === 3
-            ? 'grid-cols-1 sm:grid-cols-3'
-            : categoryCards.length === 4
-            ? 'grid-cols-2 sm:grid-cols-4'
-            : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
-        }`}>
+              ? 'grid-cols-2 max-w-md'
+              : categoryCards.length === 3
+                ? 'grid-cols-1 sm:grid-cols-3'
+                : categoryCards.length === 4
+                  ? 'grid-cols-2 sm:grid-cols-4'
+                  : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+          }`}>
           {categoryCards.map(card => (
             <div
               key={card.label}
-              className={`rounded-2xl p-4 flex flex-col justify-between h-28 transition-all backdrop-blur-md ${
-                card.highlight
+              className={`rounded-2xl p-4 flex flex-col justify-between h-28 transition-all backdrop-blur-md ${card.highlight
                   ? 'bg-[var(--bg-surface)] border border-amber-500/35 [box-shadow:var(--shadow-card),var(--glass-highlight)] shadow-[0_0_20px_rgba(245,158,11,0.08)]'
                   : 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] shadow-2xs'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <span className={`text-xs font-heading font-semibold ${card.highlight ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]' : 'text-[var(--text-secondary)]'}`}>
@@ -146,9 +144,9 @@ export function CollegeDashboardTab({
 
       {/* 3 Contact Staff Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-        {/* Co-ordinator (Staff) */}
+        {/* Coordinator (Staff) */}
         <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl p-5 space-y-3.5 shadow-2xs backdrop-blur-md">
-          <h3 className="text-xs font-heading font-bold text-[var(--text-primary)]">Co-ordinator (Staff)</h3>
+          <h3 className="text-xs font-heading font-bold text-[var(--text-primary)]">Coordinator (Staff)</h3>
           <div className="space-y-2 text-xs text-[var(--text-secondary)] font-sans">
             <div className="flex items-center gap-2">
               <User className="w-3.5 h-3.5 text-[var(--text-muted)]" />

@@ -16,6 +16,7 @@ import {
   Volunteer,
   Announcement,
   MaxParticipation,
+  LeaderboardEntry,
   SubmissionEntry,
   LateRegistration,
   SystemAuditLog,
@@ -3288,14 +3289,76 @@ class FestService {
     return col ? enriched.filter(s => s.college_affl_no === col.affl_no) : enriched;
   }
 
-  // --- Leaderboard & Trophy Standings ---
-  public getLeaderboard(): Array<{
-    college: College;
-    points: number;
-    gold: number;
-    silver: number;
-    bronze: number;
-  }> {
+  // --- Leaderboard & Trophy Standings (Server-Side Computed) ---
+  public async fetchServerLeaderboard(): Promise<LeaderboardEntry[]> {
+    try {
+      if (this.isClient) {
+        const res = await fetch('/api/leaderboard', {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            this.setStorage('leaderboard', json.data);
+            return json.data;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[festService] fetchServerLeaderboard API fallback:', err);
+    }
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('fest_leaderboard')
+          .select('*')
+          .order('rank', { ascending: true });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const colleges = this.getColleges();
+          const formatted: LeaderboardEntry[] = data.map(row => {
+            const matchedCol = colleges.find(c => Number(c.affl_no) === Number(row.affl_no));
+            return {
+              rank: Number(row.rank),
+              college: matchedCol || ({
+                id: row.college_id || `col-${row.affl_no}`,
+                affl_no: Number(row.affl_no),
+                affiliation_no: String(row.affl_no),
+                name: row.college_name || '',
+                short_name: row.college_short_name || '',
+                code: row.college_short_name || '',
+                type: row.college_type || 'wafy',
+                st_foundation: 0,
+                st_thamheediya: 0,
+                st_aliya: 0,
+                manual_lock_override: false,
+              } as College),
+              points: Number(row.points) || 0,
+              gold: Number(row.gold) || 0,
+              silver: Number(row.silver) || 0,
+              bronze: Number(row.bronze) || 0,
+              total_medals: Number(row.total_medals) || 0,
+            };
+          });
+          this.setStorage('leaderboard', formatted);
+          return formatted;
+        }
+      } catch (e) {
+        console.warn('[festService] fetchServerLeaderboard View fallback:', e);
+      }
+    }
+
+    return this.getLeaderboard();
+  }
+
+  public getLeaderboard(): LeaderboardEntry[] {
+    const cached = this.getStorage<LeaderboardEntry[]>('leaderboard', []);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+
+    // Offline / fallback calculation if server response is not yet cached
     const colleges = this.getColleges();
     const results = this.getResults().filter(r => r.published);
 
@@ -3314,12 +3377,18 @@ class FestService {
       }
     });
 
-    return colleges
+    const list = colleges
       .map(c => ({
         college: c,
         ...(standingsMap.get(c.affl_no) || { gold: 0, silver: 0, bronze: 0, points: 0 })
       }))
       .sort((a, b) => b.points - a.points || b.gold - a.gold);
+
+    return list.map((item, idx) => ({
+      ...item,
+      rank: idx + 1,
+      total_medals: item.gold + item.silver + item.bronze,
+    }));
   }
 
   // --- Volunteers (Aliya & PG Phases) ---

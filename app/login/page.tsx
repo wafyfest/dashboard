@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 import { UserRole } from '@/lib/types/fest';
-import { createClient } from '@/lib/supabase/client';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export default function LoginPage() {
@@ -27,6 +26,27 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rateLimitRetryAt, setRateLimitRetryAt] = useState<number | null>(null);
+  const [rateLimitSecsLeft, setRateLimitSecsLeft] = useState<number>(0);
+
+  // Live countdown when rate-limited
+  useEffect(() => {
+    if (!rateLimitRetryAt) return;
+    const tick = () => {
+      const left = Math.ceil((rateLimitRetryAt - Date.now()) / 1000);
+      if (left <= 0) {
+        setRateLimitRetryAt(null);
+        setRateLimitSecsLeft(0);
+        setError(null);
+      } else {
+        setRateLimitSecsLeft(left);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [rateLimitRetryAt]);
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,71 +63,50 @@ export default function LoginPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    const supabase = createClient();
-
-    if (!supabase) {
-      setError('Database connection error. Please verify configuration.');
-      setLoading(false);
+    // Enforce client-side cooldown if the server told us to wait
+    if (rateLimitRetryAt && Date.now() < rateLimitRetryAt) {
+      const secsLeft = Math.ceil((rateLimitRetryAt - Date.now()) / 1000);
+      setError(`Too many attempts. Please wait ${secsLeft}s before trying again.`);
       return;
     }
 
+    setLoading(true);
+
     try {
-      // 1. Authenticate credentials against Supabase Auth
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password
+      // Send credentials to our rate-limited server route instead of calling
+      // Supabase Auth directly from the browser.
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        credentials: 'same-origin',
       });
 
-      if (authError) {
-        await supabase.auth.signOut().catch(() => {});
-        setError(
-          authError.message === 'Invalid login credentials'
-            ? 'Incorrect email or password. Please check your credentials.'
-            : authError.message
-        );
-        setLoading(false);
-        return;
-      }
+      const json = await res.json();
 
-      if (!data.user) {
-        setError('Authentication failed. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      // 2. Query user profile from Supabase PostgreSQL
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, college_affl_no, full_name')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      let userRole: UserRole = (profile?.role as UserRole) || 'college';
-      let afflNo = profile?.college_affl_no;
-
-      // Fallback: match college by email if profile link is pending
-      if (!profile && !afflNo) {
-        const { data: matchedCollege } = await supabase
-          .from('colleges')
-          .select('affl_no')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
-
-        if (matchedCollege) {
-          afflNo = matchedCollege.affl_no;
-          userRole = 'college';
+      if (!res.ok) {
+        if (res.status === 429) {
+          // Server told us to back off — store the retry timestamp
+          const retryAfterMs: number = json.retryAfterMs ?? 60_000;
+          setRateLimitRetryAt(Date.now() + retryAfterMs);
         }
+        setError(json.error || 'An unexpected error occurred during login.');
+        setLoading(false);
+        return;
       }
 
-      // 3. Update active context state
+      // On success the server set Supabase auth cookies.
+      // Reflect the role/college into client context state.
+      const userRole: UserRole = (json.role as UserRole) || 'college';
+      const afflNo: number | null = json.afflNo ?? null;
+
       setCurrentRole(userRole);
       if (afflNo) {
         setCurrentCollegeAfflNo(afflNo);
       }
 
-      // 4. Navigate to user's assigned portal
+      // Navigate to user's assigned portal
       const destination = routeMap[userRole] || '/college';
       router.push(destination);
       router.refresh();
@@ -260,10 +259,21 @@ export default function LoginPage() {
         {error && (
           <div
             role="alert"
-            className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-sans animate-in fade-in duration-200 [box-shadow:var(--glass-highlight)]"
+            className={`flex items-start gap-2.5 p-3.5 rounded-xl text-xs font-sans animate-in fade-in duration-200 [box-shadow:var(--glass-highlight)] ${
+              rateLimitRetryAt
+                ? 'bg-orange-500/10 border border-orange-500/30 text-orange-700 dark:text-orange-400'
+                : 'bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400'
+            }`}
           >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
-            <span className="font-medium leading-relaxed">{error}</span>
+            <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${rateLimitRetryAt ? 'text-orange-500' : 'text-rose-500'}`} />
+            <div className="font-medium leading-relaxed">
+              <span>{error}</span>
+              {rateLimitRetryAt && rateLimitSecsLeft > 0 && (
+                <span className="block mt-0.5 font-mono text-[11px] opacity-80">
+                  Unlocks in {rateLimitSecsLeft}s
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -287,7 +297,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[var(--bg-elevated)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus-visible:ring-2 focus-visible:ring-amber-500/30 [box-shadow:var(--glass-highlight)] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
-                disabled={loading}
+                disabled={loading || !!rateLimitRetryAt}
               />
             </div>
             <p className="text-[11px] text-[var(--text-muted)] leading-normal">
@@ -333,7 +343,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[var(--bg-elevated)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus-visible:ring-2 focus-visible:ring-amber-500/30 [box-shadow:var(--glass-highlight)] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                 required
-                disabled={loading}
+                disabled={loading || !!rateLimitRetryAt}
               />
             </div>
           </div>
@@ -341,13 +351,20 @@ export default function LoginPage() {
           <button
             type="submit"
             id="login-submit"
-            disabled={loading}
+            disabled={loading || !!rateLimitRetryAt}
             className="w-full mt-2 bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[#090d1a] py-3 px-4 rounded-xl text-xs sm:text-sm font-heading font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/30 active:scale-[0.98] transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-page)] group"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-[#090d1a]" />
                 <span className="font-heading">Verifying Credentials...</span>
+              </>
+            ) : rateLimitRetryAt ? (
+              <>
+                <Lock className="w-4 h-4 text-[#090d1a]" />
+                <span className="font-heading tracking-wide font-mono">
+                  Locked · {rateLimitSecsLeft}s
+                </span>
               </>
             ) : (
               <>
