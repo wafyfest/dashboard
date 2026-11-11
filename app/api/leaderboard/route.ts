@@ -71,15 +71,18 @@ export async function GET(request: Request) {
       console.warn('[API /api/leaderboard] View query failed, falling back to aggregate:', viewError.message);
     }
 
-    const [collegesRes, resultsRes] = await Promise.all([
+    const [collegesRes, resultsRes, eventsRes] = await Promise.all([
       supabase
         .from('colleges')
         .select('id, affl_no, name, short_name, type')
         .order('affl_no', { ascending: true }),
       supabase
         .from('results')
-        .select('id, college_affl_no, rank, points, published')
+        .select('id, item_id, college_affl_no, rank, points, published')
         .eq('published', true),
+      supabase
+        .from('events')
+        .select('item_id, category, tabulation'),
     ]);
 
     if (collegesRes.error || resultsRes.error) {
@@ -100,6 +103,11 @@ export async function GET(request: Request) {
 
     const colleges = collegesRes.data || [];
     const results = resultsRes.data || [];
+    const nonTabulationItemIds = new Set<number>(
+      (eventsRes.data || [])
+        .filter((ev: any) => ev.tabulation === false || String(ev.category || '').trim().toUpperCase() === 'D')
+        .map((ev: any) => Number(ev.item_id))
+    );
 
     const standingsMap = new Map<
       number,
@@ -114,7 +122,8 @@ export async function GET(request: Request) {
       if (res.college_affl_no) {
         const affl = Number(res.college_affl_no);
         const curr = standingsMap.get(affl) || { points: 0, gold: 0, silver: 0, bronze: 0 };
-        curr.points += Number(res.points) || 0;
+        const isNonTab = res.item_id != null && nonTabulationItemIds.has(Number(res.item_id));
+        curr.points += isNonTab ? 0 : (Number(res.points) || 0);
         if (Number(res.rank) === 1) curr.gold += 1;
         else if (Number(res.rank) === 2) curr.silver += 1;
         else if (Number(res.rank) === 3) curr.bronze += 1;

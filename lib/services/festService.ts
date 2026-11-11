@@ -32,6 +32,8 @@ import {
   getEffectiveStageMode,
   isSubmissionEvent,
   isScreeningEvent,
+  isNonTabulationEvent,
+  getItemParticipantBounds,
   requiresPreFestSubmission
 } from '../types/fest';
 
@@ -910,17 +912,22 @@ class FestService {
   }
 
   // --- Items ---
+  private normalizeItemRecord(raw: Record<string, any>): Item {
+    const bounds = getItemParticipantBounds(raw as Item);
+    return {
+      ...(raw as Item),
+      code: raw.item_code,
+      name: raw.name_eng,
+      item_type: (raw.point_type === 'individual' ? 'Single' : 'Group') as 'Single' | 'Group',
+      min_participants: bounds.min,
+      max_participants: bounds.max
+    };
+  }
+
   public getItems(): Item[] {
     const items = this.getStorage<Item[]>('items', []);
     return items
-      .map(i => ({
-        ...i,
-        code: i.item_code,
-        name: i.name_eng,
-        item_type: (i.point_type === 'individual' ? 'Single' : 'Group') as 'Single' | 'Group',
-        min_participants: i.no_of_participants || 1,
-        max_participants: i.no_of_participants || 1
-      }))
+      .map(i => this.normalizeItemRecord(i))
       .sort((a, b) => {
         const codeA = a.item_code || a.code || '';
         const codeB = b.item_code || b.code || '';
@@ -958,6 +965,11 @@ class FestService {
     if (item.item_id) {
       const idx = items.findIndex(i => i.item_id === item.item_id);
       if (idx >= 0) {
+        const nextCategory = (item.category || items[idx].category || 'A').toUpperCase().charAt(0);
+        const nextParticipants =
+          item.no_of_participants !== undefined
+            ? item.no_of_participants
+            : (item.max_participants ?? items[idx].no_of_participants);
         const dbPayload = {
           item_code: item.item_code || item.code || items[idx].item_code,
           name_eng: item.name_eng || item.name || items[idx].name_eng,
@@ -966,10 +978,10 @@ class FestService {
           mode: getEffectiveStageMode(item.mode ? item : items[idx]),
           is_submission: item.is_submission !== undefined ? item.is_submission : isSubmissionEvent(items[idx]),
           is_screening: item.is_screening !== undefined ? item.is_screening : isScreeningEvent(items[idx]),
-          category: item.category || items[idx].category,
-          tabulation: item.tabulation !== undefined ? item.tabulation : items[idx].tabulation,
+          category: nextCategory,
+          tabulation: item.tabulation !== undefined ? item.tabulation : (nextCategory === 'D' ? false : items[idx].tabulation),
           point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
-          no_of_participants: item.no_of_participants || item.max_participants || items[idx].no_of_participants,
+          no_of_participants: nextParticipants,
           reg_deadline: item.reg_deadline !== undefined ? item.reg_deadline : items[idx].reg_deadline,
           fine_deadline: item.fine_deadline !== undefined ? item.fine_deadline : items[idx].fine_deadline,
           is_locked: item.is_locked !== undefined ? item.is_locked : items[idx].is_locked,
@@ -990,24 +1002,19 @@ class FestService {
             return { success: false, error: error.message };
           }
           if (data) {
-            items[idx] = {
-              ...items[idx],
-              ...data,
-              item_type: data.point_type === 'group' ? 'Group' : 'Single',
-              min_participants: data.no_of_participants,
-              max_participants: data.no_of_participants
-            };
+            items[idx] = this.normalizeItemRecord({ ...items[idx], ...data });
             this.setStorage('items', items);
             return { success: true, item: items[idx] };
           }
         }
-        items[idx] = { ...items[idx], ...item } as Item;
+        items[idx] = this.normalizeItemRecord({ ...items[idx], ...dbPayload });
         this.setStorage('items', items);
         return { success: true, item: items[idx] };
       }
     }
 
     // Insert new event: omit item_id so sequence nextval('events_item_id_seq') assigns monotonic ID
+    const createCategory = (item.category || 'A').toUpperCase().charAt(0);
     const dbPayload = {
       item_code: item.item_code || item.code || `ITM-${Date.now().toString().slice(-4)}`,
       name_eng: item.name_eng || item.name || 'New Item',
@@ -1016,10 +1023,13 @@ class FestService {
       mode: getEffectiveStageMode(item),
       is_submission: isSubmissionEvent(item),
       is_screening: isScreeningEvent(item),
-      category: item.category || 'A',
-      tabulation: item.tabulation !== undefined ? item.tabulation : true,
+      category: createCategory,
+      tabulation: item.tabulation !== undefined ? item.tabulation : createCategory !== 'D',
       point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
-      no_of_participants: item.no_of_participants || item.max_participants || 1,
+      no_of_participants:
+        item.no_of_participants !== undefined
+          ? item.no_of_participants
+          : (item.max_participants ?? 1),
       is_locked: false,
       l_star: item.l_star || false,
       em_star: item.em_star || false
@@ -1038,15 +1048,10 @@ class FestService {
       }
 
       if (data) {
-        const fullItem: Item = {
+        const fullItem = this.normalizeItemRecord({
           ...data,
-          id: `itm-${data.item_id}`,
-          code: data.item_code,
-          name: data.name_eng,
-          item_type: data.point_type === 'group' ? 'Group' : 'Single',
-          min_participants: data.no_of_participants,
-          max_participants: data.no_of_participants
-        };
+          id: data.id || `itm-${data.item_id}`
+        });
         items.push(fullItem);
         this.setStorage('items', items);
         return { success: true, item: fullItem };
@@ -1054,30 +1059,25 @@ class FestService {
     }
 
     const nextItemId = items.length > 0 ? Math.max(...items.map(i => i.item_id)) + 1 : 1;
-    const fallbackItem: Item = {
+    const fallbackItem = this.normalizeItemRecord({
       id: `itm-${nextItemId}`,
       item_id: nextItemId,
-      code: dbPayload.item_code,
       item_code: dbPayload.item_code,
-      name: dbPayload.name_eng,
       name_eng: dbPayload.name_eng,
       name_mal: dbPayload.name_mal,
       phase: dbPayload.phase,
-      mode: dbPayload.mode as any,
-      category: dbPayload.category as any,
+      mode: dbPayload.mode,
+      category: dbPayload.category,
       tabulation: dbPayload.tabulation,
-      point_type: dbPayload.point_type as any,
-      item_type: dbPayload.point_type === 'group' ? 'Group' : 'Single',
+      point_type: dbPayload.point_type,
       is_submission: dbPayload.is_submission,
       is_screening: dbPayload.is_screening,
       no_of_participants: dbPayload.no_of_participants,
-      min_participants: dbPayload.no_of_participants,
-      max_participants: dbPayload.no_of_participants,
       l_star: dbPayload.l_star,
       em_star: dbPayload.em_star,
       is_locked: false,
       created_at: new Date().toISOString()
-    };
+    });
     items.push(fallbackItem);
     this.setStorage('items', items);
     return { success: true, item: fallbackItem };
@@ -1717,8 +1717,7 @@ class FestService {
       }
     }
 
-    const minRequired = item.min_participants ?? (item.point_type === 'individual' || item.item_type === 'Single' ? 1 : 1);
-    const maxAllowed = item.max_participants ?? (item.no_of_participants || 1);
+    const { min: minRequired, max: maxAllowed } = getItemParticipantBounds(item);
 
     if (chestNos.length < minRequired) {
       return {
@@ -2886,7 +2885,10 @@ class FestService {
     return this.getPointsMatrix();
   }
 
-  public calculatePoints(phase?: string, category?: string, grade?: string, rank?: number | null): number {
+  public calculatePoints(phase?: string, category?: string, grade?: string, rank?: number | null, tabulation?: boolean): number {
+    if (tabulation === false || (category || '').trim().toUpperCase() === 'D') {
+      return 0;
+    }
     const matrix = this.getStorage<any[]>('points_matrix', []);
     const normGrade = (grade || '').trim().toUpperCase();
     const numRank = rank ? Number(rank) : null;
@@ -3154,7 +3156,9 @@ class FestService {
       const marks = s.mark_percentage !== undefined ? s.mark_percentage : (s.total !== undefined ? s.total : 75);
       const calculatedGrade = s.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : marks >= 70 ? 'B' : 'C');
       const calculatedRank = s.rank !== undefined ? s.rank : (index < 3 ? index + 1 : null);
-      const calculatedPoints = s.points !== undefined ? s.points : this.calculatePoints(itm?.phase, itm?.category, calculatedGrade, calculatedRank);
+      const calculatedPoints = isNonTabulationEvent(itm)
+        ? 0
+        : (s.points !== undefined ? s.points : this.calculatePoints(itm?.phase, itm?.category, calculatedGrade, calculatedRank, itm?.tabulation));
 
       newResults.push({
         id: `res-${numItemId}-${cleanCode}`,
@@ -3922,6 +3926,7 @@ class FestService {
     // Offline / fallback calculation if server response is not yet cached
     const colleges = this.getColleges();
     const results = this.getResults().filter(r => r.published);
+    const itemsById = new Map<number, Item>(this.getItems().map(i => [Number(i.item_id), i]));
 
     const standingsMap = new Map<number, { gold: number; silver: number; bronze: number; points: number }>();
     colleges.forEach(c => standingsMap.set(c.affl_no, { gold: 0, silver: 0, bronze: 0, points: 0 }));
@@ -3930,7 +3935,8 @@ class FestService {
       if (res.college_affl_no) {
         const curr = standingsMap.get(res.college_affl_no);
         if (curr) {
-          curr.points += res.points || 0;
+          const itm = res.item_id != null ? itemsById.get(Number(res.item_id)) : undefined;
+          curr.points += isNonTabulationEvent(itm) ? 0 : (res.points || 0);
           if (res.rank === 1) curr.gold += 1;
           else if (res.rank === 2) curr.silver += 1;
           else if (res.rank === 3) curr.bronze += 1;

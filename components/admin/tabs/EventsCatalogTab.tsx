@@ -20,7 +20,15 @@ import {
   SlidersHorizontal,
   SquarePen
 } from 'lucide-react';
-import { Item, ItemMode, ItemType, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
+import {
+  Item,
+  ItemMode,
+  getEffectiveStageMode,
+  isSubmissionEvent,
+  isScreeningEvent,
+  isNonTabulationEvent,
+  formatParticipantQuotaLabel
+} from '@/lib/types/fest';
 
 export function EventsCatalogTab() {
   const { refreshKey, triggerRefresh } = useFest();
@@ -51,17 +59,19 @@ export function EventsCatalogTab() {
     name_mal: string;
     phase: string;
     category: string;
+    tabulation: boolean;
     mode: ItemMode;
     is_submission: boolean;
     is_screening: boolean;
     item_type: 'Single' | 'Group';
-    no_of_participants: number;
+    no_of_participants: number | null;
   }>({
     code: '',
     name_eng: '',
     name_mal: '',
     phase: 'Foundation',
     category: 'A',
+    tabulation: true,
     mode: 'onstage',
     is_submission: false,
     is_screening: false,
@@ -153,6 +163,7 @@ export function EventsCatalogTab() {
       name_mal: '',
       phase: 'Foundation',
       category: 'A',
+      tabulation: true,
       mode: 'onstage',
       is_submission: false,
       is_screening: false,
@@ -164,6 +175,7 @@ export function EventsCatalogTab() {
   };
 
   const handleOpenEditModal = (item: Item) => {
+    const cat = (item.category || 'A').toUpperCase();
     setEditingItem({
       id: item.id,
       item_id: item.item_id,
@@ -171,12 +183,13 @@ export function EventsCatalogTab() {
       name_eng: item.name_eng || item.name || '',
       name_mal: item.name_mal || '',
       phase: item.phase?.trim().toLowerCase() === 'thamheediya' ? 'Thamheediyya' : (item.phase || 'Foundation'),
-      category: (item.category || 'A').toUpperCase(),
+      category: cat,
+      tabulation: item.tabulation !== undefined ? Boolean(item.tabulation) : cat !== 'D',
       mode: getEffectiveStageMode(item),
       is_submission: isSubmissionEvent(item),
       is_screening: isScreeningEvent(item),
       item_type: (item.point_type === 'group' || item.item_type === 'Group') ? 'Group' : 'Single',
-      no_of_participants: item.no_of_participants || 1
+      no_of_participants: item.no_of_participants ?? null
     });
     setFormError(null);
     setIsItemModalOpen(true);
@@ -197,6 +210,7 @@ export function EventsCatalogTab() {
     setFormError(null);
 
     try {
+      const cat = (editingItem.category || 'A').toUpperCase().charAt(0);
       const payload: Partial<Item> = {
         item_id: editingItem.item_id,
         item_code: editingItem.code.trim().toUpperCase(),
@@ -205,13 +219,17 @@ export function EventsCatalogTab() {
         name: editingItem.name_eng.trim(),
         name_mal: editingItem.name_mal.trim() || editingItem.name_eng.trim(),
         phase: editingItem.phase,
-        category: (editingItem.category || 'A').toUpperCase().charAt(0),
+        category: cat,
+        tabulation: editingItem.tabulation,
         mode: editingItem.mode,
         is_submission: editingItem.is_submission,
         is_screening: editingItem.is_screening,
         point_type: editingItem.item_type === 'Group' ? 'group' : 'individual',
         item_type: editingItem.item_type,
-        no_of_participants: Math.max(1, Number(editingItem.no_of_participants) || 1)
+        no_of_participants:
+          editingItem.no_of_participants == null
+            ? null
+            : Math.max(1, Number(editingItem.no_of_participants) || 1)
       };
 
       const res = await festService.saveItem(payload);
@@ -460,9 +478,19 @@ export function EventsCatalogTab() {
 
                     {/* Category Letter (A, B, C, D) */}
                     <td className="py-3 px-3 text-center">
-                      <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30">
-                        {(item.category || 'A').toUpperCase()}
-                      </span>
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30">
+                          {(item.category || 'A').toUpperCase()}
+                        </span>
+                        {isNonTabulationEvent(item) && (
+                          <span
+                            className="text-[10px] font-sans font-semibold text-[var(--text-muted)]"
+                            title="Non-tabulation event (0 championship points)"
+                          >
+                            Non-Tab
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Type / Mode */}
@@ -477,7 +505,7 @@ export function EventsCatalogTab() {
 
                     {/* Participants from a College */}
                     <td className="py-3 px-3 text-center font-mono font-semibold text-[var(--text-primary)]">
-                      {item.no_of_participants || 1} student{Number(item.no_of_participants || 1) > 1 ? 's' : ''}
+                      {formatParticipantQuotaLabel(item)}
                     </td>
 
                     {/* Lock Status */}
@@ -624,7 +652,14 @@ export function EventsCatalogTab() {
               </label>
               <select
                 value={editingItem.category}
-                onChange={e => setEditingItem({ ...editingItem, category: e.target.value })}
+                onChange={e => {
+                  const nextCat = e.target.value;
+                  setEditingItem({
+                    ...editingItem,
+                    category: nextCat,
+                    tabulation: nextCat.toUpperCase() !== 'D'
+                  });
+                }}
                 className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-bold cursor-pointer"
               >
                 <option value="A">Category A</option>
@@ -696,23 +731,62 @@ export function EventsCatalogTab() {
             </label>
           </div>
 
-          {/* Row 4: Participants from a College */}
-          <div>
-            <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
-              Number of Participants (that can register from a college) <span className="text-rose-500">*</span>
+          {/* Row 4: Participants from a College & Tabulation */}
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
+                  Number of Participants (that can register from a college)
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-heading font-semibold text-[var(--text-primary)] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={editingItem.no_of_participants == null}
+                    onChange={e =>
+                      setEditingItem({
+                        ...editingItem,
+                        no_of_participants: e.target.checked ? null : (editingItem.item_type === 'Group' ? 2 : 1)
+                      })
+                    }
+                    className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] h-3.5 w-3.5 cursor-pointer"
+                  />
+                  Open / Unlimited
+                </label>
+              </div>
+              {editingItem.no_of_participants == null ? (
+                <div className="w-full px-3 py-2 text-xs border border-dashed border-[var(--border-medium)] rounded-lg bg-[var(--bg-subtle)]/60 text-[var(--text-secondary)] font-mono">
+                  Open Limit (NULL — Colleges can register multiple participants)
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={editingItem.no_of_participants}
+                  onChange={e => setEditingItem({ ...editingItem, no_of_participants: parseInt(e.target.value, 10) || 1 })}
+                  className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono"
+                  required
+                />
+              )}
+              <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">
+                Specifies how many students a college can enroll in their roster for this item (or leave Open for Category D items).
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={editingItem.tabulation}
+                onChange={e => setEditingItem({ ...editingItem, tabulation: e.target.checked })}
+                className="mt-0.5 rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] h-4 w-4 cursor-pointer"
+              />
+              <div>
+                <span className="font-heading font-semibold text-[var(--text-primary)]">Counts in Official Tabulation & Points</span>
+                <p className="text-[11px] text-[var(--text-muted)] font-sans">
+                  Uncheck for Category D non-tabulation events (e.g. SE090–SE093) so leaderboard points stay 0.
+                </p>
+              </div>
             </label>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={editingItem.no_of_participants}
-              onChange={e => setEditingItem({ ...editingItem, no_of_participants: parseInt(e.target.value) || 1 })}
-              className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono"
-              required
-            />
-            <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">
-              Specifies how many students a college can enroll in their roster for this item (e.g. 1 for solo, 5+ for group).
-            </p>
           </div>
 
           {/* Actions */}

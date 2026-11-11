@@ -14,7 +14,7 @@ import {
   Send,
   Loader2,
 } from 'lucide-react';
-import { Item, Schedule, StageStatus, isScreeningEvent } from '@/lib/types/fest';
+import { Item, Schedule, StageStatus, isScreeningEvent, isNonTabulationEvent } from '@/lib/types/fest';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export interface ScoreEntryRow {
@@ -216,6 +216,11 @@ export function ScoreEntryTab({
                       {selectedScoringItem.point_type === 'group' ? 'Group Event' : 'Single Event'}
                     </Badge>
                     {isScreeningEvent(selectedScoringItem) && <ScreeningBadge size="sm" />}
+                    {isNonTabulationEvent(selectedScoringItem) && (
+                      <Badge variant="outline" size="sm" className="font-semibold">
+                        Non-Tabulation (Cat D • 0 Pts)
+                      </Badge>
+                    )}
                   </div>
                   <h2 className="text-2xl font-heading font-black text-[var(--text-primary)] tracking-tight mt-1.5">
                     {selectedScoringItem.name_eng || selectedScoringItem.name}

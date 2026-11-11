@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { StageStatus, isScreeningEvent } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent, isNonTabulationEvent } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { TilePattern } from '@/components/fest/FestPattern';
 import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
@@ -210,9 +210,11 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         const marks = existing?.mark_percentage !== null && existing?.mark_percentage !== undefined ? Number(existing.mark_percentage) : 75;
         const grade = existing?.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : marks >= 70 ? 'B' : 'C');
         const rank = existing?.rank ? Number(existing.rank) : null;
-        const pts = existing?.points !== null && existing?.points !== undefined
-          ? Number(existing.points)
-          : festService.calculatePoints(selectedScoringItem?.phase, selectedScoringItem?.category, grade, rank);
+        const pts = isNonTabulationEvent(selectedScoringItem)
+          ? 0
+          : existing?.points !== null && existing?.points !== undefined
+            ? Number(existing.points)
+            : festService.calculatePoints(selectedScoringItem?.phase, selectedScoringItem?.category, grade, rank, selectedScoringItem?.tabulation);
 
         return {
           code_letter: letter,
@@ -265,7 +267,8 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         selectedScoringItem?.phase,
         selectedScoringItem?.category,
         target.grade,
-        target.rank
+        target.rank,
+        selectedScoringItem?.tabulation
       );
 
       updated[index] = target;

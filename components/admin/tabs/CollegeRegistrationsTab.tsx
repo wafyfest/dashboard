@@ -33,7 +33,20 @@ import {
   DollarSign,
   FileText
 } from 'lucide-react';
-import { Item, College, Student, Result, Registration, RegistrationLog, isCategoryMatching, normalizeCategoryKey, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
+import {
+  Item,
+  College,
+  Student,
+  Result,
+  Registration,
+  RegistrationLog,
+  isCategoryMatching,
+  normalizeCategoryKey,
+  getEffectiveStageMode,
+  isSubmissionEvent,
+  isScreeningEvent,
+  getItemParticipantBounds
+} from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import {
@@ -368,7 +381,8 @@ export function CollegeRegistrationsTab({
 
   const handleToggleStudentSelection = (chestNo: string) => {
     if (!selectedItemForAdminReg) return;
-    const isSingle = selectedItemForAdminReg.item_type === 'Single';
+    const { max } = getItemParticipantBounds(selectedItemForAdminReg);
+    const isSingle = max <= 1 && selectedItemForAdminReg.item_type === 'Single';
 
     if (isSingle) {
       if (selectedStudentChestNosForAdminReg.includes(chestNo)) {
@@ -380,9 +394,8 @@ export function CollegeRegistrationsTab({
       if (selectedStudentChestNosForAdminReg.includes(chestNo)) {
         setSelectedStudentChestNosForAdminReg(selectedStudentChestNosForAdminReg.filter(c => c !== chestNo));
       } else {
-        const max = selectedItemForAdminReg.max_participants || selectedItemForAdminReg.no_of_participants || 1;
         if (selectedStudentChestNosForAdminReg.length >= max) {
-          setRegErrorMessage(`Maximum limit of ${max} participants reached for this group event.`);
+          setRegErrorMessage(`Maximum limit of ${max} participants reached for this event.`);
           return;
         }
         setRegErrorMessage(null);
@@ -400,7 +413,7 @@ export function CollegeRegistrationsTab({
       return;
     }
 
-    const min = selectedItemForAdminReg.min_participants || selectedItemForAdminReg.no_of_participants || 1;
+    const { min } = getItemParticipantBounds(selectedItemForAdminReg);
     if (selectedStudentChestNosForAdminReg.length < min) {
       setRegErrorMessage(`Requires at least ${min} participant(s). Currently selected: ${selectedStudentChestNosForAdminReg.length}.`);
       return;
@@ -873,7 +886,10 @@ export function CollegeRegistrationsTab({
                                   {item.item_type || 'Single'}
                                 </span>
                                 <span className="text-[10px] text-[var(--text-muted)] font-mono">
-                                  ({item.min_participants === item.max_participants ? item.min_participants : `${item.min_participants}-${item.max_participants}`})
+                                  ({(() => {
+                                    const b = getItemParticipantBounds(item);
+                                    return b.isOpen ? 'Open' : b.min === b.max ? b.min : `${b.min}-${b.max}`;
+                                  })()})
                                 </span>
                               </div>
                             </div>
@@ -1837,8 +1853,7 @@ export function CollegeRegistrationsTab({
           maxWidth="xl"
         >
           {(() => {
-            const min = selectedItemForAdminReg.min_participants || selectedItemForAdminReg.no_of_participants || 1;
-            const max = selectedItemForAdminReg.max_participants || selectedItemForAdminReg.no_of_participants || 1;
+            const { min, max, isOpen } = getItemParticipantBounds(selectedItemForAdminReg);
 
             const filteredCollegeStudents = collegeStudents.filter(stu => {
               const stuName = stu.name || stu.full_name || '';
@@ -1874,7 +1889,7 @@ export function CollegeRegistrationsTab({
                       {selectedItemForAdminReg.item_type}
                     </Badge>
                     <span className="text-[var(--text-secondary)] font-medium">
-                      Capacity: <strong>{min === max ? min : `${min} - ${max}`}</strong> participant(s)
+                      Capacity: <strong>{isOpen ? 'Open (Min 1)' : min === max ? min : `${min} - ${max}`}</strong> participant(s)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 font-medium">
@@ -1910,7 +1925,7 @@ export function CollegeRegistrationsTab({
                   <div className="flex items-center justify-between text-xs font-semibold text-[var(--text-primary)]">
                     <span>Select Students from College Roster ({collegeStudents.length} available)</span>
                     <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold">
-                      Selected: {selectedStudentChestNosForAdminReg.length} / {min === max ? min : `${min}-${max}`}
+                      Selected: {selectedStudentChestNosForAdminReg.length} / {isOpen ? 'Open' : min === max ? min : `${min}-${max}`}
                     </span>
                   </div>
 

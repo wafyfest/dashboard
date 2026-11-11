@@ -23,7 +23,17 @@ import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege, normalizeCategoryKey, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
+import {
+  Item,
+  Student,
+  StudentCategory,
+  isCategoryMatching,
+  isItemEligibleForCollege,
+  normalizeCategoryKey,
+  isSubmissionEvent,
+  isScreeningEvent,
+  getItemParticipantBounds
+} from '@/lib/types/fest';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
@@ -609,12 +619,15 @@ export default function CollegePortalPage() {
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
           title={`Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`}
-          description={`Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg?.no_of_participants || 1} participant(s)`}
+          description={
+            selectedItemForReg?.no_of_participants == null
+              ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
+              : `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg.no_of_participants} participant(s)`
+          }
           maxWidth="xl"
         >
           {selectedItemForReg && (() => {
-            const minPart = selectedItemForReg.min_participants ?? (selectedItemForReg.point_type === 'individual' ? 1 : (selectedItemForReg.no_of_participants || 1));
-            const maxPart = selectedItemForReg.max_participants ?? (selectedItemForReg.no_of_participants || 1);
+            const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
             const isAlreadyRegistered = registrations.some(
               r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id)
             );
@@ -699,7 +712,7 @@ export default function CollegePortalPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
-                      Select Participants ({selectedStudentIds.size} / {maxPart} selected)
+                      Select Participants ({selectedStudentIds.size} / {isOpenPart ? 'Open' : maxPart} selected)
                     </label>
                     <span className="text-[11px] font-sans text-[var(--text-muted)] font-medium">
                       Showing {filteredModalStudents.length} of {students.length}

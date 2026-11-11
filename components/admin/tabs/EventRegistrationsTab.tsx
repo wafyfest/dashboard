@@ -36,6 +36,7 @@ import {
   getEffectiveStageMode,
   isSubmissionEvent,
   isScreeningEvent,
+  getItemParticipantBounds,
   requiresPreFestSubmission
 } from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
@@ -546,7 +547,10 @@ export function EventRegistrationsTab() {
                         <ItemTypeBadge type={item.item_type || 'Single'} size="sm" />
                         <span className="hidden sm:inline">•</span>
                         <span className="text-[11px] font-mono hidden sm:inline">
-                          Quota: {item.min_participants === item.max_participants ? item.min_participants : `${item.min_participants}-${item.max_participants}`}
+                          Quota: {(() => {
+                            const b = getItemParticipantBounds(item);
+                            return b.isOpen ? 'Open' : b.min === b.max ? b.min : `${b.min}-${b.max}`;
+                          })()}
                         </span>
                       </div>
                     </div>

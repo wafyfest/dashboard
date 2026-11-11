@@ -6,7 +6,16 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SubmissionLinkModal, SubmissionLinkTarget } from '@/components/college/SubmissionLinkModal';
-import { Item, Registration, SubmissionEntry, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent, requiresPreFestSubmission } from '@/lib/types/fest';
+import {
+  Item,
+  Registration,
+  SubmissionEntry,
+  getEffectiveStageMode,
+  isSubmissionEvent,
+  isScreeningEvent,
+  getItemParticipantBounds,
+  requiresPreFestSubmission
+} from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck, Link2, ExternalLink } from 'lucide-react';
@@ -201,7 +210,7 @@ export function CollegeRegistrationTab({
               const itemType = item.point_type
                 ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
                 : (item.item_type === 'Group' ? 'Group' : 'Individual');
-              const maxCount = item.no_of_participants || item.max_participants || 1;
+              const { max: maxCount, isOpen: isOpenParticipants } = getItemParticipantBounds(item);
               const registeredCount = reg ? (reg.participants?.length || 1) : 0;
               const isRegistered = !!reg;
 
@@ -240,14 +249,14 @@ export function CollegeRegistrationTab({
                   <TableCell className="text-center">
                     {isRegistered ? (
                       <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                        {registeredCount}/{maxCount}
+                        {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
                       </span>
                     ) : (
                       <span
                         className={`font-mono font-bold text-sm ${isLocked ? 'text-rose-500' : 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'}`}
                         title={isLocked ? lockCheck.reason || 'Registration Locked' : undefined}
                       >
-                        0/{maxCount}
+                        0/{isOpenParticipants ? 'Open' : maxCount}
                       </span>
                     )}
                   </TableCell>

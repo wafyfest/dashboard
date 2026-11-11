@@ -158,13 +158,82 @@ export function normalizeCategoryKey(val?: string | null): string {
 }
 
 /**
- * Returns true for Special Program events (e.g. SE090-SE093), which do not consume
+ * Returns true for Special Program / Category D events (e.g. SE090-SE093), which do not consume
  * a student's max_participation event quotas.
  */
-export function isSpecialEvent(item?: { phase?: string | null; category?: string | null } | null): boolean {
+export function isSpecialEvent(
+  item?: { phase?: string | null; category?: string | null; item_code?: string | null; code?: string | null } | null
+): boolean {
   if (!item) return false;
   const key = normalizeCategoryKey(item.phase || item.category);
-  return key === 'SPECIAL' || key === 'SPECIAL_FOUNDATION';
+  if (key === 'SPECIAL' || key === 'SPECIAL_FOUNDATION') return true;
+  if ((item.category || '').trim().toUpperCase() === 'D') return true;
+  const code = (item.item_code || item.code || '').trim().toUpperCase();
+  return /^SE\d/.test(code);
+}
+
+/**
+ * Returns true when an event is excluded from official championship points tabulation
+ * (e.g. Category D / SE090-SE093 with tabulation = false).
+ */
+export function isNonTabulationEvent(
+  item?: { tabulation?: boolean | null; category?: string | null } | null
+): boolean {
+  if (!item) return false;
+  if (item.tabulation === false) return true;
+  return (item.category || '').trim().toUpperCase() === 'D';
+}
+
+export const OPEN_PARTICIPANTS_MAX = 50;
+
+/**
+ * Computes consistent min/max participant bounds per college for an event.
+ * Nullable `no_of_participants` (e.g. SE090-SE093) represents an open roster (min 1, up to 50).
+ */
+export function getItemParticipantBounds(
+  item?: {
+    no_of_participants?: number | null;
+    min_participants?: number | null;
+    max_participants?: number | null;
+  } | null
+): { min: number; max: number; isOpen: boolean } {
+  if (!item) return { min: 1, max: 1, isOpen: false };
+  if (item.no_of_participants == null) {
+    return {
+      min: item.min_participants ?? 1,
+      max: item.max_participants ?? OPEN_PARTICIPANTS_MAX,
+      isOpen: true,
+    };
+  }
+  const exact = Math.max(1, Number(item.no_of_participants) || 1);
+  return {
+    min: item.min_participants ?? exact,
+    max: item.max_participants ?? exact,
+    isOpen: false,
+  };
+}
+
+/**
+ * Formats an event's per-college participant quota for UI tables and modals.
+ */
+export function formatParticipantQuotaLabel(
+  item?: {
+    no_of_participants?: number | null;
+    min_participants?: number | null;
+    max_participants?: number | null;
+    point_type?: PointType | string | null;
+    item_type?: 'Single' | 'Group' | string | null;
+  } | null
+): string {
+  const { min, max, isOpen } = getItemParticipantBounds(item);
+  const isGroup = item?.point_type === 'group' || item?.item_type === 'Group';
+  if (isOpen) {
+    return isGroup ? 'Open team' : 'Open (Min 1)';
+  }
+  if (min === max) {
+    return `${min} student${min === 1 ? '' : 's'}`;
+  }
+  return `${min} - ${max} students`;
 }
 
 /**
@@ -266,14 +335,14 @@ export interface Item {
   name_mal: string;
   name?: string; // alias for name_eng
   phase: string;
-  category: string; // A, B, C or StudentCategory
+  category: string; // A, B, C, D or StudentCategory
   mode: ItemMode;
   is_submission?: boolean;
   is_screening?: boolean;
   tabulation: boolean;
   point_type: PointType;
   item_type?: 'Single' | 'Group'; // alias
-  no_of_participants: number;
+  no_of_participants: number | null;
   min_participants?: number; // alias
   max_participants?: number; // alias
   reg_deadline?: string | null;
