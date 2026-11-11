@@ -45,24 +45,33 @@ export function ImportantNoticeModal() {
     return currentRole;
   }, [pathname, currentRole]);
 
-  // Active student identity for student login / dashboard
-  const [activeStudentId, setActiveStudentId] = useState<string>('');
+  // Active student identities (chest_no and cic_no) for student login / dashboard
+  const [activeStudentIds, setActiveStudentIds] = useState<string[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
     if (typeof window !== 'undefined') {
-      let studentChest = localStorage.getItem('student_chest_no') || '';
+      const ids = new Set<string>();
+      const storedChest = localStorage.getItem('student_chest_no');
+      if (storedChest && storedChest.trim()) {
+        ids.add(storedChest.trim().toUpperCase());
+      }
       try {
         const studentSessionStr = localStorage.getItem('arts_fest_student_session');
         if (studentSessionStr) {
           const parsed = JSON.parse(studentSessionStr);
           if (parsed) {
-            studentChest = parsed.chest_no || (parsed.cic_no ? `ST-${parsed.cic_no}` : studentChest);
+            if (parsed.chest_no && String(parsed.chest_no).trim()) {
+              ids.add(String(parsed.chest_no).trim().toUpperCase());
+            }
+            if (parsed.cic_no !== undefined && parsed.cic_no !== null && String(parsed.cic_no).trim()) {
+              ids.add(String(parsed.cic_no).trim().toUpperCase());
+            }
           }
         }
       } catch (e) { }
 
-      setActiveStudentId(studentChest.trim().toUpperCase());
+      setActiveStudentIds(Array.from(ids));
 
       // Clear any legacy persistent storage so notices always show on fresh sessions
       try {
@@ -196,11 +205,11 @@ export function ImportantNoticeModal() {
         return false;
       }
 
-      // 4. SPECIFIC STUDENT: Targeted by Chest No or CIC No
+      // 4. SPECIFIC STUDENT: Targeted by Chest No or CIC No (exact match prevents '101' matching '1011')
       if (notice.target_type === 'student') {
         if (effectiveRole === 'student' && notice.target_chest_no) {
           const target = notice.target_chest_no.trim().toUpperCase();
-          if (activeStudentId && (activeStudentId === target || activeStudentId.includes(target))) {
+          if (target && activeStudentIds.includes(target)) {
             return true;
           }
         }
@@ -216,7 +225,7 @@ export function ImportantNoticeModal() {
 
       return false;
     });
-  }, [announcements, effectiveRole, currentCollegeAfflNo, activeStudentId]);
+  }, [announcements, effectiveRole, currentCollegeAfflNo, activeStudentIds]);
 
   // Notices that haven't been dismissed in this active window session
   const unacknowledgedNotices = useMemo(() => {

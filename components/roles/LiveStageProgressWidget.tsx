@@ -185,7 +185,7 @@ export function LiveStageProgressWidget({ refreshKey }: LiveStageProgressWidgetP
                         #{currentItem.item.item_id} — {currentItem.item.name}
                       </p>
                       <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] mt-0.5">
-                        <span className="capitalize">{currentItem.item.category || currentItem.item.phase}</span>
+                        <span className="capitalize">{currentItem.item.phase || currentItem.item.category}</span>
                         <span>•</span>
                         <span className="capitalize">{currentItem.item.item_type || currentItem.item.point_type || 'Single'}</span>
                       </div>

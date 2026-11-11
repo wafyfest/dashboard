@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { StageStatus } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { TilePattern } from '@/components/fest/FestPattern';
 import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
@@ -142,7 +142,10 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     return items
       .map(item => {
         const sch = schedules.find(s => Number(s.item_id) === Number(item.item_id));
-        const regs = allRegistrations.filter(r => Number(r.item_id) === Number(item.item_id));
+        const regs = allRegistrations.filter(
+          r => Number(r.item_id) === Number(item.item_id) &&
+            (!isScreeningEvent(item) || r.screening_status === 'qualified')
+        );
         const codes = allCodeLetters.filter(c => Number(c.item_id) === Number(item.item_id));
         const eventResults = allResults.filter(r => Number(r.item_id) === Number(item.item_id));
         const isScored = eventResults.length > 0;
@@ -354,13 +357,14 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           const col = colleges.find(c => Number(c.affl_no) === Number(res.college_affl_no));
           const stu = findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined);
 
-          return {
-            ...res,
-            studentName: stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`,
-            collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
-            collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
-            displayChestNo: stu ? getCanonicalChestNo(stu) : (res.chest_no || '—'),
-          };
+            const stuChest = stu ? getCanonicalChestNo(stu) : '';
+            return {
+              ...res,
+              studentName: stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`,
+              collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
+              collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
+              displayChestNo: (stuChest && stuChest !== '—') ? stuChest : (res.chest_no || '—'),
+            };
         });
 
         const totalPoints = agg.results.reduce((sum, r) => sum + (Number(r.points) || 0), 0);

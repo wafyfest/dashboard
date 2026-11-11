@@ -1,4 +1,13 @@
 import { jsPDF } from 'jspdf';
+import { getEffectiveStageMode, isScreeningEvent, isSubmissionEvent } from '../types/fest';
+
+export function formatPdfItemMode(item?: { mode?: string | null; is_submission?: boolean | null; is_screening?: boolean | null } | null): string {
+  const stage = getEffectiveStageMode(item) === 'onstage' ? 'On' : 'Off';
+  const tags: string[] = [];
+  if (isSubmissionEvent(item)) tags.push('Sub');
+  if (isScreeningEvent(item)) tags.push('Scr');
+  return tags.length > 0 ? `${stage} (${tags.join(', ')})` : stage;
+}
 
 export interface ParticipantPdfRow {
   studentName: string;

@@ -20,7 +20,7 @@ import {
   SlidersHorizontal,
   SquarePen
 } from 'lucide-react';
-import { Item, ItemMode, ItemType } from '@/lib/types/fest';
+import { Item, ItemMode, ItemType, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 
 export function EventsCatalogTab() {
   const { refreshKey, triggerRefresh } = useFest();
@@ -35,7 +35,7 @@ export function EventsCatalogTab() {
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<'All' | 'Single' | 'Group'>('All');
-  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
   const [selectedLockStatus, setSelectedLockStatus] = useState<'All' | 'Open' | 'Locked'>('All');
 
   // Modal State
@@ -52,6 +52,8 @@ export function EventsCatalogTab() {
     phase: string;
     category: string;
     mode: ItemMode;
+    is_submission: boolean;
+    is_screening: boolean;
     item_type: 'Single' | 'Group';
     no_of_participants: number;
   }>({
@@ -61,6 +63,8 @@ export function EventsCatalogTab() {
     phase: 'Foundation',
     category: 'A',
     mode: 'onstage',
+    is_submission: false,
+    is_screening: false,
     item_type: 'Single',
     no_of_participants: 1
   });
@@ -81,13 +85,11 @@ export function EventsCatalogTab() {
     const group = items.filter(i => (i.point_type === 'group' || i.item_type === 'Group')).length;
     const locked = items.filter(i => i.is_locked).length;
     const open = total - locked;
-    const onstage = items.filter(i => (i.mode || '').toLowerCase().trim() === 'onstage').length;
-    const offstage = items.filter(i => {
-      const m = (i.mode || '').toLowerCase().trim();
-      return m === 'offstage' || (m !== 'onstage' && m !== 'submission');
-    }).length;
-    const submission = items.filter(i => (i.mode || '').toLowerCase().trim() === 'submission').length;
-    return { total, single, group, locked, open, onstage, offstage, submission };
+    const onstage = items.filter(i => getEffectiveStageMode(i) === 'onstage').length;
+    const offstage = items.filter(i => getEffectiveStageMode(i) === 'offstage').length;
+    const submission = items.filter(i => isSubmissionEvent(i)).length;
+    const screening = items.filter(i => isScreeningEvent(i)).length;
+    return { total, single, group, locked, open, onstage, offstage, submission, screening };
   }, [items]);
 
   // Filtered and sorted items
@@ -120,13 +122,14 @@ export function EventsCatalogTab() {
           (selectedType === 'Group' && isGroup) ||
           (selectedType === 'Single' && !isGroup);
 
-        // Stage Mode filter (On Stage, Off Stage, Submission)
-        const itemNormMode = (item.mode || 'onstage').toLowerCase().trim();
+        // Stage Mode filter (On Stage, Off Stage, Submission, Screening)
+        const stageMode = getEffectiveStageMode(item);
         const matchMode =
           selectedMode === 'All' ||
-          (selectedMode === 'onstage' && itemNormMode === 'onstage') ||
-          (selectedMode === 'offstage' && (itemNormMode === 'offstage' || (itemNormMode !== 'onstage' && itemNormMode !== 'submission'))) ||
-          (selectedMode === 'submission' && itemNormMode === 'submission');
+          (selectedMode === 'onstage' && stageMode === 'onstage') ||
+          (selectedMode === 'offstage' && stageMode === 'offstage') ||
+          (selectedMode === 'submission' && isSubmissionEvent(item)) ||
+          (selectedMode === 'screening' && isScreeningEvent(item));
 
         // Lock status filter
         const matchLock =
@@ -151,6 +154,8 @@ export function EventsCatalogTab() {
       phase: 'Foundation',
       category: 'A',
       mode: 'onstage',
+      is_submission: false,
+      is_screening: false,
       item_type: 'Single',
       no_of_participants: 1
     });
@@ -165,9 +170,11 @@ export function EventsCatalogTab() {
       code: item.item_code || item.code || '',
       name_eng: item.name_eng || item.name || '',
       name_mal: item.name_mal || '',
-      phase: item.phase || 'Foundation',
+      phase: item.phase?.trim().toLowerCase() === 'thamheediya' ? 'Thamheediyya' : (item.phase || 'Foundation'),
       category: (item.category || 'A').toUpperCase(),
-      mode: (item.mode as ItemMode) || 'onstage',
+      mode: getEffectiveStageMode(item),
+      is_submission: isSubmissionEvent(item),
+      is_screening: isScreeningEvent(item),
       item_type: (item.point_type === 'group' || item.item_type === 'Group') ? 'Group' : 'Single',
       no_of_participants: item.no_of_participants || 1
     });
@@ -200,6 +207,8 @@ export function EventsCatalogTab() {
         phase: editingItem.phase,
         category: (editingItem.category || 'A').toUpperCase().charAt(0),
         mode: editingItem.mode,
+        is_submission: editingItem.is_submission,
+        is_screening: editingItem.is_screening,
         point_type: editingItem.item_type === 'Group' ? 'group' : 'individual',
         item_type: editingItem.item_type,
         no_of_participants: Math.max(1, Number(editingItem.no_of_participants) || 1)
@@ -327,6 +336,7 @@ export function EventsCatalogTab() {
                 <option value="onstage">On Stage Only</option>
                 <option value="offstage">Off Stage Only</option>
                 <option value="submission">Submission Only</option>
+                <option value="screening">Screening Events Only</option>
               </select>
             </div>
 
@@ -457,7 +467,12 @@ export function EventsCatalogTab() {
 
                     {/* Type / Mode */}
                     <td className="py-3 px-3 text-center">
-                      <ItemTypeBadge type={isGroup ? 'Group' : 'Individual'} mode={item.mode} />
+                      <ItemTypeBadge
+                        type={isGroup ? 'Group' : 'Individual'}
+                        mode={item.mode}
+                        isSubmission={isSubmissionEvent(item)}
+                        isScreening={isScreeningEvent(item)}
+                      />
                     </td>
 
                     {/* Participants from a College */}
@@ -563,10 +578,12 @@ export function EventsCatalogTab() {
                 className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer"
               >
                 <option value="Foundation">Foundation</option>
-                <option value="Thamheediya">Thamheediyya</option>
+                <option value="Thamheediyya">Thamheediyya</option>
                 <option value="Aliya">Aliya</option>
                 <option value="PG">PG</option>
                 <option value="General">General</option>
+                <option value="Special">Special</option>
+                <option value="Special - Foundation">Special - Foundation</option>
               </select>
             </div>
           </div>
@@ -641,10 +658,42 @@ export function EventsCatalogTab() {
                 className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer"
               >
                 <option value="onstage">On Stage (Live Stage Performance)</option>
-                <option value="offstage">Off Stage (Written / Hall)</option>
-                <option value="submission">Submission (Pre-event File/Artwork)</option>
+                <option value="offstage">Off Stage (Written / Hall / Off-stage)</option>
               </select>
             </div>
+          </div>
+
+          {/* Row 3b: Pre-event Submission & Screening flags */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={editingItem.is_submission}
+                onChange={e => setEditingItem({ ...editingItem, is_submission: e.target.checked })}
+                className="mt-0.5 rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] h-4 w-4 cursor-pointer"
+              />
+              <div>
+                <span className="font-heading font-semibold text-[var(--text-primary)]">Pre-Event Submission</span>
+                <p className="text-[11px] text-[var(--text-muted)] font-sans">
+                  Requires uploading media/artwork/files prior to judging (while keeping On Stage / Off Stage classification).
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={editingItem.is_screening}
+                onChange={e => setEditingItem({ ...editingItem, is_screening: e.target.checked })}
+                className="mt-0.5 rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] h-4 w-4 cursor-pointer"
+              />
+              <div>
+                <span className="font-heading font-semibold text-[var(--text-primary)]">Pre-Fest Screening Round</span>
+                <p className="text-[11px] text-[var(--text-muted)] font-sans">
+                  Collects pre-fest video/digital links and shortlists finalists before the live stage finals.
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* Row 4: Participants from a College */}

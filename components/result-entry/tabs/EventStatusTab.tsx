@@ -3,9 +3,9 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { CategoryBadge } from '@/components/ui/badge';
+import { CategoryBadge, ScreeningBadge } from '@/components/ui/badge';
 import { Radio } from 'lucide-react';
-import { Item, StageStatus, Schedule, Stage } from '@/lib/types/fest';
+import { Item, StageStatus, Schedule, Stage, isScreeningEvent } from '@/lib/types/fest';
 
 interface EventStatusItem {
   item: Item;
@@ -74,8 +74,9 @@ export function EventStatusTab({
                     {item.item_code || item.code}
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold text-[var(--text-primary)]">
-                      {item.name_eng || item.name}
+                    <div className="font-semibold text-[var(--text-primary)] flex items-center gap-1.5 flex-wrap">
+                      <span>{item.name_eng || item.name}</span>
+                      {isScreeningEvent(item) && <ScreeningBadge size="sm" />}
                     </div>
                     {item.name_mal && (
                       <div className="text-[11px] text-[var(--text-muted)] mt-0.5">

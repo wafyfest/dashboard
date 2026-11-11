@@ -20,7 +20,8 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
     | 'category-thamheediyya'
     | 'category-aliya'
     | 'category-pg'
-    | 'category-general';
+    | 'category-general'
+    | 'category-special';
   size?: 'sm' | 'md';
 }
 
@@ -64,6 +65,7 @@ export function Badge({
     'category-aliya':        'bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 font-semibold',
     'category-pg':           'bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30 font-semibold',
     'category-general':      'bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-medium)] font-semibold',
+    'category-special':      'bg-teal-500/15 text-teal-800 dark:text-teal-300 border border-teal-500/30 font-semibold',
   };
 
   return (
@@ -152,6 +154,14 @@ export function CategoryBadge({
     case 'general':
     case 'gen':
       return <Badge variant="category-general" size={size} className={className}>General</Badge>;
+    case 'special':
+    case 'sp':
+    case 'special program':
+      return <Badge variant="category-special" size={size} className={className}>Special</Badge>;
+    case 'special - foundation':
+    case 'special_foundation':
+    case 'special foundation':
+      return <Badge variant="category-special" size={size} className={className}>Special · Foundation</Badge>;
     default:
       return <Badge variant="category-general" size={size} className={className}>{category || 'General'}</Badge>;
   }
@@ -174,71 +184,122 @@ export function AppealStatusBadge({ status }: { status: string }) {
   }
 }
 
-export function ItemModeBadge({
-  mode,
+export function ScreeningBadge({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+  return (
+    <Badge
+      variant="warning"
+      size={size}
+      className="gap-1 font-semibold tracking-wide whitespace-nowrap"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />
+      Screening
+    </Badge>
+  );
+}
+
+export function ScreeningStatusBadge({
+  status,
   size = 'sm',
-  className
 }: {
-  mode?: string | null;
+  status?: string | null;
   size?: 'sm' | 'md';
-  className?: string;
 }) {
-  const norm = (mode || '').toLowerCase().trim();
-  if (norm === 'onstage' || norm === 'on_stage' || norm === 'on stage') {
+  const s = (status || 'pending').toLowerCase().trim();
+  if (s === 'qualified') {
     return (
-      <Badge
-        variant="emerald"
-        size={size}
-        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-        On Stage
+      <Badge variant="success" size={size} className="gap-1.5 font-semibold whitespace-nowrap">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Qualified (Finals)
       </Badge>
     );
   }
-  if (norm === 'offstage' || norm === 'off_stage' || norm === 'off stage') {
+  if (s === 'eliminated') {
     return (
-      <Badge
-        variant="secondary"
-        size={size}
-        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
-        Off Stage
-      </Badge>
-    );
-  }
-  if (norm === 'submission') {
-    return (
-      <Badge
-        variant="purple"
-        size={size}
-        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-        Submission
+      <Badge variant="destructive" size={size} className="gap-1.5 font-semibold whitespace-nowrap">
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+        Not Shortlisted
       </Badge>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      size={size}
-      className={twMerge(clsx('capitalize', className))}
-    >
-      {mode || 'Off Stage'}
+    <Badge variant="warning" size={size} className="gap-1.5 font-semibold whitespace-nowrap">
+      <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+      Pending Screening
     </Badge>
+  );
+}
+
+export function ItemModeBadge({
+  mode,
+  isSubmission = false,
+  isScreening = false,
+  size = 'sm',
+  className
+}: {
+  mode?: string | null;
+  isSubmission?: boolean;
+  isScreening?: boolean;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const norm = (mode || '').toLowerCase().trim();
+  const showSubmission = Boolean(isSubmission || norm === 'submission');
+  const isOnstage = norm === 'onstage' || norm === 'on_stage' || norm === 'on stage';
+
+  const stageBadge = isOnstage ? (
+    <Badge
+      variant="emerald"
+      size={size}
+      className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+      On Stage
+    </Badge>
+  ) : (
+    <Badge
+      variant="secondary"
+      size={size}
+      className={twMerge(clsx('gap-1.5 font-semibold tracking-wide', className))}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+      Off Stage
+    </Badge>
+  );
+
+  if (!showSubmission && !isScreening) {
+    return stageBadge;
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1 flex-wrap">
+      {stageBadge}
+      {showSubmission && (
+        <Badge
+          variant="purple"
+          size={size}
+          className="gap-1.5 font-semibold tracking-wide"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+          Submission
+        </Badge>
+      )}
+      {isScreening && <ScreeningBadge size={size} />}
+    </div>
   );
 }
 
 export function ItemTypeBadge({
   type,
   mode,
+  isSubmission = false,
+  isScreening = false,
   size = 'sm',
   className
 }: {
   type?: string | null;
   mode?: string | null;
+  isSubmission?: boolean;
+  isScreening?: boolean;
   size?: 'sm' | 'md';
   className?: string;
 }) {
@@ -247,32 +308,32 @@ export function ItemTypeBadge({
   const typeLabel = isGroup ? 'Group' : 'Individual';
 
   const normMode = (mode || '').toLowerCase().trim();
-  let modeLabel = 'Offstage';
-  let dotColor = 'bg-sky-500';
-  let variant: 'emerald' | 'purple' | 'secondary' = 'secondary';
+  const isOnstage = normMode === 'onstage' || normMode === 'on_stage' || normMode === 'on stage';
+  const showSubmission = Boolean(isSubmission || normMode === 'submission');
 
-  if (normMode === 'onstage' || normMode === 'on_stage' || normMode === 'on stage') {
-    modeLabel = 'Onstage';
-    dotColor = 'bg-emerald-500';
-    variant = isGroup ? 'purple' : 'emerald';
-  } else if (normMode === 'submission') {
-    modeLabel = 'Submission';
-    dotColor = 'bg-indigo-500';
-    variant = 'purple';
-  } else {
-    modeLabel = 'Offstage';
-    dotColor = 'bg-sky-500';
-    variant = isGroup ? 'purple' : 'secondary';
-  }
+  const modeLabel = isOnstage ? 'Onstage' : 'Offstage';
+  const dotColor = isGroup ? 'bg-indigo-500' : (isOnstage ? 'bg-emerald-500' : 'bg-sky-500');
+  const variant: 'emerald' | 'purple' | 'secondary' = isGroup
+    ? 'purple'
+    : (isOnstage ? 'emerald' : 'secondary');
 
   return (
-    <Badge
-      variant={variant}
-      size={size}
-      className={twMerge(clsx('gap-1.5 font-semibold tracking-wide whitespace-nowrap', className))}
-    >
-      <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', dotColor)} />
-      {typeLabel} / {modeLabel}
-    </Badge>
+    <div className="inline-flex items-center gap-1 flex-wrap justify-center">
+      <Badge
+        variant={variant}
+        size={size}
+        className={twMerge(clsx('gap-1.5 font-semibold tracking-wide whitespace-nowrap', className))}
+      >
+        <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', dotColor)} />
+        {mode ? `${typeLabel} / ${modeLabel}` : typeLabel}
+      </Badge>
+      {showSubmission && (
+        <Badge variant="purple" size={size} className="gap-1 font-semibold tracking-wide whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+          Submission
+        </Badge>
+      )}
+      {isScreening && <ScreeningBadge size={size} />}
+    </div>
   );
 }

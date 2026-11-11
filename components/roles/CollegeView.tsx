@@ -26,7 +26,7 @@ import {
   X,
   ChevronDown
 } from 'lucide-react';
-import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
+import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege, normalizeCategoryKey, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
@@ -149,7 +149,7 @@ export function CollegeView() {
       // Phase filter
       if (regModalPhaseFilter !== 'All') {
         const sCat = s.category || s.phase;
-        if (!isCategoryMatching(sCat, regModalPhaseFilter)) {
+        if (normalizeCategoryKey(sCat) !== normalizeCategoryKey(regModalPhaseFilter)) {
           return false;
         }
       }
@@ -400,15 +400,20 @@ export function CollegeView() {
                         <div className="font-heading font-bold text-xs sm:text-sm text-[var(--text-primary)]">{item.name}</div>
                         {reg && reg.participants && reg.participants.length > 0 && (
                           <div className="text-[11px] text-[var(--text-muted)] mt-0.5 font-sans">
-                            Participants: {reg.participants.map(p => `${p.full_name} (${p.chest_no})`).join(', ')}
+                            Participants: {reg.participants.map(p => `${p.full_name || p.name} (${getCanonicalChestNo(p)})`).join(', ')}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
-                        <CategoryBadge category={item.category} />
+                        <CategoryBadge category={item.phase || item.category} />
                       </TableCell>
                       <TableCell className="text-center">
-                        <ItemTypeBadge type={item.item_type} mode={item.mode} />
+                        <ItemTypeBadge
+                          type={item.item_type}
+                          mode={item.mode}
+                          isSubmission={isSubmissionEvent(item)}
+                          isScreening={isScreeningEvent(item)}
+                        />
                       </TableCell>
                       <TableCell className="font-mono tabular-nums text-xs text-[var(--text-secondary)]">
                         {item.min_participants === item.max_participants
@@ -720,7 +725,7 @@ export function CollegeView() {
               <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">College Admission / Roll No</label>
               <input
                 type="text"
-                placeholder="e.g. ST-2023-551"
+                placeholder="e.g. 22801"
                 value={newStudent.admission_no || ''}
                 onChange={e => setNewStudent({ ...newStudent, admission_no: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus-visible:ring-2 focus-visible:ring-amber-500/30 font-mono transition-all shadow-2xs"
@@ -801,6 +806,8 @@ export function CollegeView() {
                   <ItemTypeBadge
                     type={selectedItemForReg.point_type === 'group' ? 'Group' : 'Individual'}
                     mode={selectedItemForReg.mode}
+                    isSubmission={isSubmissionEvent(selectedItemForReg)}
+                    isScreening={isScreeningEvent(selectedItemForReg)}
                   />
                 </div>
               </div>

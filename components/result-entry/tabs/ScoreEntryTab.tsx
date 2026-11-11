@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ScreeningBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SkeletonTableRows } from '@/components/ui/skeleton';
 import {
@@ -14,7 +14,7 @@ import {
   Send,
   Loader2,
 } from 'lucide-react';
-import { Item, Schedule, StageStatus } from '@/lib/types/fest';
+import { Item, Schedule, StageStatus, isScreeningEvent } from '@/lib/types/fest';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export interface ScoreEntryRow {
@@ -116,8 +116,11 @@ export function ScoreEntryTab({
                         {item.item_code || item.code}
                       </TableCell>
                       <TableCell>
-                        <div className="font-semibold text-[var(--text-primary)]">
-                          {item.name_eng || item.name}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-[var(--text-primary)]">
+                            {item.name_eng || item.name}
+                          </span>
+                          {isScreeningEvent(item) && <ScreeningBadge size="sm" />}
                         </div>
                         {item.name_mal && (
                           <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
@@ -212,6 +215,7 @@ export function ScoreEntryTab({
                     <Badge variant={selectedScoringItem.point_type === 'group' ? 'purple' : 'secondary'}>
                       {selectedScoringItem.point_type === 'group' ? 'Group Event' : 'Single Event'}
                     </Badge>
+                    {isScreeningEvent(selectedScoringItem) && <ScreeningBadge size="sm" />}
                   </div>
                   <h2 className="text-2xl font-heading font-black text-[var(--text-primary)] tracking-tight mt-1.5">
                     {selectedScoringItem.name_eng || selectedScoringItem.name}

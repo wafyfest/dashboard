@@ -1,4 +1,7 @@
-import React, { useEffect } from 'react';
+'use client';
+
+import React, { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -20,21 +23,31 @@ export function Modal({
   children,
   maxWidth = 'lg',
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+  const titleId = useId();
+
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const maxWidthStyles = {
     sm: 'max-w-sm',
@@ -48,8 +61,8 @@ export function Modal({
     full: 'max-w-[95vw]',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
         className="fixed inset-0"
         onClick={onClose}
@@ -58,17 +71,17 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className={twMerge(
           clsx(
-            'relative w-full bg-[var(--bg-elevated)] rounded-2xl shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)] border border-[var(--border-subtle)] overflow-hidden z-10 animate-in zoom-in-95 duration-150 backdrop-blur-xl',
+            'relative w-full my-auto bg-[var(--bg-elevated)] rounded-2xl shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)] border border-[var(--border-subtle)] overflow-hidden z-10 animate-in zoom-in-95 duration-150 backdrop-blur-xl',
             maxWidthStyles[maxWidth]
           )
         )}
       >
-        <div className="px-6 py-4.5 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-center justify-between">
           <div>
-            <h3 id="modal-title" className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)] tracking-tight">
+            <h3 id={titleId} className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)] tracking-tight">
               {title}
             </h3>
             {description && (
@@ -76,6 +89,7 @@ export function Modal({
             )}
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close dialog"
             className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none"
@@ -85,6 +99,7 @@ export function Modal({
         </div>
         <div className="p-6 max-h-[80vh] overflow-y-auto text-[var(--text-primary)] font-sans">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

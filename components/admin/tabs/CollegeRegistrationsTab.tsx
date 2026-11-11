@@ -33,17 +33,18 @@ import {
   DollarSign,
   FileText
 } from 'lucide-react';
-import { Item, College, Student, Result, Registration, RegistrationLog } from '@/lib/types/fest';
+import { Item, College, Student, Result, Registration, RegistrationLog, isCategoryMatching, normalizeCategoryKey, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import {
   findStudentByIdentifier,
   getCanonicalChestNo,
+  getRegistrationStudentKey,
   registrationContainsStudent,
   calculateStudentEvents
 } from '@/lib/utils/studentIdentity';
 import { formatIstDisplay } from '@/lib/utils/istDate';
-import { generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
+import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 
 export interface LateRegistrationEntry {
   id: string;
@@ -165,7 +166,7 @@ export function CollegeRegistrationsTab({
   // Search & Filters for Events Table
   const [regSearchQuery, setRegSearchQuery] = useState('');
   const [regCategoryFilter, setRegCategoryFilter] = useState('All');
-  const [regModeFilter, setRegModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+  const [regModeFilter, setRegModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
   const [regStatusFilter, setRegStatusFilter] = useState<'All' | 'Registered' | 'Late' | 'Unregistered'>('All');
 
   // Search & Filters for Students View
@@ -319,12 +320,18 @@ export function CollegeRegistrationsTab({
             return s && (s.name || s.full_name || '').toLowerCase().includes(q);
           });
 
-        const itemCat = item.category || item.phase || '';
+        const itemPhase = item.phase || item.category || '';
         const matchesCategory =
-          regCategoryFilter === 'All' || itemCat.toLowerCase() === regCategoryFilter.toLowerCase();
-        const itemMode = (item.mode || 'onstage').toLowerCase().trim();
+          regCategoryFilter === 'All' ||
+          normalizeCategoryKey(itemPhase) === normalizeCategoryKey(regCategoryFilter);
+        const itemMode = getEffectiveStageMode(item);
         const matchesMode =
-          regModeFilter === 'All' || itemMode === regModeFilter;
+          regModeFilter === 'All' ||
+          (regModeFilter === 'submission'
+            ? isSubmissionEvent(item)
+            : regModeFilter === 'screening'
+            ? isScreeningEvent(item)
+            : itemMode === regModeFilter);
         const isRegistered = registeredItemIds.has(item.item_id);
         const isLateEvent = activeCollegeLateItemIds.has(Number(item.item_id));
         const matchesStatus =
@@ -341,12 +348,18 @@ export function CollegeRegistrationsTab({
       });
   }, [items, regSearchQuery, regCategoryFilter, regModeFilter, regStatusFilter, registeredItemIds, activeCollegeLateItemIds, collegeRegs, collegeStudents, students]);
 
-  const categories = ['All', 'Foundation', 'Thamheediyya', 'Aliya', 'PG', 'General'];
+  const categories = ['All', 'Foundation', 'Thamheediyya', 'Aliya', 'PG', 'General', 'Special', 'Special - Foundation'];
 
   // Handlers
   const handleOpenAdminRegModal = (item: Item, currentParticipantChestNos: string[] = []) => {
+    const resolvedKeys = currentParticipantChestNos
+      .map(idOrChest => {
+        const matched = findStudentByIdentifier(collegeStudents, idOrChest, currentColAffl);
+        return matched ? (matched.id || getRegistrationStudentKey(matched)) : idOrChest;
+      })
+      .filter(Boolean);
     setSelectedItemForAdminReg(item);
-    setSelectedStudentChestNosForAdminReg(currentParticipantChestNos);
+    setSelectedStudentChestNosForAdminReg(Array.from(new Set(resolvedKeys)));
     setRegErrorMessage(null);
     setRegModalStudentSearch('');
     setRegModalShowAllCategories(false);
@@ -464,7 +477,7 @@ export function CollegeRegistrationsTab({
           itemName: itm.name || itm.name_eng || `Item #${itm.item_id}`,
           itemCode: itm.code || itm.item_code || `ITM-${itm.item_id}`,
           itemType: itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
-          itemMode: itm.mode === 'offstage' ? 'Off' : 'On',
+          itemMode: formatPdfItemMode(itm),
           blindCode: reg.code_letter || 'Unassigned'
         });
       });
@@ -755,7 +768,7 @@ export function CollegeRegistrationsTab({
                 </div>
 
                 <div className="flex items-center gap-1 overflow-x-auto text-xs border-l border-[var(--border-subtle)] pl-2">
-                  {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+                  {(['All', 'onstage', 'offstage', 'submission', 'screening'] as const).map(m => (
                     <button
                       key={m}
                       type="button"
@@ -765,7 +778,7 @@ export function CollegeRegistrationsTab({
                           : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
-                      {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
+                      {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : m === 'submission' ? 'Submission' : 'Screening'}
                     </button>
                   ))}
                 </div>
@@ -870,9 +883,9 @@ export function CollegeRegistrationsTab({
                             <div className="font-bold text-[var(--text-primary)] text-xs truncate" title={item.name}>
                               {item.name}
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <CategoryBadge category={item.category} />
-                              <ItemModeBadge mode={item.mode} size="sm" />
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <CategoryBadge category={item.phase || item.category} />
+                              <ItemModeBadge mode={item.mode} isSubmission={isSubmissionEvent(item)} isScreening={isScreeningEvent(item)} size="sm" />
                             </div>
                           </TableCell>
 
@@ -929,14 +942,17 @@ export function CollegeRegistrationsTab({
                                   >
                                     <option value="" disabled className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
                                       {registeredStudentObjects.length === 1
-                                        ? `${registeredStudentObjects[0].chest_no} - ${registeredStudentObjects[0].name}`
+                                        ? `${getCanonicalChestNo(registeredStudentObjects[0])} - ${registeredStudentObjects[0].name}`
                                         : `👥 ${registeredStudentObjects.length} Students Registered ▾`}
                                     </option>
-                                    {registeredStudentObjects.map(stu => (
-                                      <option key={stu.chest_no || stu.id} value={stu.chest_no} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
-                                        {stu.chest_no} — {stu.name} ({stu.phase || stu.category || 'Cat'})
-                                      </option>
-                                    ))}
+                                    {registeredStudentObjects.map(stu => {
+                                      const stuChest = getCanonicalChestNo(stu);
+                                      return (
+                                        <option key={stu.id || stuChest} value={stu.id || stuChest} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                                          {stuChest} — {stu.name} ({stu.phase || stu.category || 'Cat'})
+                                        </option>
+                                      );
+                                    })}
                                   </select>
                                 </div>
 
@@ -945,7 +961,7 @@ export function CollegeRegistrationsTab({
                                     type="button"
                                     onClick={() => setSelectedStudentForDetails(registeredStudentObjects[0])}
                                     className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] hover:bg-[var(--bg-subtle)] transition-all shrink-0 border border-transparent hover:border-[var(--border-subtle)]"
-                                    title={`View profile for ${registeredStudentObjects[0].name} (${registeredStudentObjects[0].chest_no})`}
+                                    title={`View profile for ${registeredStudentObjects[0].name} (${getCanonicalChestNo(registeredStudentObjects[0])})`}
                                   >
                                     <Eye className="w-3.5 h-3.5" />
                                   </button>
@@ -1298,7 +1314,7 @@ export function CollegeRegistrationsTab({
             colShort.includes(q) ||
             colAffl.includes(q);
 
-          const cat = (entry.item.category || entry.item.phase || '').toLowerCase();
+          const cat = (entry.item.phase || entry.item.category || '').toLowerCase();
           const matchesCategory =
             lateCategoryFilter === 'All' || cat === lateCategoryFilter.toLowerCase();
 
@@ -1637,7 +1653,8 @@ export function CollegeRegistrationsTab({
                         const stu = entry.student;
                         const itm = entry.item;
                         const col = entry.college;
-                        const canonicalChest = stu ? getCanonicalChestNo(stu) : entry.registration.chest_no;
+                        const stuChest = stu ? getCanonicalChestNo(stu) : '';
+                        const canonicalChest = (stuChest && stuChest !== '—') ? stuChest : (entry.registration.chest_no || '—');
                         const stuName = stu?.name || stu?.full_name || 'Enrolled Student';
                         const initials = stuName
                           .split(' ')
@@ -1708,9 +1725,9 @@ export function CollegeRegistrationsTab({
                               <div className="font-semibold text-xs text-[var(--text-primary)] truncate mt-0.5" title={itm.name}>
                                 {itm.name}
                               </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <CategoryBadge category={itm.category || itm.phase} />
-                                <ItemModeBadge mode={itm.mode} size="sm" />
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <CategoryBadge category={itm.phase || itm.category} />
+                                <ItemModeBadge mode={itm.mode} isSubmission={isSubmissionEvent(itm)} isScreening={isScreeningEvent(itm)} size="sm" />
                               </div>
                             </TableCell>
 
@@ -1831,15 +1848,13 @@ export function CollegeRegistrationsTab({
                 stuName.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
                 stuChest.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
                 stuAdm.toLowerCase().includes(regModalStudentSearch.toLowerCase());
-              const itemCategory = (
-                selectedItemForAdminReg.category ||
+              const itemPhase =
                 selectedItemForAdminReg.phase ||
-                ''
-              ).toLowerCase();
+                selectedItemForAdminReg.category ||
+                '';
               const matchesCategory =
                 regModalShowAllCategories ||
-                (stu.phase && stu.phase.toLowerCase() === itemCategory) ||
-                (stu.category && stu.category.toLowerCase() === itemCategory);
+                isCategoryMatching(stu.phase || stu.category, itemPhase);
               return matchesSearch && matchesCategory;
             });
 
@@ -1854,7 +1869,7 @@ export function CollegeRegistrationsTab({
                 {/* Item & College Identity banner */}
                 <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <CategoryBadge category={selectedItemForAdminReg.category} />
+                    <CategoryBadge category={selectedItemForAdminReg.phase || selectedItemForAdminReg.category} />
                     <Badge variant={selectedItemForAdminReg.item_type === 'Single' ? 'default' : 'purple'} size="sm">
                       {selectedItemForAdminReg.item_type}
                     </Badge>
@@ -1921,7 +1936,7 @@ export function CollegeRegistrationsTab({
                     >
                       {regModalShowAllCategories
                         ? 'All Categories (Showing All)'
-                        : `Filter: ${selectedItemForAdminReg.category} only`}
+                        : `Filter: ${selectedItemForAdminReg.phase || selectedItemForAdminReg.category} eligible`}
                     </button>
                   </div>
                 </div>
@@ -1944,15 +1959,16 @@ export function CollegeRegistrationsTab({
                   ) : (
                     filteredCollegeStudents.map(student => {
                       const chestNo = getCanonicalChestNo(student);
+                      const selectionKey = student.id || getRegistrationStudentKey(student);
                       const isSelected =
-                        selectedStudentChestNosForAdminReg.includes(student.id) ||
-                        selectedStudentChestNosForAdminReg.includes(chestNo);
+                        selectedStudentChestNosForAdminReg.includes(selectionKey) ||
+                        (chestNo !== '—' && selectedStudentChestNosForAdminReg.includes(chestNo));
                       const studentRegCount = calculateStudentEvents(student, registrations, items).registeredEventsCount;
 
                       return (
                         <div
-                          key={student.id || chestNo}
-                          onClick={() => handleToggleStudentSelection(chestNo)}
+                          key={selectionKey}
+                          onClick={() => handleToggleStudentSelection(selectionKey)}
                           className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${isSelected
                               ? 'bg-amber-500/10 border-amber-500/40 text-[var(--text-primary)]'
                               : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
@@ -1969,7 +1985,7 @@ export function CollegeRegistrationsTab({
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
-                                  {student.chest_no}
+                                  {chestNo !== '—' ? `#${chestNo}` : `CIC ${student.cic_no || student.admission_no || '—'}`}
                                 </span>
                                 <span className="text-xs font-semibold text-[var(--text-primary)]">
                                   {student.name}
@@ -2054,8 +2070,10 @@ export function CollegeRegistrationsTab({
             const stuSchedules = schedules.filter(s => stuItemIds.has(s.item_id));
 
             const quotaLimits = festService.getMaxParticipation();
+            const stuCatKey = normalizeCategoryKey(stu.phase || stu.category);
             const quota =
-              quotaLimits.find(q => q.phase.toLowerCase() === (stu.phase || stu.category || '').toLowerCase()) ||
+              quotaLimits.find(q => normalizeCategoryKey(q.phase) === stuCatKey) ||
+              quotaLimits.find(q => normalizeCategoryKey(q.phase) === 'GENERAL') ||
               quotaLimits[0];
             const totalMax = quota?.total_max || 4;
             const stageMax = quota?.on_max || 2;
@@ -2070,7 +2088,7 @@ export function CollegeRegistrationsTab({
                 <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border border-amber-500/30 flex items-center justify-center font-mono font-black text-base shadow-xs">
-                      {getCanonicalChestNo(stu).replace('CH-', '').replace('ST-', '')}
+                      {getCanonicalChestNo(stu)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -2153,7 +2171,7 @@ export function CollegeRegistrationsTab({
                                   {item.name}
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  <ItemTypeBadge type={item.item_type} mode={item.mode} size="sm" />
+                                  <ItemTypeBadge type={item.item_type} mode={item.mode} isSubmission={isSubmissionEvent(item)} isScreening={isScreeningEvent(item)} size="sm" />
                                 </TableCell>
                                 <TableCell className="text-xs text-[var(--text-muted)] py-2">
                                   {sched ? (

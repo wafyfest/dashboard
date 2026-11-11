@@ -1,4 +1,4 @@
-import { Student, Registration, Item, College, MaxParticipation, normalizeCategoryKey } from '../types/fest';
+import { Student, Registration, Item, College, MaxParticipation, normalizeCategoryKey, isSpecialEvent, getEffectiveStageMode } from '../types/fest';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -14,37 +14,42 @@ export function isUuid(val: string | null | undefined): boolean {
  * Returns a human-friendly canonical chest number for a student.
  * Never exposes raw UUIDs as chest numbers.
  */
-export function getCanonicalChestNo(student: Partial<Student> | null | undefined): string {
-  if (!student) return 'ST-N/A';
+/**
+ * Returns the student's numeric chest number (`101+`) if assigned, otherwise raw CIC
+ * (or student ID) for registration RPC lookup — never generates `ST-00000`.
+ */
+export function getRegistrationStudentKey(student: Partial<Student> | null | undefined): string {
+  if (!student) return '';
 
-  // 1. Primary Student Identifier: cic_no / admission_no
+  const rawChest = String(student.chest_no ?? '').trim();
+  if (rawChest && /^\d+$/.test(rawChest)) {
+    return rawChest;
+  }
+
   const cic = student.cic_no ?? student.admission_no ?? student.cic_number;
   if (cic !== undefined && cic !== null && String(cic).trim() !== '') {
-    const cicStr = String(cic).trim();
-    if (cicStr.toUpperCase().startsWith('ST-') || cicStr.toUpperCase().startsWith('CH-')) {
-      return cicStr.toUpperCase();
-    }
-    return `ST-${cicStr}`;
+    return String(cic).trim().replace(/^(ST-|CH-)/i, '');
   }
 
-  // 2. Chest No (if present and not a raw UUID)
-  if (student.chest_no && student.chest_no.trim() !== '' && !isUuid(student.chest_no)) {
-    return student.chest_no.trim().toUpperCase();
+  return student.id || '';
+}
+
+/**
+ * Generates the canonical display chest number (`101+`).
+ * Returns `—` if a student has not yet been allotted a server-side chest number.
+ */
+export function getCanonicalChestNo(student: Partial<Student> | null | undefined): string {
+  if (!student) return '—';
+
+  // Server-assigned numeric chest_no (101, 102, 103...)
+  const trimmedChest = String(student.chest_no ?? '').trim();
+  if (trimmedChest && !isUuid(trimmedChest)) {
+    if (/^\d+$/.test(trimmedChest)) {
+      return trimmedChest;
+    }
   }
 
-  // 3. Fallback: Student ID prefix
-  if (student.id && typeof student.id === 'string') {
-    if (student.id.startsWith('stu-')) {
-      return `CH-${student.id.replace('stu-', '')}`;
-    }
-    if (!isUuid(student.id)) {
-      return `CH-${student.id}`;
-    }
-    // Truncated UUID fallback if nothing else is available
-    return `CH-${student.id.slice(0, 6).toUpperCase()}`;
-  }
-
-  return 'ST-N/A';
+  return '—';
 }
 
 /**
@@ -74,22 +79,30 @@ export function findStudentByIdentifier(
     let match = list.find(s => s.id === rawStr);
     if (match) return match;
 
-    // 2. Primary CIC No / Admission No match
-    match = list.find(s => {
-      const cic = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').trim();
-      return cic !== '' && (cic === rawStr || cic.toUpperCase() === upperStr);
-    });
+    // 2. Direct Assigned Chest No match ('101', 'ST-23993', etc.)
+    match = list.find(s => String(s.chest_no ?? '').trim().toUpperCase() === upperStr);
     if (match) return match;
 
-    // 3. Direct Chest No match (case-insensitive)
-    match = list.find(s => s.chest_no && s.chest_no.trim().toUpperCase() === upperStr);
+    // 3. Primary CIC No / Admission No / ST-<cic> match
+    match = list.find(s => {
+      const cic = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').trim();
+      if (!cic) return false;
+      const upperCic = cic.toUpperCase();
+      return (
+        cic === rawStr ||
+        upperCic === upperStr ||
+        `ST-${upperCic}` === upperStr ||
+        `CH-${upperCic}` === upperStr ||
+        (digitsOnly !== '' && cic === digitsOnly && /^(ST-|CH-)?\d+$/i.test(rawStr))
+      );
+    });
     if (match) return match;
 
     // 4. Formatted Chest No / Digits match (e.g., searching "20194" matches "ST-20194")
     if (digitsOnly) {
       match = list.find(s => {
         const cicDigits = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').replace(/\D/g, '');
-        const chestDigits = (s.chest_no || '').replace(/\D/g, '');
+        const chestDigits = String(s.chest_no ?? '').replace(/\D/g, '');
         return (cicDigits !== '' && cicDigits === digitsOnly) || (chestDigits !== '' && chestDigits === digitsOnly);
       });
       if (match) return match;
@@ -120,7 +133,7 @@ export function isSameStudent(
 
     const chestA = getCanonicalChestNo(studentA);
     const chestB = getCanonicalChestNo(studentB);
-    if (chestA !== 'ST-N/A' && chestB !== 'ST-N/A' && chestA === chestB) return true;
+    if (chestA !== '—' && chestB !== '—' && chestA === chestB) return true;
 
     const cicA = String(studentA.admission_no ?? studentA.cic_no ?? studentA.cic_number ?? '').trim();
     const cicB = String(studentB.admission_no ?? studentB.cic_no ?? studentB.cic_number ?? '').trim();
@@ -134,11 +147,20 @@ export function isSameStudent(
   if (!rawId) return false;
 
   if (studentA.id === rawId) return true;
-  if (studentA.chest_no && studentA.chest_no.trim().toUpperCase() === rawId.toUpperCase()) return true;
+  const studentAChest = String(studentA.chest_no ?? '').trim();
+  if (studentAChest && studentAChest.toUpperCase() === rawId.toUpperCase()) return true;
   if (getCanonicalChestNo(studentA).toUpperCase() === rawId.toUpperCase()) return true;
 
   const cicA = String(studentA.admission_no ?? studentA.cic_no ?? studentA.cic_number ?? '').trim();
-  if (cicA && (cicA === rawId || cicA.toUpperCase() === rawId.toUpperCase())) return true;
+  if (
+    cicA &&
+    (cicA === rawId ||
+      cicA.toUpperCase() === rawId.toUpperCase() ||
+      `ST-${cicA}`.toUpperCase() === rawId.toUpperCase() ||
+      `CH-${cicA}`.toUpperCase() === rawId.toUpperCase())
+  ) {
+    return true;
+  }
 
   return false;
 }
@@ -146,7 +168,7 @@ export function isSameStudent(
 /**
  * Formats a clean student display identifier for UI.
  * Bad: 6adb74c4-bbaa-43da-baef-a11d64d4a261
- * Good: ST-20194 MUHAMMED DILSHAD M P
+ * Good: 101 MUHAMMED DILSHAD M P
  */
 export function getStudentDisplayIdentifier(
   student: Partial<Student> | null | undefined,
@@ -163,7 +185,7 @@ export function getStudentDisplayIdentifier(
   const chest = getCanonicalChestNo(student);
   const name = student.full_name || student.name || 'Participant';
 
-  if (chest && chest !== 'ST-N/A') {
+  if (chest && chest !== '—') {
     return `${chest} ${name}`;
   }
 
@@ -200,7 +222,7 @@ export function registrationContainsStudent(
   if (registration.chest_no) {
     if (typeof studentOrIdentifier === 'object') {
       if (isSameStudent(studentOrIdentifier, registration.chest_no)) return true;
-    } else if (String(studentOrIdentifier).trim() === registration.chest_no.trim()) {
+    } else if (String(studentOrIdentifier).trim() === String(registration.chest_no).trim()) {
       return true;
     }
   }
@@ -258,8 +280,9 @@ export function normalizeRegistration(
     participants = [student];
   }
 
-  // Ensure canonical chest_no is present for display
-  const chestNo = student ? getCanonicalChestNo(student) : (registration.chest_no || 'N/A');
+  // Ensure canonical chest_no is present for display without collapsing distinct rows to '—'
+  const resolvedChest = student ? getCanonicalChestNo(student) : '';
+  const chestNo = resolvedChest && resolvedChest !== '—' ? resolvedChest : (registration.chest_no || '—');
 
   return {
     ...registration,
@@ -300,6 +323,7 @@ export function calculateStudentEvents(
   let offstageCount = 0;
   let individualCount = 0;
   let groupCount = 0;
+  let quotaEventsCount = 0;
 
   const events: Array<{ registration: Registration; item?: Item }> = [];
 
@@ -307,17 +331,21 @@ export function calculateStudentEvents(
     const item = reg.item || items?.find(i => i.item_id === itemId);
     events.push({ registration: reg, item });
 
-    if (item) {
-      if (item.mode === 'onstage') onstageCount++;
+    // Special Programs are exempt from student max_participation quotas
+    if (item && !isSpecialEvent(item)) {
+      quotaEventsCount++;
+      if (getEffectiveStageMode(item) === 'onstage') onstageCount++;
       else offstageCount++;
 
       if (item.point_type === 'group' || item.item_type === 'Group') groupCount++;
       else individualCount++;
+    } else if (!item) {
+      quotaEventsCount++;
     }
   });
 
   return {
-    registeredEventsCount: uniqueItemRegs.size,
+    registeredEventsCount: quotaEventsCount,
     onstageCount,
     offstageCount,
     individualCount,
@@ -369,16 +397,17 @@ export function checkStudentQuota(
     || quotas.find(q => normalizeCategoryKey(q.phase) === 'GENERAL')
     || quotas[0];
 
-  if (!quota) {
+  if (!quota || isSpecialEvent(targetItem)) {
     return {
       allowed: true,
-      stats
+      stats,
+      quota
     };
   }
 
   const isGroup = targetItem.point_type === 'group' || targetItem.item_type === 'Group';
-  const isOnstage = targetItem.mode === 'onstage';
-  const isOffstage = targetItem.mode === 'offstage' || targetItem.mode === 'submission' || !isOnstage;
+  const isOnstage = getEffectiveStageMode(targetItem) === 'onstage';
+  const isOffstage = !isOnstage;
 
   // 1. Check Onstage Limit
   if (isOnstage && stats.onstageCount >= quota.on_max) {

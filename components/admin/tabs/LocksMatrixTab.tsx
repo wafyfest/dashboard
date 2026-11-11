@@ -17,7 +17,7 @@ import {
   Filter,
   Layers
 } from 'lucide-react';
-import { EntryLock } from '@/lib/types/fest';
+import { EntryLock, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 
 export function LocksMatrixTab() {
   const { refreshKey, triggerRefresh } = useFest();
@@ -44,7 +44,7 @@ export function LocksMatrixTab() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
-  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
 
   // Expanded Accordion State (open event IDs)
   const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(() => {
@@ -76,8 +76,14 @@ export function LocksMatrixTab() {
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchPhase = selectedPhase === 'All' || item.phase === selectedPhase;
-      const m = (item.mode || 'onstage').toLowerCase().trim();
-      const matchMode = selectedMode === 'All' || m === selectedMode;
+      const m = getEffectiveStageMode(item);
+      const matchMode =
+        selectedMode === 'All' ||
+        (selectedMode === 'submission'
+          ? isSubmissionEvent(item)
+          : selectedMode === 'screening'
+          ? isScreeningEvent(item)
+          : m === selectedMode);
       const q = searchQuery.toLowerCase().trim();
       const itemCodeStr = (item.item_code || item.code || '').toLowerCase();
       const matchSearch =
@@ -217,7 +223,7 @@ export function LocksMatrixTab() {
 
               {/* Mode Filter Pills */}
               <div className="flex items-center gap-1 overflow-x-auto pl-2 border-l border-[var(--border-subtle)]">
-                {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+                {(['All', 'onstage', 'offstage', 'submission', 'screening'] as const).map(m => (
                   <button
                     key={m}
                     type="button"
@@ -227,7 +233,7 @@ export function LocksMatrixTab() {
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                       }`}
                   >
-                    {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
+                    {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : m === 'submission' ? 'Submission' : 'Screening'}
                   </button>
                 ))}
               </div>
@@ -305,7 +311,7 @@ export function LocksMatrixTab() {
                         <span className="px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] text-[11px] font-sans">
                           {item.phase || item.category}
                         </span>
-                        <ItemModeBadge mode={item.mode} size="sm" />
+                        <ItemModeBadge mode={item.mode} isSubmission={isSubmissionEvent(item)} isScreening={isScreeningEvent(item)} size="sm" />
                         <span>•</span>
                         <span className="text-[11px] font-sans">
                           {item.point_type === 'group' || item.item_type === 'Group' ? 'Group' : 'Single'}

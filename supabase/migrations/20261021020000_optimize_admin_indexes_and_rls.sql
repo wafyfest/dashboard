@@ -85,16 +85,22 @@ CREATE POLICY "items_delete_admin"
 -- ── 4. STUDENTS RLS CONSOLIDATION ────────────────────────────────────
 DROP POLICY IF EXISTS "Students managed by admin or owning college" ON public.students;
 DROP POLICY IF EXISTS "Students readable by all" ON public.students;
+DROP POLICY IF EXISTS "Students readable by admin or owning college" ON public.students;
 DROP POLICY IF EXISTS "students_select_all" ON public.students;
+DROP POLICY IF EXISTS "students_select_staff" ON public.students;
+DROP POLICY IF EXISTS "students_select_scoped" ON public.students;
 DROP POLICY IF EXISTS "students_insert_scoped" ON public.students;
 DROP POLICY IF EXISTS "students_update_scoped" ON public.students;
 DROP POLICY IF EXISTS "students_delete_scoped" ON public.students;
 
-CREATE POLICY "students_select_all"
+CREATE POLICY "students_select_scoped"
   ON public.students
   FOR SELECT
-  TO public
-  USING (true);
+  TO authenticated
+  USING (
+    ((SELECT public.auth_user_role()) IN ('admin'::user_role, 'stage_controller'::user_role, 'convenor'::user_role, 'result_entry'::user_role))
+    OR (college_affl_no = (SELECT public.auth_user_affl_no()))
+  );
 
 CREATE POLICY "students_insert_scoped"
   ON public.students

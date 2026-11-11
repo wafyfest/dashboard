@@ -482,7 +482,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                           </span>
                           <span
                             className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5 cursor-help"
-                            title={`Category Quotas: Pre-Foundation: ${col.st_pre_foundation || 0} | Foundation: ${col.st_foundation || 0} | Thamheediya: ${col.st_thamheediya || 0} | Aliya: ${col.st_aliya || 0} | PG: ${col.st_pg || 0}`}
+                            title={`Category Quotas: Pre-Foundation: ${col.st_pre_foundation || 0} | Foundation: ${col.st_foundation || 0} | Thamheediyya: ${col.st_thamheediya || 0} | Aliya: ${col.st_aliya || 0} | PG: ${col.st_pg || 0}`}
                           >
                             Quota: {totalQuota > 0 ? totalQuota : '—'}
                           </span>
@@ -734,7 +734,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-                  <div className="text-[10px] text-[var(--text-muted)] font-semibold">Thamheediya</div>
+                  <div className="text-[10px] text-[var(--text-muted)] font-semibold">Thamheediyya</div>
                   <div className="text-base font-bold font-mono text-[var(--text-primary)] mt-0.5">
                     {selectedCollegeForDetail.st_thamheediya || 0}
                   </div>

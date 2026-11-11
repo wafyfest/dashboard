@@ -177,7 +177,7 @@ export function BroadcastAlertsTab({
       setMessage('Please report to Green Room 1 backstage immediately for Code Letter draw and audio mic check.');
       setPriority('urgent');
       setTargetType('student');
-      setTargetChestNo(students[0]?.chest_no || 'A-101');
+      setTargetChestNo(students.find(s => s.chest_no)?.chest_no || '101');
       setRequireAck(true);
     }
   };

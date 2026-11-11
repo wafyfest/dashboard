@@ -3,10 +3,10 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge, StageStatusBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, StageStatusBadge, ScreeningBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { Item, Stage, Schedule, StageStatus } from '@/lib/types/fest';
+import { Item, Stage, Schedule, StageStatus, isScreeningEvent } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
 import {
@@ -375,8 +375,9 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                         {item.item_code || item.code || `ITM-${item.item_id}`}
                       </TableCell>
                       <TableCell>
-                        <div className="font-bold font-heading text-xs text-[var(--text-primary)]">
-                          {item.name_eng || item.name}
+                        <div className="font-bold font-heading text-xs text-[var(--text-primary)] flex items-center gap-1.5 flex-wrap">
+                          <span>{item.name_eng || item.name}</span>
+                          {isScreeningEvent(item) && <ScreeningBadge size="sm" />}
                         </div>
                         {item.name_mal && (
                           <div className="text-[11px] text-[var(--text-muted)] font-sans mt-0.5">

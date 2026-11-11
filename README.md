@@ -64,7 +64,7 @@ All database schemas, extensions, and RLS policies are version-controlled in the
 ### Core Schemas & Models
 - **`colleges`**: Institutional affiliation records, contact details, fine status, and lock overrides.
 - **`students`**: Enrolled candidates with CIC admission numbers, categories, and photos.
-- **`items`**: Event catalog containing mode (`onstage`, `offstage`, `submission`), participation limits, phase/category bounds, and locks.
+- **`events`**: Event catalog containing stage mode (`onstage`, `offstage`), `is_submission` / `is_screening` flags, participation limits, phase/category bounds, and locks.
 - **`registrations` & `registration_participants`**: College registrations linking events, students, and blind code letters.
 - **`stages` & `schedules`**: Campus stages with live status relays (`Upcoming`, `Next_Item`, `Starting_Soon`, `On_Going`, `Ended`).
 - **`results`**: Evaluator marks, score breakdowns, winner associations, and publication lock states.
@@ -103,7 +103,7 @@ Copy the sample environment file and populate your project credentials:
 cp .env.example .env.local
 ```
 
-> **Note**: The application includes an in-memory client service fallback (`festService`) pre-populated with realistic fest data, allowing immediate local development and demonstration without requiring a database connection.
+> **Note**: A configured Supabase project (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, or legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`) is required to load live fest data. `festService` maintains an in-memory and `sessionStorage` cache (15-minute TTL) of records fetched from Supabase, without preloaded mock or demo data.
 
 ### 3. Run Development Server
 

@@ -5,14 +5,16 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Item, Registration } from '@/lib/types/fest';
+import { SubmissionLinkModal, SubmissionLinkTarget } from '@/components/college/SubmissionLinkModal';
+import { Item, Registration, SubmissionEntry, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent, requiresPreFestSubmission } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck } from 'lucide-react';
+import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck, Link2, ExternalLink } from 'lucide-react';
 
 interface CollegeRegistrationTabProps {
   filteredItems: Item[];
   registrations: Registration[];
+  submissions?: SubmissionEntry[];
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
   categoryOptions: string[];
@@ -20,6 +22,8 @@ interface CollegeRegistrationTabProps {
   currentCollegeAfflNo?: number;
   onOpenRegistrationModal: (item: Item) => void;
   onUnregisterRegistration?: (item: Item) => void;
+  onRefresh?: () => void;
+  onOpenParticipantsTab?: () => void;
   allItemsCount: number;
   registrationStatusByItem?: Map<number, RegistrationStatus>;
 }
@@ -27,6 +31,7 @@ interface CollegeRegistrationTabProps {
 export function CollegeRegistrationTab({
   filteredItems,
   registrations,
+  submissions = [],
   selectedCategory,
   setSelectedCategory,
   categoryOptions,
@@ -34,10 +39,13 @@ export function CollegeRegistrationTab({
   currentCollegeAfflNo,
   onOpenRegistrationModal,
   onUnregisterRegistration,
+  onRefresh,
+  onOpenParticipantsTab,
   allItemsCount,
   registrationStatusByItem
 }: CollegeRegistrationTabProps) {
-  const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+  const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
+  const [linkTarget, setLinkTarget] = React.useState<SubmissionLinkTarget | null>(null);
 
   const registrationByItemId = React.useMemo(() => {
     const byItem = new Map<number, Registration>();
@@ -49,13 +57,40 @@ export function CollegeRegistrationTab({
     return byItem;
   }, [registrations]);
 
+  const submissionLookup = React.useMemo(() => {
+    const byChest = new Map<string, SubmissionEntry>();
+    const byItem = new Map<number, SubmissionEntry>();
+    for (const s of submissions) {
+      const itmId = Number(s.item_id);
+      if (s.file_url && !byItem.has(itmId)) byItem.set(itmId, s);
+      const keys = [s.chest_no, s.student?.chest_no, s.student ? getCanonicalChestNo(s.student) : undefined];
+      for (const k of keys) {
+        const clean = (k || '').trim().toUpperCase();
+        if (clean && clean !== '—') byChest.set(`${itmId}:${clean}`, s);
+      }
+    }
+    return { byChest, byItem };
+  }, [submissions]);
+
+  const pendingPreFestCount = React.useMemo(() => {
+    let missing = 0;
+    registrationByItemId.forEach((reg, itemId) => {
+      if (!requiresPreFestSubmission(reg.item)) return;
+      if (!submissionLookup.byItem.get(Number(itemId))?.file_url) {
+        missing++;
+      }
+    });
+    return missing;
+  }, [registrationByItemId, submissionLookup]);
+
   const displayedItems = React.useMemo(() => {
     if (selectedMode === 'All') return filteredItems;
     return filteredItems.filter(item => {
-      const m = (item.mode || 'onstage').toLowerCase().trim();
+      const m = getEffectiveStageMode(item);
       if (selectedMode === 'onstage') return m === 'onstage';
-      if (selectedMode === 'offstage') return m === 'offstage' || (m !== 'onstage' && m !== 'submission');
-      if (selectedMode === 'submission') return m === 'submission';
+      if (selectedMode === 'offstage') return m === 'offstage';
+      if (selectedMode === 'submission') return isSubmissionEvent(item);
+      if (selectedMode === 'screening') return isScreeningEvent(item);
       return true;
     });
   }, [filteredItems, selectedMode]);
@@ -97,6 +132,7 @@ export function CollegeRegistrationTab({
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
               <option value="submission">Submission</option>
+              <option value="screening">Screening</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -121,6 +157,27 @@ export function CollegeRegistrationTab({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {pendingPreFestCount > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs">
+            <div className="flex items-start sm:items-center gap-2 text-indigo-900 dark:text-indigo-200">
+              <Link2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5 sm:mt-0" />
+              <span>
+                <strong className="font-heading font-bold">{pendingPreFestCount}</strong> registered Submission / Screening {pendingPreFestCount === 1 ? 'event still needs' : 'events still need'} a Video/File URL. Click <strong className="font-semibold">Submit Link</strong> right on the event row or manage all entries in Participants.
+              </span>
+            </div>
+            {onOpenParticipantsTab && (
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={onOpenParticipantsTab}
+                className="border-indigo-500/40 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-500/15 shrink-0 font-heading font-semibold"
+              >
+                Open Participants
+              </Button>
+            )}
+          </div>
+        )}
         <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
           <TableHeader>
             <TableRow>
@@ -170,7 +227,12 @@ export function CollegeRegistrationTab({
                     <CategoryBadge category={itemCategory} />
                   </TableCell>
                   <TableCell className="text-center">
-                    <ItemTypeBadge type={itemType} mode={item.mode} />
+                    <ItemTypeBadge
+                      type={itemType}
+                      mode={item.mode}
+                      isSubmission={isSubmissionEvent(item)}
+                      isScreening={isScreeningEvent(item)}
+                    />
                   </TableCell>
                   <TableCell className="font-mono font-bold text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                     {item.item_code || item.code}
@@ -240,6 +302,57 @@ export function CollegeRegistrationTab({
                         </Button>
                       )}
                     </div>
+                    {isRegistered && requiresPreFestSubmission(item) && (() => {
+                      const primaryStu = reg.participants?.[0] || reg.student;
+                      const resolvedChest = primaryStu ? getCanonicalChestNo(primaryStu) : '';
+                      const primaryChest = resolvedChest && resolvedChest !== '—' ? resolvedChest : (reg.chest_no || '');
+                      const stuName = primaryStu?.full_name || primaryStu?.name || 'Registered Team';
+                      const subEntry =
+                        submissionLookup.byChest.get(`${item.item_id}:${primaryChest.toUpperCase()}`) ||
+                        submissionLookup.byChest.get(`${item.item_id}:${(reg.chest_no || '').trim().toUpperCase()}`) ||
+                        submissionLookup.byItem.get(Number(item.item_id));
+                      const targetCollegeAffl = Number(currentCollegeAfflNo || reg.college_affl_no || 0);
+
+                      return (
+                        <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap">
+                          {subEntry?.file_url && (
+                            <a
+                              href={subEntry.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                              title={subEntry.file_url}
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              View
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLinkTarget({
+                                collegeAfflNo: targetCollegeAffl,
+                                chestNo: primaryChest,
+                                studentName: stuName,
+                                itemId: Number(item.item_id),
+                                itemCode: item.item_code || item.code || `ITM-${item.item_id}`,
+                                itemName: item.name_eng || item.name || 'Event',
+                                isScreening: isScreeningEvent(item),
+                                existingUrl: subEntry?.file_url
+                              })
+                            }
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
+                              subEntry?.file_url
+                                ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
+                                : 'border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-amber-300 hover:bg-amber-500/25'
+                            }`}
+                          >
+                            <Link2 className="w-2.5 h-2.5" />
+                            {subEntry?.file_url ? 'Edit Link' : 'Submit Link'}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
               );
@@ -259,6 +372,11 @@ export function CollegeRegistrationTab({
           </TableBody>
         </Table>
       </CardContent>
+      <SubmissionLinkModal
+        target={linkTarget}
+        onClose={() => setLinkTarget(null)}
+        onSaved={onRefresh}
+      />
     </Card>
   );
 }

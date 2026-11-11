@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { Student, College, Registration, FestSettings } from '../types/fest';
+import { Student, College, Registration, FestSettings, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '../types/fest';
 
 interface GenerateAdmitCardOptions {
   student: Student;
@@ -185,8 +185,17 @@ export function generateAdmitCardPdf({
       const itemCode = reg.item?.item_code || reg.item?.code || `ITM-${reg.item_id}`;
       const itemName = reg.item?.name_eng || reg.item?.name || `Event #${reg.item_id}`;
       const itemPhase = reg.item?.phase || student.phase || 'General';
-      const itemMode = (reg.item?.mode || 'Onstage').toUpperCase();
-      const itemStatus = reg.code_letter ? `Code: ${reg.code_letter}` : 'Confirmed';
+      const itemMode = `${getEffectiveStageMode(reg.item).toUpperCase()}${isSubmissionEvent(reg.item) ? ' (SUB)' : ''}${isScreeningEvent(reg.item) ? ' (SCR)' : ''}`;
+      let itemStatus = reg.code_letter ? `Code: ${reg.code_letter}` : 'Confirmed';
+      if (isScreeningEvent(reg.item)) {
+        if (reg.screening_status === 'qualified') {
+          itemStatus = reg.code_letter ? `Finalist (${reg.code_letter})` : 'Finalist';
+        } else if (reg.screening_status === 'eliminated') {
+          itemStatus = 'Not Shortlisted';
+        } else {
+          itemStatus = 'Screening Pending';
+        }
+      }
 
       doc.setTextColor(71, 85, 105);
       doc.setFont('helvetica', 'normal');

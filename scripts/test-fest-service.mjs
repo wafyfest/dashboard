@@ -53,17 +53,18 @@ async function testFestDataContracts() {
   const collegeWithOverrides = colleges.filter(c => c.manual_lock_override);
   console.log(`  - Colleges with manual lock override: ${collegeWithOverrides.length}`);
 
-  // 3. Items
-  const { data: items, error: itemErr } = await supabase.from('items').select('*');
+  // 3. Events
+  const { data: items, error: itemErr } = await supabase.from('events').select('*');
   if (itemErr) throw itemErr;
-  console.log(`✓ items fetched: ${items.length} events catalog`);
+  console.log(`✓ events fetched: ${items.length} events catalog`);
   const individualItems = items.filter(i => i.point_type === 'individual');
   const groupItems = items.filter(i => i.point_type === 'group');
   console.log(`  - Individual items: ${individualItems.length}, Group items: ${groupItems.length}`);
   const onstage = items.filter(i => i.mode === 'onstage');
   const offstage = items.filter(i => i.mode === 'offstage');
-  const submission = items.filter(i => i.mode === 'submission');
-  console.log(`  - Onstage: ${onstage.length}, Offstage: ${offstage.length}, Submission: ${submission.length}`);
+  const submission = items.filter(i => Boolean(i.is_submission) || i.mode === 'submission');
+  const screening = items.filter(i => Boolean(i.is_screening));
+  console.log(`  - Onstage: ${onstage.length}, Offstage: ${offstage.length}, Submission: ${submission.length}, Screening: ${screening.length}`);
 
   // 4. Students
   const { data: students, error: stuErr } = await supabase.from('students').select('*').limit(10);

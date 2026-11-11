@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemModeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { StageStatus } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent, isSubmissionEvent, requiresPreFestSubmission } from '@/lib/types/fest';
 import { getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { TilePattern } from '@/components/fest/FestPattern';
 import {
@@ -24,7 +25,8 @@ import {
   X,
   Loader2,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 
 interface StageControllerResultViewProps {
@@ -47,6 +49,7 @@ export function StageControllerResultView({
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const codeLetters = useMemo(() => festService.getCodeLetters(), [refreshKey]);
   const chestNosMapping = useMemo(() => festService.getChestNos(), [refreshKey]);
+  const submissions = useMemo(() => festService.getSubmissionEntries(), [refreshKey]);
 
   // Stage selection state
   const [internalStageNumber, setInternalStageNumber] = useState<number>(() => {
@@ -63,7 +66,10 @@ export function StageControllerResultView({
       .filter(s => s.stage_number === currentStageNumber)
       .map(s => {
         const item = s.item || allItems.find(i => Number(i.item_id) === Number(s.item_id));
-        const regs = allRegistrations.filter(r => Number(r.item_id) === Number(s.item_id));
+        const rawRegs = allRegistrations.filter(r => Number(r.item_id) === Number(s.item_id));
+        const regs = isScreeningEvent(item)
+          ? rawRegs.filter(r => r.screening_status === 'qualified')
+          : rawRegs;
         const itemCodeLetters = codeLetters.filter(cl => Number(cl.item_id) === Number(s.item_id));
         const allocatedCount = regs.filter(r => {
           const cleanChest = (r.chest_no || '').trim().toUpperCase();
@@ -74,6 +80,7 @@ export function StageControllerResultView({
           ...s,
           item,
           registrationsCount: regs.length,
+          totalRegisteredCount: rawRegs.length,
           allocatedCount
         };
       })
@@ -87,6 +94,7 @@ export function StageControllerResultView({
 
   // Live per-event loading state
   const [isLoadingParticipants, setIsLoadingParticipants] = useState<boolean>(false);
+  const [showAllScreening, setShowAllScreening] = useState<boolean>(false);
 
   // Fetch event-specific registrations, chest numbers, and code letters when event is selected
   useEffect(() => {
@@ -107,10 +115,31 @@ export function StageControllerResultView({
     };
   }, [selectedEventId, refreshKey]);
 
-  // Registered participants for selected event
+  const allEventRegistrations = useMemo(() => {
+    if (!selectedEventId) return [];
+    return allRegistrations.filter(r => Number(r.item_id) === Number(selectedEventId));
+  }, [selectedEventId, allRegistrations]);
+
+  const screeningSummary = useMemo(() => {
+    const total = allEventRegistrations.length;
+    const qualified = allEventRegistrations.filter(r => r.screening_status === 'qualified').length;
+    const eliminated = allEventRegistrations.filter(r => r.screening_status === 'eliminated').length;
+    const pending = total - qualified - eliminated;
+    return { total, qualified, eliminated, pending };
+  }, [allEventRegistrations]);
+
+  // Registered participants for selected event (only Qualified finalists by default for screening events)
   const eventParticipants = useMemo(() => {
     if (!selectedEventId) return [];
-    const eventRegs = allRegistrations.filter(r => Number(r.item_id) === Number(selectedEventId));
+    const screeningActive = isScreeningEvent(selectedItem);
+    const eventRegs = screeningActive && !showAllScreening
+      ? allEventRegistrations.filter(r => r.screening_status === 'qualified')
+      : allEventRegistrations;
+
+    const isGroupItem =
+      selectedItem?.point_type === 'group' ||
+      selectedItem?.item_type === 'Group';
+    const itemSubs = submissions.filter(s => Number(s.item_id) === Number(selectedEventId));
 
     return eventRegs.map(reg => {
       const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
@@ -123,20 +152,38 @@ export function StageControllerResultView({
 
       // Chest mapping lookup for cic_no
       const chestMapping = chestNosMapping.find(
-        (cm: any) => (cm.chest_no || '').trim().toUpperCase() === cleanChest
+        (cm: any) => String(cm.chest_no ?? '').trim().toUpperCase() === cleanChest
       );
+
+      // Submission / screening pre-fest link lookup
+      const regCandidates = [
+        reg.chest_no,
+        stu?.chest_no,
+        stu ? getCanonicalChestNo(stu) : '',
+      ]
+        .map(v => (v || '').trim().toUpperCase())
+        .filter(Boolean);
+      const submissionEntry =
+        itemSubs.find(s => {
+          const sCh = (s.chest_no || '').trim().toUpperCase();
+          return sCh && regCandidates.includes(sCh);
+        }) ||
+        (isGroupItem
+          ? itemSubs.find(s => Number(s.college_affl_no) === Number(reg.college_affl_no))
+          : undefined);
 
       return {
         registration: reg,
         college: col,
         student: stu,
         chestNo: reg.chest_no,
-        canonicalChestNo: stu ? getCanonicalChestNo(stu) : (reg.chest_no || 'ST-N/A'),
+        canonicalChestNo: stu ? getCanonicalChestNo(stu) : (reg.chest_no || '—'),
         admissionNo: stu?.admission_no || stu?.cic_no || chestMapping?.cic_no || 'N/A',
-        codeLetter: activeCodeLetter
+        codeLetter: activeCodeLetter,
+        submissionEntry
       };
     });
-  }, [selectedEventId, allRegistrations, colleges, students, codeLetters, chestNosMapping]);
+  }, [selectedEventId, selectedItem, showAllScreening, allEventRegistrations, colleges, students, codeLetters, chestNosMapping, submissions]);
 
   // Loading/busy feedback for code generation
   const [isProcessing, setIsProcessing] = useState(false);
@@ -318,8 +365,16 @@ export function StageControllerResultView({
                             {item?.item_code || item?.code || `ITM-${sch.item_id}`}
                           </TableCell>
                           <TableCell>
-                            <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
-                              {item?.name_eng || item?.name || 'Fest Event'}
+                            <div className="font-heading font-bold text-xs text-[var(--text-primary)] flex items-center gap-1.5 flex-wrap">
+                              <span>{item?.name_eng || item?.name || 'Fest Event'}</span>
+                              {requiresPreFestSubmission(item) && (
+                                <ItemModeBadge
+                                  mode={item?.mode}
+                                  isSubmission={isSubmissionEvent(item)}
+                                  isScreening={isScreeningEvent(item)}
+                                  size="sm"
+                                />
+                              )}
                             </div>
                             {item?.name_mal && (
                               <div className="text-[11px] font-sans text-[var(--text-muted)] mt-0.5 font-normal">
@@ -436,6 +491,14 @@ export function StageControllerResultView({
                     <Badge variant={selectedItem.point_type === 'group' ? 'purple' : 'secondary'}>
                       {selectedItem.point_type === 'group' ? 'Group Event' : 'Single Event'}
                     </Badge>
+                    {requiresPreFestSubmission(selectedItem) && (
+                      <ItemModeBadge
+                        mode={selectedItem.mode}
+                        isSubmission={isSubmissionEvent(selectedItem)}
+                        isScreening={isScreeningEvent(selectedItem)}
+                        size="sm"
+                      />
+                    )}
                   </div>
                   <h2 className="text-2xl font-heading font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
                     {selectedItem.name_eng || selectedItem.name}
@@ -506,12 +569,27 @@ export function StageControllerResultView({
               <div>
                 <CardTitle className="text-base font-heading font-extrabold flex items-center gap-2">
                   <Users className="w-4 h-4 text-[var(--f-saffron)]" />
-                  Registered Participants & Code Letters
+                  {isScreeningEvent(selectedItem)
+                    ? (showAllScreening ? 'All Screening Registrations & Code Letters' : 'Qualified Finalists & Code Letters')
+                    : 'Registered Participants & Code Letters'}
                 </CardTitle>
                 <CardDescription className="text-xs font-sans">
-                  Click on a student row or the &quot;Draw Code&quot; button to verify participant credentials and allocate their anonymous blind code letter.
+                  {isScreeningEvent(selectedItem)
+                    ? `Screening round event: ${screeningSummary.qualified} Qualified for Finals · ${screeningSummary.pending} Pending · ${screeningSummary.eliminated} Eliminated (out of ${screeningSummary.total} entries).`
+                    : 'Click on a student row or the "Draw Code" button to verify participant credentials and allocate their anonymous blind code letter.'}
                 </CardDescription>
               </div>
+              {isScreeningEvent(selectedItem) && (
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)] bg-[var(--bg-subtle)] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={showAllScreening}
+                    onChange={(e) => setShowAllScreening(e.target.checked)}
+                    className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <span>Show all ({screeningSummary.total})</span>
+                </label>
+              )}
             </CardHeader>
 
             <CardContent className="p-0 overflow-x-auto">
@@ -561,9 +639,33 @@ export function StageControllerResultView({
                               <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
                                 {student?.full_name || student?.name || `Participant (${p.canonicalChestNo || p.chestNo})`}
                               </div>
-                              <span className="text-[11px] font-sans text-[var(--text-muted)]">
-                                {student?.category || student?.phase || selectedItem.phase || 'Senior'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                <span className="text-[11px] font-sans text-[var(--text-muted)]">
+                                  {student?.category || student?.phase || selectedItem.phase || 'Senior'}
+                                </span>
+                                {isScreeningEvent(selectedItem) && (
+                                  <ScreeningStatusBadge status={p.registration.screening_status} size="sm" />
+                                )}
+                                {requiresPreFestSubmission(selectedItem) && (
+                                  p.submissionEntry?.file_url ? (
+                                    <a
+                                      href={p.submissionEntry.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                                      title={p.submissionEntry.file_url}
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      View Link
+                                    </a>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                                      No link
+                                    </span>
+                                  )
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="font-medium text-xs font-sans text-[var(--text-primary)]">
@@ -632,9 +734,9 @@ export function StageControllerResultView({
       )}
 
       {/* Participant Verification & Single Lot Draw Modal Popup */}
-      {activeVerifyingParticipant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[var(--bg-elevated)] w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-elevated),var(--glass-highlight)] overflow-hidden animate-in zoom-in-95 duration-200">
+      {activeVerifyingParticipant && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-elevated)] w-full max-w-lg my-auto rounded-2xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-elevated),var(--glass-highlight)] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-[var(--bg-subtle)] to-transparent">
               <div className="flex items-center gap-3">
@@ -689,14 +791,27 @@ export function StageControllerResultView({
                     {activeVerifyingParticipant.admissionNo || 'N/A'}
                   </span>
                 </div>
-                <div className="col-span-2 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between">
+                <div className="col-span-2 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2 flex-wrap">
                   <div>
                     <span className="text-[10px] font-heading font-semibold text-[var(--text-muted)] block">Event</span>
                     <span className="font-sans font-semibold text-[var(--text-primary)]">
                       {selectedItem?.item_code}: {selectedItem?.name_eng || selectedItem?.name}
                     </span>
                   </div>
-                  <CategoryBadge category={selectedItem?.phase || selectedItem?.category || 'General'} />
+                  <div className="flex items-center gap-2">
+                    {activeVerifyingParticipant.submissionEntry?.file_url && (
+                      <a
+                        href={activeVerifyingParticipant.submissionEntry.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Open Pre-Fest Link
+                      </a>
+                    )}
+                    <CategoryBadge category={selectedItem?.phase || selectedItem?.category || 'General'} />
+                  </div>
                 </div>
               </div>
 
@@ -724,7 +839,7 @@ export function StageControllerResultView({
                         One-Time Random Lot Draw
                       </span>
                       <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-                        Verify the candidate credentials above before drawing. A single random letter from the unused pool (A - N) will be drawn and saved to the database.
+                        Verify the candidate credentials above before drawing. A single random letter from the unused pool ({eventParticipants.length > 0 ? `A - ${String.fromCharCode(64 + Math.min(eventParticipants.length, 26))}` : 'A'}) will be drawn and saved to the database.
                       </p>
                     </div>
                   </div>
@@ -771,7 +886,8 @@ export function StageControllerResultView({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { rateLimit } from '@/lib/rateLimit';
+import { getClientIp, rateLimit, rateLimitHeaders } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,26 +12,6 @@ export const dynamic = 'force-dynamic';
 // A real user will never hit this; a brute-force script will be blocked fast.
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  );
-}
-
-function rateLimitHeaders(remaining: number, resetAt: number, retryAfterMs: number) {
-  return {
-    'X-RateLimit-Limit': String(LOGIN_LIMIT),
-    'X-RateLimit-Remaining': String(remaining),
-    'X-RateLimit-Reset': String(Math.ceil(resetAt / 1000)),
-    'Retry-After': String(Math.ceil(retryAfterMs / 1000)),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/login
@@ -50,7 +30,7 @@ export async function POST(req: NextRequest) {
       },
       {
         status: 429,
-        headers: rateLimitHeaders(rl.remaining, rl.resetAt, rl.retryAfterMs),
+        headers: rateLimitHeaders(rl, LOGIN_LIMIT),
       }
     );
   }
@@ -109,7 +89,7 @@ export async function POST(req: NextRequest) {
       { error: message },
       {
         status: 401,
-        headers: rateLimitHeaders(rl.remaining, rl.resetAt, rl.retryAfterMs),
+        headers: rateLimitHeaders(rl, LOGIN_LIMIT),
       }
     );
   }
@@ -147,7 +127,7 @@ export async function POST(req: NextRequest) {
     },
     {
       status: 200,
-      headers: rateLimitHeaders(rl.remaining, rl.resetAt, rl.retryAfterMs),
+      headers: rateLimitHeaders(rl, LOGIN_LIMIT),
     }
   );
 

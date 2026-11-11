@@ -89,30 +89,30 @@ INSERT INTO colleges (
   )
 ON CONFLICT (affl_no) DO NOTHING;
 
--- 5. Items (Bilingual English & Malayalam)
-INSERT INTO items (
-  item_id, item_code, name_eng, name_mal, phase, mode, category, tabulation, point_type, no_of_participants, l_star, em_star, is_locked
+-- 5. Events (Bilingual English & Malayalam)
+INSERT INTO events (
+  item_id, item_code, name_eng, name_mal, phase, mode, is_submission, is_screening, category, tabulation, point_type, no_of_participants, l_star, em_star, is_locked
 ) VALUES
-  (1, 'ITM-01', 'Quran Recitation (Qiraath)', 'ഖുർആൻ പാരായണം', 'Senior', 'onstage', 'A', true, 'individual', 1, true, false, false),
-  (2, 'ITM-02', 'Elocution (Malayalam)', 'പ്രസംഗം (മലയാളം)', 'Junior', 'onstage', 'A', true, 'individual', 1, false, true, false),
-  (3, 'ITM-03', 'Elocution (Arabic)', 'പ്രസംഗം (അറബിക്)', 'Senior', 'onstage', 'A', true, 'individual', 1, true, false, false),
-  (4, 'ITM-04', 'Mappila Pattu (Solo)', 'മാപ്പിളപ്പാട്ട് (ഏകാംഗം)', 'General', 'onstage', 'B', true, 'individual', 1, false, false, false),
-  (5, 'ITM-05', 'Duff Muttu (Ensemble)', 'ദഫ് മുട്ട് (സംഘം)', 'General', 'onstage', 'A', true, 'group', 6, true, true, false),
-  (6, 'ITM-06', 'Essay Writing (English)', 'ഉപന്യാസം (ഇംഗ്ലീഷ്)', 'Senior', 'offstage', 'B', false, 'individual', 1, false, false, false),
-  (7, 'ITM-07', 'Calligraphy (Arabic)', 'കലിഗ്രഫി (അറബിക്)', 'General', 'offstage', 'B', false, 'individual', 1, false, false, false),
-  (8, 'ITM-08', 'Digital Fest Poster Design', 'ഡിജിറ്റൽ പോസ്റ്റർ ഡിസൈൻ', 'General', 'submission', 'C', false, 'individual', 1, false, false, false),
-  (9, 'ITM-09', 'Inter-Collegiate Quiz', 'ക്വിസ് മത്സരം', 'General', 'onstage', 'A', true, 'group', 2, false, false, false)
+  (1, 'ITM-01', 'Quran Recitation (Qiraath)', 'ഖുർആൻ പാരായണം', 'Senior', 'onstage', false, false, 'A', true, 'individual', 1, true, false, false),
+  (2, 'ITM-02', 'Elocution (Malayalam)', 'പ്രസംഗം (മലയാളം)', 'Junior', 'onstage', false, false, 'A', true, 'individual', 1, false, true, false),
+  (3, 'ITM-03', 'Elocution (Arabic)', 'പ്രസംഗം (അറബിക്)', 'Senior', 'onstage', false, false, 'A', true, 'individual', 1, true, false, false),
+  (4, 'ITM-04', 'Mappila Pattu (Solo)', 'മാപ്പിളപ്പാട്ട് (ഏകാംഗം)', 'General', 'onstage', false, false, 'B', true, 'individual', 1, false, false, false),
+  (5, 'ITM-05', 'Duff Muttu (Ensemble)', 'ദഫ് മുട്ട് (സംഘം)', 'General', 'onstage', false, false, 'A', true, 'group', 6, true, true, false),
+  (6, 'ITM-06', 'Essay Writing (English)', 'ഉപന്യാസം (ഇംഗ്ലീഷ്)', 'Senior', 'offstage', false, false, 'B', false, 'individual', 1, false, false, false),
+  (7, 'ITM-07', 'Calligraphy (Arabic)', 'കലിഗ്രഫി (അറബിക്)', 'General', 'offstage', false, false, 'B', false, 'individual', 1, false, false, false),
+  (8, 'ITM-08', 'Digital Fest Poster Design', 'ഡിജിറ്റൽ പോസ്റ്റർ ഡിസൈൻ', 'General', 'offstage', true, false, 'C', false, 'individual', 1, false, false, false),
+  (9, 'ITM-09', 'Inter-Collegiate Quiz', 'ക്വിസ് മത്സരം', 'General', 'onstage', false, false, 'A', true, 'group', 2, false, false, false)
 ON CONFLICT (item_id) DO NOTHING;
 
 -- 6. Students
 INSERT INTO students (name, admission_no, college_affl_no, class, phase, chest_no, phone) VALUES
   ('Ahmad Bilal', 'ADM-2022-101', 11, 'Aliya Final', 'Senior', 'CH-101', '9847100101'),
-  ('Ibrahim Faizal', 'ADM-2023-118', 11, 'Thamheediya 2', 'Junior', 'CH-102', '9847100102'),
+  ('Ibrahim Faizal', 'ADM-2023-118', 11, 'Thamheediyya 2', 'Junior', 'CH-102', '9847100102'),
   ('Muhammad Safwan', 'ADM-2024-205', 11, 'Foundation 1', 'Sub_Junior', 'CH-103', '9847100103'),
   ('Ameen Farhan', 'ADM-2022-314', 11, 'Aliya 1', 'Senior', 'CH-104', '9847100104'),
-  ('Zaid Mansoor', 'ADM-2023-401', 11, 'Thamheediya 1', 'Junior', 'CH-105', '9847100105'),
+  ('Zaid Mansoor', 'ADM-2023-401', 11, 'Thamheediyya 1', 'Junior', 'CH-105', '9847100105'),
   ('Rayyan Tariq', 'ADM-2022-509', 102, 'Aliya 2', 'Senior', 'CH-201', '9745200201'),
-  ('Hassan Basheer', 'ADM-2023-612', 102, 'Thamheediya 2', 'Junior', 'CH-202', '9745200202'),
+  ('Hassan Basheer', 'ADM-2023-612', 102, 'Thamheediyya 2', 'Junior', 'CH-202', '9745200202'),
   ('Luqman Hakim', 'ADM-2022-771', 103, 'Aliya Final', 'Senior', 'CH-301', '9447300301')
 ON CONFLICT (chest_no) DO NOTHING;
 

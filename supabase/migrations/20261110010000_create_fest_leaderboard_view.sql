@@ -16,7 +16,7 @@ WITH valid_results AS (
   LEFT JOIN public.code_letters cl
     ON cl.item_id = r.item_id AND cl.code_letter = r.code_letter
   LEFT JOIN public.students s
-    ON s.chest_no = r.chest_no
+    ON regexp_replace(COALESCE(r.chest_no, ''), '\D', '', 'g') = s.cic_no::text
   WHERE r.published = true
 )
 SELECT

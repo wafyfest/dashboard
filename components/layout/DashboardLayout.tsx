@@ -99,7 +99,7 @@ export function DashboardLayout({
       )}
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex flex-col h-screen sticky top-0 w-64 bg-[var(--bg-subtle)]/80 backdrop-blur-xl border-r border-[var(--border-subtle)] p-4 shrink-0 select-none font-heading relative z-20 shadow-[var(--glass-highlight)]">
+      <aside className="hidden md:flex flex-col h-screen h-dvh sticky top-0 w-64 bg-[var(--bg-subtle)]/80 backdrop-blur-xl border-r border-[var(--border-subtle)] p-4 shrink-0 select-none font-heading z-20 overflow-hidden shadow-[var(--glass-highlight)]">
         {/* Faint Islamic Khatam star pattern watermark */}
         <TilePattern id="sidebar-desktop-khatam" className="opacity-[0.025] dark:opacity-[0.035] text-[var(--text-primary)]" />
 
@@ -188,7 +188,7 @@ export function DashboardLayout({
 
       {/* Mobile Slide-out Drawer */}
       <div
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[var(--bg-subtle)]/95 backdrop-blur-xl border-r border-[var(--border-subtle)] p-5 flex flex-col transform transition-transform duration-300 ease-out md:hidden shadow-2xl ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[var(--bg-subtle)]/95 backdrop-blur-xl border-r border-[var(--border-subtle)] p-5 flex flex-col overflow-hidden transform transition-transform duration-300 ease-out md:hidden shadow-2xl ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
         <TilePattern id="sidebar-mobile-khatam" className="opacity-[0.03] text-[var(--text-primary)]" />
@@ -285,7 +285,7 @@ export function DashboardLayout({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 overflow-x-clip relative z-10">
         {/* Top Header Bar */}
         <Header
           portalTitle={effectivePortalTitle}

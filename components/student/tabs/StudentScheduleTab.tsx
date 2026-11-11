@@ -4,9 +4,9 @@ import React from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { StageStatusBadge } from '@/components/ui/badge';
+import { StageStatusBadge, ScreeningBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Calendar, GraduationCap } from 'lucide-react';
-import { Student, Schedule, Registration } from '@/lib/types/fest';
+import { Student, Schedule, Registration, isScreeningEvent } from '@/lib/types/fest';
 
 interface StudentScheduleTabProps {
   loggedInStudent: any;
@@ -82,10 +82,18 @@ export function StudentScheduleTab({
                 return (
                   <TableRow key={sch.id}>
                     <TableCell>
-                      <div className="font-heading font-semibold text-[var(--text-primary)]">{sch.item?.name}</div>
-                      <span className="text-[10px] text-[var(--text-muted)] font-mono">
-                        {sch.item?.item_code || sch.item?.code}
-                      </span>
+                      <div className="font-heading font-semibold text-[var(--text-primary)] flex items-center gap-1.5 flex-wrap">
+                        <span>{sch.item?.name}</span>
+                        {isScreeningEvent(sch.item) && <ScreeningBadge size="sm" />}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono">
+                          {sch.item?.item_code || sch.item?.code}
+                        </span>
+                        {isScreeningEvent(sch.item) && (
+                          <ScreeningStatusBadge status={reg?.screening_status} size="sm" />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-[var(--text-primary)] font-sans">{sch.stage?.name}</div>

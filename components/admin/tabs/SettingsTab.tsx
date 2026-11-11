@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
-import { Item } from '@/lib/types/fest';
+import { Item, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 import {
   formatToIstInput,
   parseIstInputToIso,
@@ -42,7 +42,8 @@ import {
   ArrowRight,
   Info,
   CalendarPlus,
-  HelpCircle
+  HelpCircle,
+  Hash
 } from 'lucide-react';
 
 export function SettingsTab() {
@@ -92,7 +93,7 @@ export function SettingsTab() {
 
   // Per-Event Filter & Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'extended' | 'default' | 'onstage' | 'offstage' | 'submission'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'extended' | 'default' | 'onstage' | 'offstage' | 'submission' | 'screening'>('all');
   const [selectedPhase, setSelectedPhase] = useState<string>('all');
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
 
@@ -117,6 +118,48 @@ export function SettingsTab() {
   const [dangerModalOpen, setDangerModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
+  // Server-Side Chest Number Allocation (101+)
+  const [isAllocatingChests, setIsAllocatingChests] = useState(false);
+  const [confirmRenumberOpen, setConfirmRenumberOpen] = useState(false);
+  const [chestFeedback, setChestFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const chestStats = useMemo(() => {
+    const rows = festService.getChestNos();
+    const numericNos = rows
+      .map((r: any) => Number(r.chest_no))
+      .filter((n: number) => Number.isFinite(n) && n >= 101);
+    return {
+      totalAssigned: rows.length,
+      minChestNo: numericNos.length > 0 ? Math.min(...numericNos) : null,
+      maxChestNo: numericNos.length > 0 ? Math.max(...numericNos) : null
+    };
+  }, [refreshKey]);
+
+  const handleAllocateChestNumbers = async (reset: boolean) => {
+    setIsAllocatingChests(true);
+    setChestFeedback(null);
+    const res = await festService.allocateNumericChestNumbers(true, reset);
+    setIsAllocatingChests(false);
+    setConfirmRenumberOpen(false);
+
+    if (res.success) {
+      triggerRefresh();
+      const msg = reset
+        ? `Renumbered ${res.totalAssigned ?? 0} participant chest numbers from ${res.minChestNo ?? 101} to ${res.maxChestNo ?? 101}.`
+        : `Chest numbers synced (${res.newlyAssigned ?? 0} newly allotted, ${res.totalAssigned ?? 0} total: ${res.minChestNo ?? 101}–${res.maxChestNo ?? 101}).`;
+      setChestFeedback({ type: 'success', message: msg });
+      setToast({ type: 'success', message: msg });
+    } else {
+      const rawErr = res.error || 'Failed to allocate server-side chest numbers.';
+      const msg = rawErr.toLowerCase().includes('allocate_numeric_chest_numbers')
+        ? `${rawErr} — Run migration 20261111070000_auto_assign_numeric_chest_nos.sql in Supabase first.`
+        : rawErr;
+      setChestFeedback({ type: 'error', message: msg });
+      setToast({ type: 'error', message: msg });
+    }
+    setTimeout(() => setToast(null), 5000);
+  };
+
   // Filtered Events
   const filteredItems = useMemo(() => {
     return items.filter(item => {
@@ -127,9 +170,10 @@ export function SettingsTab() {
       const hasCustomExtension = Boolean(item.reg_deadline || item.fine_deadline);
       if (filterMode === 'extended' && !hasCustomExtension) return false;
       if (filterMode === 'default' && hasCustomExtension) return false;
-      if (filterMode === 'onstage' && item.mode !== 'onstage') return false;
-      if (filterMode === 'offstage' && item.mode !== 'offstage') return false;
-      if (filterMode === 'submission' && item.mode !== 'submission') return false;
+      if (filterMode === 'onstage' && getEffectiveStageMode(item) !== 'onstage') return false;
+      if (filterMode === 'offstage' && getEffectiveStageMode(item) !== 'offstage') return false;
+      if (filterMode === 'submission' && !isSubmissionEvent(item)) return false;
+      if (filterMode === 'screening' && !isScreeningEvent(item)) return false;
 
       // Search query match
       if (searchQuery.trim()) {
@@ -775,7 +819,8 @@ export function SettingsTab() {
                 { id: 'extended', label: `Extended (${metrics.customCount})` },
                 { id: 'onstage', label: 'On-Stage' },
                 { id: 'offstage', label: 'Off-Stage' },
-                { id: 'submission', label: 'Submission' }
+                { id: 'submission', label: 'Submission' },
+                { id: 'screening', label: 'Screening' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -918,7 +963,7 @@ export function SettingsTab() {
                             <Badge variant="outline" size="sm" className="text-[10px] font-sans">
                               {item.phase}
                             </Badge>
-                            <ItemModeBadge mode={item.mode} />
+                            <ItemModeBadge mode={item.mode} isSubmission={isSubmissionEvent(item)} isScreening={isScreeningEvent(item)} />
                           </div>
                         </TableCell>
 
@@ -1010,7 +1055,102 @@ export function SettingsTab() {
       </Card>
 
       {/* ========================================================
-          3. DANGER ZONE / CACHE MANAGEMENT
+          3. SERVER-SIDE CHEST NUMBERS (101+)
+      ======================================================== */}
+      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-xs">
+        <CardHeader className="pb-4 border-b border-[var(--border-subtle)]/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-heading font-bold flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-[var(--f-saffron)]" />
+                  Server-Side Numeric Chest Numbers (101+)
+                </CardTitle>
+                <Badge variant="saffron" size="sm" className="font-mono font-semibold">
+                  1-to-1 Locked
+                </Badge>
+              </div>
+              <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
+                Every student receives one permanent unique numeric chest number starting at 101 on first registration — multiple registrations never duplicate chest numbers.
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] font-mono">
+                Allotted: <strong className="text-[var(--text-primary)]">{chestStats.totalAssigned}</strong>
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 font-mono">
+                Range: <strong>{chestStats.minChestNo && chestStats.maxChestNo ? `${chestStats.minChestNo} – ${chestStats.maxChestNo}` : 'None yet'}</strong>
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-5 space-y-3">
+          {chestFeedback && (
+            <div
+              role="status"
+              className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                chestFeedback.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+              }`}
+            >
+              <span className="font-medium">{chestFeedback.message}</span>
+              <button
+                type="button"
+                onClick={() => setChestFeedback(null)}
+                className="text-[11px] underline opacity-80 hover:opacity-100 shrink-0 cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-[var(--text-primary)] font-heading">
+                Automatic & Batch Server Allocation
+              </h4>
+              <p className="text-xs text-[var(--text-muted)]">
+                New registrations automatically assign the next sequential chest number via Postgres trigger. Use these controls to backfill any missing registered participants or perform a fresh ordered renumbering from 101.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <Button
+                id="sync-allot-chest-nos-btn"
+                variant="saffron"
+                size="sm"
+                disabled={isAllocatingChests}
+                onClick={() => handleAllocateChestNumbers(false)}
+                className="font-heading font-bold text-xs cursor-pointer"
+              >
+                {isAllocatingChests ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> Syncing...
+                  </>
+                ) : (
+                  <>
+                    <Hash className="w-3.5 h-3.5 mr-1" /> Allot Missing (101+)
+                  </>
+                )}
+              </Button>
+              <Button
+                id="renumber-chest-nos-btn"
+                variant="outline"
+                size="sm"
+                disabled={isAllocatingChests}
+                onClick={() => setConfirmRenumberOpen(true)}
+                className="font-heading text-xs cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Renumber All from 101
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========================================================
+          4. DANGER ZONE / CACHE MANAGEMENT
       ======================================================== */}
       <Card className="border-rose-500/20 bg-rose-500/5">
         <CardHeader>
@@ -1052,7 +1192,7 @@ export function SettingsTab() {
         isOpen={extensionModalOpen}
         onClose={() => setExtensionModalOpen(false)}
         title={`Extend Registration Deadline: ${editingItem?.item_code || ''}`}
-        description={`${editingItem?.name_eng || ''} (${editingItem?.phase || ''} • ${editingItem?.mode || ''})`}
+        description={`${editingItem?.name_eng || ''} (${editingItem?.phase || ''}${editingItem ? ` • ${getEffectiveStageMode(editingItem) === 'onstage' ? 'On Stage' : 'Off Stage'}${isSubmissionEvent(editingItem) ? ' · Submission' : ''}${isScreeningEvent(editingItem) ? ' · Screening' : ''}` : ''})`}
         maxWidth="lg"
       >
         {editingItem && (
@@ -1245,6 +1385,45 @@ export function SettingsTab() {
               className="font-heading font-bold"
             >
               {isSavingBulk ? 'Applying...' : `Apply Extension to ${selectedItemIds.length} Events`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ========================================================
+          MODAL: RENUMBER ALL CHEST NUMBERS CONFIRMATION
+      ======================================================== */}
+      <Modal
+        isOpen={confirmRenumberOpen}
+        onClose={() => setConfirmRenumberOpen(false)}
+        title="Renumber All Chest Numbers from 101?"
+        description="Re-allocates contiguous chest numbers (101, 102, ...) for all registered participants."
+        maxWidth="md"
+      >
+        <div className="space-y-4 font-sans text-xs">
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
+            <p className="font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              Confirm Sequential Re-Numbering
+            </p>
+            <p className="text-[11px] mt-1">
+              This clears current mappings in <code>public.chest_no</code> and assigns fresh contiguous numbers starting at <strong>101</strong> ordered by college, phase, name, and CIC number. Avoid running this after hall tickets or call sheets are printed.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmRenumberOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              id="confirm-renumber-chest-nos-btn"
+              variant="saffron"
+              size="sm"
+              disabled={isAllocatingChests}
+              onClick={() => handleAllocateChestNumbers(true)}
+              className="font-heading font-bold"
+            >
+              {isAllocatingChests ? 'Renumbering...' : 'Yes, Renumber from 101'}
             </Button>
           </div>
         </div>

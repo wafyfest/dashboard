@@ -273,7 +273,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     if (!targetStu) return [];
     return results.filter(r => {
       if (!r.published) return false;
-      const isDirectChest = r.chest_no && (r.chest_no === targetStu.chest_no || r.chest_no === `ST-${targetStu.cic_no}`);
+      const isDirectChest = Boolean(r.chest_no && targetStu.chest_no && r.chest_no.trim() === targetStu.chest_no.trim());
       const isStudentMatch = Boolean(targetStu.id && ((r as any).student_id === targetStu.id || r.student?.id === targetStu.id));
       return isDirectChest || isStudentMatch;
     });
@@ -316,7 +316,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       phase: targetStu?.phase ? formatStudentCategory(targetStu.phase) : 'Senior',
       prize: 'First Prize 🥇',
       collegeName: studentCollege?.name || studentCollege?.short_name || '',
-      chestNo: targetStu ? getCanonicalChestNo(targetStu) : 'ST-1001',
+      chestNo: targetStu ? getCanonicalChestNo(targetStu) : '101',
     });
     setIsPosterOpen(true);
   };

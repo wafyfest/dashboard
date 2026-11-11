@@ -90,3 +90,26 @@ export function rateLimit({ key, limit, windowMs }: RateLimitOptions): RateLimit
 
   return { allowed, remaining, resetAt, retryAfterMs };
 }
+
+/**
+ * Extract the client IP address from standard proxy headers on a Next.js Request.
+ */
+export function getClientIp(req: Request): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+/**
+ * Build standard rate-limit response headers for a given limit check result.
+ */
+export function rateLimitHeaders(result: RateLimitResult, limit: number): Record<string, string> {
+  return {
+    'X-RateLimit-Limit': String(limit),
+    'X-RateLimit-Remaining': String(result.remaining),
+    'X-RateLimit-Reset': String(Math.ceil(result.resetAt / 1000)),
+    'Retry-After': String(Math.ceil(result.retryAfterMs / 1000)),
+  };
+}

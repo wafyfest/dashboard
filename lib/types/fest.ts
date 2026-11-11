@@ -8,6 +8,8 @@ export type PointType = 'individual' | 'group';
 
 export type SubmissionStatus = 'on_time' | 'fine' | 'late';
 
+export type ScreeningStatus = 'pending' | 'qualified' | 'eliminated';
+
 export type StageStatus = 'Upcoming' | 'Next_Item' | 'Starting_Soon' | 'On_Going' | 'Ended';
 
 export type AppealStatus = 'Pending' | 'Approved' | 'Rejected';
@@ -18,11 +20,15 @@ export type StudentCategory =
   | 'Aliya'
   | 'PG'
   | 'General'
+  | 'Special'
+  | 'Special - Foundation'
   | 'foundation'
   | 'thamheediyya'
   | 'aliya'
   | 'pg'
   | 'general'
+  | 'special'
+  | 'special - foundation'
   | 'Sub_Junior'
   | 'Junior'
   | 'Senior';
@@ -139,18 +145,84 @@ export function normalizeCategoryKey(val?: string | null): string {
   if (clean === 'PG') {
     return 'PG';
   }
+  if (clean === 'SPECIALFOUNDATION' || clean === 'SPFOUNDATION' || clean === 'SPECIALFD') {
+    return 'SPECIAL_FOUNDATION';
+  }
+  if (clean === 'SPECIAL' || clean === 'SP' || clean === 'SPECIALPROGRAM') {
+    return 'SPECIAL';
+  }
   if (clean === 'GENERAL') {
     return 'GENERAL';
   }
   return clean;
 }
 
+/**
+ * Returns true for Special Program events (e.g. SE090-SE093), which do not consume
+ * a student's max_participation event quotas.
+ */
+export function isSpecialEvent(item?: { phase?: string | null; category?: string | null } | null): boolean {
+  if (!item) return false;
+  const key = normalizeCategoryKey(item.phase || item.category);
+  return key === 'SPECIAL' || key === 'SPECIAL_FOUNDATION';
+}
+
+/**
+ * Returns true if the event requires pre-event submission (either explicit `is_submission`
+ * or legacy `mode === 'submission'`).
+ */
+export function isSubmissionEvent(item?: { is_submission?: boolean | null; mode?: string | null } | null): boolean {
+  if (!item) return false;
+  if (item.is_submission) return true;
+  return (item.mode || '').toLowerCase().trim() === 'submission';
+}
+
+/**
+ * Returns true if the event requires a pre-fest screening round prior to live finals.
+ */
+export function isScreeningEvent(item?: { is_screening?: boolean | null } | null): boolean {
+  return Boolean(item?.is_screening);
+}
+
+/**
+ * Returns true if colleges must submit a digital/video link prior to judging
+ * (either a Submission event or a Pre-Fest Screening event).
+ */
+export function requiresPreFestSubmission(
+  item?: { is_submission?: boolean | null; is_screening?: boolean | null; mode?: string | null } | null
+): boolean {
+  return isSubmissionEvent(item) || isScreeningEvent(item);
+}
+
+/**
+ * Normalizes an event's stage location strictly to 'onstage' or 'offstage'.
+ * Legacy `'submission'` mode events belong to 'offstage'.
+ */
+export function getEffectiveStageMode(item?: { mode?: string | null } | null): 'onstage' | 'offstage' {
+  const m = (item?.mode || '').toLowerCase().trim();
+  if (m === 'onstage' || m === 'on_stage' || m === 'on stage') return 'onstage';
+  return 'offstage';
+}
+
 export function isCategoryMatching(studentCatOrPhase?: string | null, itemCatOrPhase?: string | null): boolean {
   if (!itemCatOrPhase) return true;
   const itemKey = normalizeCategoryKey(itemCatOrPhase);
-  if (itemKey === 'GENERAL') return true;
   const studentKey = normalizeCategoryKey(studentCatOrPhase);
-  if (studentKey === 'GENERAL') return true;
+
+  // Special Program (SE090, SE091, SE093): open to all student phases
+  if (itemKey === 'SPECIAL') return true;
+
+  // Special - Foundation (SE092 Expo): restricted strictly to Foundation phase
+  if (itemKey === 'SPECIAL_FOUNDATION') {
+    return studentKey === 'FOUNDATION' || studentKey === 'SPECIAL_FOUNDATION';
+  }
+
+  // General (GN088, GN089): restricted strictly to Thamheediyya and Aliya phases
+  if (itemKey === 'GENERAL') {
+    return studentKey === 'THAMHEEDIYYA' || studentKey === 'ALIYA';
+  }
+
+  if (!studentCatOrPhase) return false;
   return studentKey === itemKey;
 }
 
@@ -165,18 +237,21 @@ export function isItemEligibleForCollege(
   }
 
   const itemPhase = item.phase || item.category;
-  if (!itemPhase || normalizeCategoryKey(itemPhase) === 'GENERAL') return true;
+  const itemKey = normalizeCategoryKey(itemPhase);
+  if (!itemPhase || itemKey === 'SPECIAL') return true;
 
   if (students && students.length > 0) {
     return students.some(s => isCategoryMatching(s.category || s.phase, itemPhase));
   }
 
   if (college) {
-    const key = normalizeCategoryKey(itemPhase);
-    if (key === 'FOUNDATION') return ((college.st_foundation ?? 0) > 0 || (college.st_pre_foundation ?? 0) > 0);
-    if (key === 'THAMHEEDIYYA') return (college.st_thamheediya ?? 0) > 0;
-    if (key === 'ALIYA') return (college.st_aliya ?? 0) > 0;
-    if (key === 'PG') return (college.st_pg ?? 0) > 0;
+    if (itemKey === 'FOUNDATION' || itemKey === 'SPECIAL_FOUNDATION') {
+      return ((college.st_foundation ?? 0) > 0 || (college.st_pre_foundation ?? 0) > 0);
+    }
+    if (itemKey === 'THAMHEEDIYYA') return (college.st_thamheediya ?? 0) > 0;
+    if (itemKey === 'ALIYA') return (college.st_aliya ?? 0) > 0;
+    if (itemKey === 'GENERAL') return ((college.st_thamheediya ?? 0) > 0 || (college.st_aliya ?? 0) > 0);
+    if (itemKey === 'PG') return (college.st_pg ?? 0) > 0;
   }
 
   return true;
@@ -193,6 +268,8 @@ export interface Item {
   phase: string;
   category: string; // A, B, C or StudentCategory
   mode: ItemMode;
+  is_submission?: boolean;
+  is_screening?: boolean;
   tabulation: boolean;
   point_type: PointType;
   item_type?: 'Single' | 'Group'; // alias
@@ -222,6 +299,9 @@ export interface Registration {
   college_id?: string;
   chest_no: string;
   code_letter?: string | null;
+  screening_status?: ScreeningStatus;
+  screening_remarks?: string | null;
+  screening_updated_at?: string | null;
   created_at?: string;
   item?: Item;
   student?: Student;

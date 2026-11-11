@@ -19,7 +19,7 @@ import {
   Calendar,
   Award
 } from 'lucide-react';
-import { StageStatus } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent } from '@/lib/types/fest';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export type StageControllerTab = 'relay' | 'blind_allotment' | 'all_schedules';
@@ -58,7 +58,11 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
 
   const activeSchedule = stageSchedules.find(s => s.id === selectedScheduleId) || stageSchedules[0];
   const registrations = festService.getRegistrations();
-  const activeRegistrations = registrations.filter(r => r.item_id === activeSchedule?.item_id);
+  const activeRegistrations = registrations.filter(
+    r =>
+      r.item_id === activeSchedule?.item_id &&
+      (!isScreeningEvent(activeSchedule?.item) || r.screening_status === 'qualified')
+  );
 
   // Quick Blind Code auto-generator (assigns A, B, C, D... randomly or sequentially)
   const handleAutoAllotCodes = () => {

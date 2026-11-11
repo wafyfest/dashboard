@@ -66,7 +66,7 @@ export function AdmitCardTable({
     return students.filter(student => {
       if (student.id && registeredKeys.has(student.id)) return true;
       const chest = getCanonicalChestNo(student).toUpperCase();
-      if (chest !== 'ST-N/A' && registeredKeys.has(chest)) return true;
+      if (chest !== '—' && registeredKeys.has(chest)) return true;
       const cic = String(student.admission_no ?? student.cic_no ?? student.cic_number ?? '').trim().toUpperCase();
       if (cic && registeredKeys.has(cic)) return true;
       return registrationContainsStudent(registrations[0], student, students);

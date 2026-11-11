@@ -23,7 +23,7 @@ import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege } from '@/lib/types/fest';
+import { Item, Student, StudentCategory, isCategoryMatching, isItemEligibleForCollege, normalizeCategoryKey, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
@@ -151,7 +151,7 @@ export default function CollegePortalPage() {
       collegeEligibleItems
         .filter(item => {
           if (selectedCategory === 'All Categories') return true;
-          return isCategoryMatching(item.phase || item.category, selectedCategory);
+          return normalizeCategoryKey(item.phase || item.category) === normalizeCategoryKey(selectedCategory);
         })
         .sort((a, b) => {
           const codeA = a.item_code || a.code || '';
@@ -277,7 +277,7 @@ export default function CollegePortalPage() {
       // Phase filter
       if (regModalPhaseFilter !== 'All') {
         const sCat = s.category || s.phase;
-        if (!isCategoryMatching(sCat, regModalPhaseFilter)) {
+        if (normalizeCategoryKey(sCat) !== normalizeCategoryKey(regModalPhaseFilter)) {
           return false;
         }
       }
@@ -447,6 +447,7 @@ export default function CollegePortalPage() {
             <CollegeRegistrationTab
               filteredItems={filteredItems}
               registrations={registrations}
+              submissions={festService.getSubmissionEntries(currentCollegeAfflNo || currentCollegeId)}
               selectedCategory={selectedCategory}
               setSelectedCategory={setSelectedCategory}
               categoryOptions={categoryOptions}
@@ -454,6 +455,8 @@ export default function CollegePortalPage() {
               currentCollegeAfflNo={currentCollegeAfflNo}
               onOpenRegistrationModal={handleOpenRegistrationModal}
               onUnregisterRegistration={handleUnregisterRegistration}
+              onRefresh={triggerRefresh}
+              onOpenParticipantsTab={() => setActiveTab('participants')}
               allItemsCount={allItems.length}
               registrationStatusByItem={registrationStatusByItem}
             />
@@ -558,7 +561,7 @@ export default function CollegePortalPage() {
                 <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">College Admission / Roll No</label>
                 <input
                   type="text"
-                  placeholder="e.g. ST-2023-551"
+                  placeholder="e.g. 22801"
                   value={newStudent.admission_no || ''}
                   onChange={e => setNewStudent({ ...newStudent, admission_no: e.target.value })}
                   className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono font-semibold"
@@ -628,6 +631,8 @@ export default function CollegePortalPage() {
                     <ItemTypeBadge
                       type={selectedItemForReg.point_type === 'group' ? 'Group' : 'Individual'}
                       mode={selectedItemForReg.mode}
+                      isSubmission={isSubmissionEvent(selectedItemForReg)}
+                      isScreening={isScreeningEvent(selectedItemForReg)}
                     />
                   </div>
                 </div>

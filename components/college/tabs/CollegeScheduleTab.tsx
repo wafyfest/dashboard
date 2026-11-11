@@ -4,7 +4,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { StageStatusBadge, ItemModeBadge } from '@/components/ui/badge';
-import { Schedule, Registration } from '@/lib/types/fest';
+import { Schedule, Registration, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
 import { Calendar } from 'lucide-react';
 
 interface CollegeScheduleTabProps {
@@ -71,7 +71,7 @@ export function CollegeScheduleTab({ schedules, registrations }: CollegeSchedule
                         <span className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-semibold">
                           {sch.item?.code || sch.item?.item_code}
                         </span>
-                        {sch.item?.mode && <ItemModeBadge mode={sch.item.mode} size="sm" />}
+                        {sch.item?.mode && <ItemModeBadge mode={sch.item.mode} isSubmission={isSubmissionEvent(sch.item)} isScreening={isScreeningEvent(sch.item)} size="sm" />}
                       </div>
                     </TableCell>
                     <TableCell>

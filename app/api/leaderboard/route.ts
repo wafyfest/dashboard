@@ -67,6 +67,10 @@ export async function GET(request: Request) {
     }
 
     // 2. Server-side fallback computation (if view is not yet applied in Postgres)
+    if (viewError) {
+      console.warn('[API /api/leaderboard] View query failed, falling back to aggregate:', viewError.message);
+    }
+
     const [collegesRes, resultsRes] = await Promise.all([
       supabase
         .from('colleges')
@@ -77,6 +81,22 @@ export async function GET(request: Request) {
         .select('id, college_affl_no, rank, points, published')
         .eq('published', true),
     ]);
+
+    if (collegesRes.error || resultsRes.error) {
+      const dbError = collegesRes.error || resultsRes.error;
+      console.error('[API /api/leaderboard] Fallback query error:', {
+        viewError: viewError?.message,
+        collegesError: collegesRes.error?.message,
+        resultsError: resultsRes.error?.message,
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: dbError?.message || 'Database error computing leaderboard',
+        },
+        { status: 500 }
+      );
+    }
 
     const colleges = collegesRes.data || [];
     const results = resultsRes.data || [];

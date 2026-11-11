@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Award,
@@ -14,6 +14,9 @@ import {
   FileText,
   Clock,
   CheckCircle2,
+  XCircle,
+  ExternalLink,
+  RotateCcw,
   Calendar,
   Layers,
   ChevronDown,
@@ -23,11 +26,22 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { Item, College, Student, Registration } from '@/lib/types/fest';
+import {
+  Item,
+  College,
+  Student,
+  Registration,
+  SubmissionEntry,
+  ScreeningStatus,
+  getEffectiveStageMode,
+  isSubmissionEvent,
+  isScreeningEvent,
+  requiresPreFestSubmission
+} from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
+import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 import { formatIstDisplay } from '@/lib/utils/istDate';
 
 interface EnrolledParticipantRow {
@@ -41,13 +55,15 @@ interface EnrolledParticipantRow {
 }
 
 export function EventRegistrationsTab() {
-  const { festSettings, refreshKey } = useFest();
+  const { festSettings, refreshKey, triggerRefresh } = useFest();
 
   const items = useMemo(() => festService.getItems(), [refreshKey]);
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
   const lateRegistrations = useMemo(() => festService.getLateRegistrations(), [refreshKey]);
+  const submissions = useMemo(() => festService.getSubmissionEntries(), [refreshKey]);
+  const [updatingScreeningKey, setUpdatingScreeningKey] = useState<string | null>(null);
 
   // Pre-index lookups
   const collegeMap = useMemo(() => new Map(colleges.map(c => [Number(c.affl_no), c])), [colleges]);
@@ -94,8 +110,79 @@ export function EventRegistrationsTab() {
   // Filters state
   const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('All');
-  const [modeFilter, setModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission'>('All');
+  const [modeFilter, setModeFilter] = useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Registered' | 'Empty'>('All');
+
+  const submissionLookup = useMemo(() => {
+    const byChest = new Map<string, SubmissionEntry>();
+    const byCollege = new Map<string, SubmissionEntry>();
+    submissions.forEach(s => {
+      const candidates = [
+        s.chest_no,
+        s.student?.chest_no,
+        s.student ? getCanonicalChestNo(s.student) : '',
+      ]
+        .map(v => (v || '').trim().toUpperCase())
+        .filter(v => Boolean(v) && v !== '—');
+      candidates.forEach(cleanChest => {
+        byChest.set(`${s.item_id}:${cleanChest}`, s);
+      });
+      if (s.college_affl_no) {
+        byCollege.set(`${s.item_id}:college:${s.college_affl_no}`, s);
+      }
+    });
+    return { byChest, byCollege };
+  }, [submissions]);
+
+  const findSubmissionForParticipant = (item: Item, p: EnrolledParticipantRow): SubmissionEntry | undefined => {
+    const itmId = Number(item.item_id);
+    const chestCandidates = [
+      p.registration.chest_no,
+      p.student?.chest_no,
+      getCanonicalChestNo(p.student),
+    ]
+      .map(v => (v || '').trim().toUpperCase())
+      .filter(Boolean);
+    for (const chest of chestCandidates) {
+      const direct = submissionLookup.byChest.get(`${itmId}:${chest}`);
+      if (direct) return direct;
+    }
+    const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+    if (isGroup && p.registration.college_affl_no) {
+      return submissionLookup.byCollege.get(`${itmId}:college:${p.registration.college_affl_no}`);
+    }
+    return undefined;
+  };
+
+  const handleSetScreeningStatus = async (
+    item: Item,
+    participants: EnrolledParticipantRow[],
+    target: EnrolledParticipantRow,
+    status: ScreeningStatus
+  ) => {
+    const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+    const matchingRows = isGroup
+      ? participants.filter(x => Number(x.registration.college_affl_no) === Number(target.registration.college_affl_no))
+      : [target];
+    const regIds = matchingRows.map(x => x.registration.id).filter(Boolean);
+    if (regIds.length === 0) return;
+
+    setUpdatingScreeningKey(`${target.id}-${status}`);
+    try {
+      const res = await festService.updateScreeningStatus({
+        registrationIds: regIds,
+        itemId: Number(item.item_id),
+        status
+      });
+      if (!res.success) {
+        alert(res.error || 'Failed to update screening status');
+      } else {
+        triggerRefresh();
+      }
+    } finally {
+      setUpdatingScreeningKey(null);
+    }
+  };
 
   // Expanded items state (set of item_ids)
   const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(() => {
@@ -157,8 +244,14 @@ export function EventRegistrationsTab() {
       }
 
       // Mode filter
-      if (modeFilter !== 'All' && itm.mode !== modeFilter) {
-        return false;
+      if (modeFilter !== 'All') {
+        if (modeFilter === 'submission') {
+          if (!isSubmissionEvent(itm)) return false;
+        } else if (modeFilter === 'screening') {
+          if (!isScreeningEvent(itm)) return false;
+        } else if (getEffectiveStageMode(itm) !== modeFilter) {
+          return false;
+        }
       }
 
       // Search filter
@@ -206,7 +299,7 @@ export function EventRegistrationsTab() {
       itemName: itm.name || itm.name_eng || `Event #${itm.item_id}`,
       itemCode: itm.code || itm.item_code || `ITM-${itm.item_id}`,
       itemType: itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
-      itemMode: itm.mode === 'offstage' ? 'Off' : 'On',
+      itemMode: formatPdfItemMode(itm),
       blindCode: p.codeLetter || 'Unassigned'
     }));
 
@@ -321,8 +414,8 @@ export function EventRegistrationsTab() {
             </div>
 
             {/* Mode Filter */}
-            <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs">
-              {(['All', 'onstage', 'offstage', 'submission'] as const).map(m => (
+            <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs flex-wrap">
+              {(['All', 'onstage', 'offstage', 'submission', 'screening'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
@@ -333,7 +426,15 @@ export function EventRegistrationsTab() {
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : 'Submission'}
+                  {m === 'All'
+                    ? 'All Modes'
+                    : m === 'onstage'
+                    ? 'On Stage'
+                    : m === 'offstage'
+                    ? 'Off Stage'
+                    : m === 'submission'
+                    ? 'Submission'
+                    : 'Screening'}
                 </button>
               ))}
             </div>
@@ -436,7 +537,12 @@ export function EventRegistrationsTab() {
 
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
                         <CategoryBadge category={item.phase || item.category} />
-                        <ItemModeBadge mode={item.mode} size="sm" />
+                        <ItemModeBadge
+                          mode={item.mode}
+                          isSubmission={isSubmissionEvent(item)}
+                          isScreening={isScreeningEvent(item)}
+                          size="sm"
+                        />
                         <ItemTypeBadge type={item.item_type || 'Single'} size="sm" />
                         <span className="hidden sm:inline">•</span>
                         <span className="text-[11px] font-mono hidden sm:inline">
@@ -466,6 +572,36 @@ export function EventRegistrationsTab() {
                           No Registrations
                         </span>
                       )}
+
+                      {requiresPreFestSubmission(item) && participants.length > 0 && (() => {
+                        const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+                        const targetKeys = new Set<string>();
+                        const linkedKeys = new Set<string>();
+                        participants.forEach((p, idx) => {
+                          const key = isGroup
+                            ? `college:${p.registration.college_affl_no}`
+                            : `chest:${(p.registration.chest_no || getCanonicalChestNo(p.student) || idx).toString().trim().toUpperCase()}`;
+                          targetKeys.add(key);
+                          if (findSubmissionForParticipant(item, p)?.file_url) {
+                            linkedKeys.add(key);
+                          }
+                        });
+                        const totalTargets = targetKeys.size;
+                        const linkedCount = linkedKeys.size;
+                        const allLinked = linkedCount === totalTargets && totalTargets > 0;
+                        return (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border font-mono ${
+                              allLinked
+                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                : 'border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
+                            }`}
+                            title={`${linkedCount} of ${totalTargets} pre-fest ${isGroup ? 'college teams' : 'entries'} have submitted a URL`}
+                          >
+                            {linkedCount}/{totalTargets} Links
+                          </span>
+                        );
+                      })()}
 
                       {lateCount > 0 && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
@@ -514,10 +650,25 @@ export function EventRegistrationsTab() {
                               {participants.length}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                          <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)] flex-wrap">
                             <span>
                               <strong className="text-[var(--text-primary)] font-mono">{collegeCount}</strong> {collegeCount === 1 ? 'College' : 'Colleges'}
                             </span>
+                            {isScreeningEvent(item) && (
+                              <span className="flex items-center gap-2 font-mono">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                  {participants.filter(p => p.registration.screening_status === 'qualified').length} Qualified
+                                </span>
+                                <span>•</span>
+                                <span className="text-rose-600 dark:text-rose-400">
+                                  {participants.filter(p => p.registration.screening_status === 'eliminated').length} Eliminated
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  {participants.filter(p => !p.registration.screening_status || p.registration.screening_status === 'pending').length} Pending
+                                </span>
+                              </span>
+                            )}
                             {lateCount > 0 && (
                               <span className="text-amber-600 dark:text-amber-400 font-medium">
                                 • {lateCount} Late Entries
@@ -536,12 +687,19 @@ export function EventRegistrationsTab() {
                                 <TableHead className="w-36 font-heading font-semibold py-2.5">Admission / Phone</TableHead>
                                 <TableHead className="w-24 font-heading font-semibold py-2.5 text-center">Blind Code</TableHead>
                                 <TableHead className="w-28 font-heading font-semibold py-2.5 text-center">Entry Status</TableHead>
+                                {requiresPreFestSubmission(item) && (
+                                  <TableHead className="w-36 font-heading font-semibold py-2.5 text-center">Submission Link</TableHead>
+                                )}
+                                {isScreeningEvent(item) && (
+                                  <TableHead className="w-52 font-heading font-semibold py-2.5 text-center">Screening Shortlist</TableHead>
+                                )}
                                 <TableHead className="w-40 font-heading font-semibold py-2.5 text-right pr-4">Registered (IST)</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {participants.map((p, pIdx) => {
-                                const chestNo = p.registration.chest_no || getCanonicalChestNo(p.student);
+                                const stuChest = p.student ? getCanonicalChestNo(p.student) : '';
+                                const chestNo = (stuChest && stuChest !== '—') ? stuChest : (p.registration.chest_no || '—');
                                 const stuName = p.student?.name || p.student?.full_name || 'Participant';
                                 const initials = stuName
                                   .split(' ')
@@ -551,6 +709,10 @@ export function EventRegistrationsTab() {
                                   .join('')
                                   .toUpperCase() || 'ST';
                                 const isCopied = copiedId === `chest-${p.id}`;
+                                const subEntry = requiresPreFestSubmission(item)
+                                  ? findSubmissionForParticipant(item, p)
+                                  : undefined;
+                                const screenStatus = p.registration.screening_status || 'pending';
 
                                 return (
                                   <TableRow
@@ -661,6 +823,87 @@ export function EventRegistrationsTab() {
                                         </span>
                                       )}
                                     </TableCell>
+
+                                    {/* Pre-Fest Submission / Video Link */}
+                                    {requiresPreFestSubmission(item) && (
+                                      <TableCell className="py-2.5 align-middle text-center">
+                                        {subEntry?.file_url ? (
+                                          <div className="inline-flex flex-col items-center gap-1">
+                                            <a
+                                              href={subEntry.file_url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 text-[11px] font-semibold transition-colors"
+                                              title={subEntry.file_url}
+                                            >
+                                              <ExternalLink className="w-3 h-3" />
+                                              <span>Open Link</span>
+                                            </a>
+                                            <span
+                                              className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border ${
+                                                subEntry.status === 'late'
+                                                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                                  : subEntry.status === 'fine'
+                                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                              }`}
+                                            >
+                                              {subEntry.status === 'late'
+                                                ? 'Late'
+                                                : subEntry.status === 'fine'
+                                                ? 'Late Fine'
+                                                : 'On Time'}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-[11px] text-[var(--text-muted)] italic">
+                                            No link yet
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                    )}
+
+                                    {/* Screening Shortlist Decision */}
+                                    {isScreeningEvent(item) && (
+                                      <TableCell className="py-2.5 align-middle text-center">
+                                        <div className="flex flex-col items-center gap-1.5">
+                                          <ScreeningStatusBadge status={screenStatus} size="sm" />
+                                          <div className="inline-flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              disabled={updatingScreeningKey !== null || screenStatus === 'qualified'}
+                                              onClick={() => handleSetScreeningStatus(item, participants, p, 'qualified')}
+                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 cursor-pointer inline-flex items-center gap-0.5"
+                                              title="Mark Qualified for Finals"
+                                            >
+                                              <CheckCircle2 className="w-2.5 h-2.5" />
+                                              Qualify
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={updatingScreeningKey !== null || screenStatus === 'eliminated'}
+                                              onClick={() => handleSetScreeningStatus(item, participants, p, 'eliminated')}
+                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-rose-500/35 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 cursor-pointer inline-flex items-center gap-0.5"
+                                              title="Mark Not Shortlisted"
+                                            >
+                                              <XCircle className="w-2.5 h-2.5" />
+                                              Eliminate
+                                            </button>
+                                            {screenStatus !== 'pending' && (
+                                              <button
+                                                type="button"
+                                                disabled={updatingScreeningKey !== null}
+                                                onClick={() => handleSetScreeningStatus(item, participants, p, 'pending')}
+                                                className="p-1 rounded text-[10px] border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40 cursor-pointer"
+                                                title="Reset to Pending Screening"
+                                              >
+                                                <RotateCcw className="w-2.5 h-2.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                    )}
 
                                     {/* Registered Date */}
                                     <TableCell className="py-2.5 align-middle text-right pr-4 font-mono text-[11px] text-[var(--text-muted)]">

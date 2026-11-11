@@ -34,7 +34,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const tables = [
   'fest_settings',
   'colleges',
-  'items',
+  'events',
   'students',
   'max_participation',
   'registrations',
@@ -55,7 +55,7 @@ const tables = [
 async function runDatabaseTests() {
   console.log('\n[1/3] Testing Supabase Table Connectivity & Row-Level Security:');
   const results = [];
-  
+
   for (const table of tables) {
     const start = Date.now();
     try {
@@ -63,7 +63,7 @@ async function runDatabaseTests() {
         .from(table)
         .select('*', { count: 'exact' })
         .limit(2);
-      
+
       const duration = Date.now() - start;
       if (error) {
         results.push({
@@ -96,7 +96,7 @@ async function runDatabaseTests() {
   console.table(results);
 
   console.log('\n[2/3] Validating Core System Data:');
-  
+
   // Fest Settings
   const { data: settings } = await supabase.from('fest_settings').select('*').limit(1);
   if (settings && settings[0]) {
@@ -114,9 +114,9 @@ async function runDatabaseTests() {
   const { data: colleges, count: collegeCount } = await supabase.from('colleges').select('id, affl_no, name', { count: 'exact' }).limit(3);
   console.log(` Colleges (Total: ${collegeCount}):`, colleges?.map(c => `#${c.affl_no} ${c.name}`));
 
-  // Items count
-  const { data: items, count: itemCount } = await supabase.from('items').select('id, item_code, name, category, item_type', { count: 'exact' }).limit(3);
-  console.log(` Events/Items (Total: ${itemCount}):`, items?.map(i => `[${i.item_code}] ${i.name} (${i.category}/${i.item_type})`));
+  // Events count
+  const { data: items, count: itemCount } = await supabase.from('events').select('id, item_code, name_eng, category, point_type', { count: 'exact' }).limit(3);
+  console.log(` Events (Total: ${itemCount}):`, items?.map(i => `[${i.item_code}] ${i.name_eng} (${i.category}/${i.point_type})`));
 
   // Students count
   const { data: students, count: studentCount } = await supabase.from('students').select('id, admission_no, name, category', { count: 'exact' }).limit(3);

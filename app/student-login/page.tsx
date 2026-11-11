@@ -18,7 +18,6 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
-import { createClient } from '@/lib/supabase/client';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export default function StudentLoginPage() {
@@ -59,85 +58,34 @@ export default function StudentLoginPage() {
     }
 
     try {
-      const supabase = createClient();
-      if (!supabase) {
-        throw new Error('Database connection failed. Please try again.');
-      }
+      const response = await fetch('/api/auth/student-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cicNo: cleanCic, password: cleanPassword }),
+      });
 
-      // Query students table for matching cic_no or chest_no
-      let query = supabase
-        .from('students')
-        .select('*');
-
-      // Check if cleanCic is numeric
-      if (/^\d+$/.test(cleanCic)) {
-        query = query.eq('cic_no', parseInt(cleanCic, 10));
-      } else {
-        query = query.eq('chest_no', `ST-${cleanCic}`);
-      }
-
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) {
-        console.error('Student query error:', fetchError);
-        throw new Error('Failed to verify student record. Please try again.');
-      }
-
-      if (!data || data.length === 0) {
-        setError('No student found with this CIC Number. Please check your credentials.');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.student) {
+        setError(payload?.error || 'Invalid credentials. Please verify your CIC number and password or contact your college coordinator.');
         setLoading(false);
         return;
       }
 
-      const student = data[0];
-
-      // Verify student password
-      const storedPassword = student.password ? String(student.password).trim() : null;
-
-      if (!storedPassword) {
-        // Fallback default format: {cic_no}@{college_affl_no}
-        const expectedDefault = `${student.cic_no || cleanCic}@${student.college_affl_no}`;
-        if (cleanPassword !== expectedDefault) {
-          setError('Invalid credentials. Please verify your CIC number and password or contact your college coordinator.');
-          setLoading(false);
-          return;
-        }
-      } else if (storedPassword !== cleanPassword) {
-        setError('Incorrect password. Please verify and try again.');
-        setLoading(false);
-        return;
-      }
-
-      // Look up college details to guarantee immediate college name display without delay
-      let collegeName = '';
-      let collegeShortName = '';
-      if (student.college_affl_no) {
-        try {
-          const { data: colData } = await supabase
-            .from('colleges')
-            .select('name, short_name')
-            .eq('affl_no', student.college_affl_no)
-            .maybeSingle();
-          if (colData) {
-            collegeName = colData.name;
-            collegeShortName = colData.short_name;
-          }
-        } catch { }
-      }
+      const student = payload.student;
 
       // Successful verification
-      // Store session in localStorage and cookie
+      // Store sanitized student session in localStorage and cookie (never includes password/phone)
       if (typeof window !== 'undefined') {
         localStorage.setItem('arts_fest_student_session', JSON.stringify({
           id: student.id,
           name: student.name,
           cic_no: student.cic_no,
           college_affl_no: student.college_affl_no,
-          college_name: collegeName,
-          college_short_name: collegeShortName,
+          college_name: student.college_name || '',
+          college_short_name: student.college_short_name || '',
           class: student.class,
           phase: student.phase,
-          chest_no: student.chest_no || `ST-${student.cic_no}`
+          chest_no: student.chest_no || ''
         }));
         document.cookie = `arts_fest_student_id=${student.id}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `arts_fest_student_cic=${student.cic_no}; path=/; max-age=86400; SameSite=Lax`;
