@@ -56,54 +56,44 @@ function readStudentSessionFromStorage(): { afflNo: number } | null {
 }
 
 export function FestProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (isStudentRoute() && localStorage.getItem('arts_fest_student_session')) return 'student';
-        const role = localStorage.getItem('arts_fest_active_role');
-        if (role) return role as UserRole;
-      } catch {}
-    }
-    return 'student';
-  });
+  const [currentRole, setCurrentRoleState] = useState<UserRole>('student');
+  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(0);
+  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>('');
+  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(false);
 
-  const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (isStudentRoute()) {
-          const studentSession = readStudentSessionFromStorage();
-          if (studentSession) return studentSession.afflNo;
+  // Hydrate role/college/auth state from localStorage after mount to avoid SSR hydration mismatches.
+  useEffect(() => {
+    try {
+      const studentRoute = isStudentRoute();
+      const studentSessionRaw = localStorage.getItem('arts_fest_student_session');
+      const savedRole = localStorage.getItem('arts_fest_active_role');
+      const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
+
+      if (studentRoute && studentSessionRaw) {
+        setCurrentRoleState('student');
+      } else if (savedRole) {
+        setCurrentRoleState(savedRole as UserRole);
+      }
+
+      if (studentRoute) {
+        const studentSession = readStudentSessionFromStorage();
+        if (studentSession) {
+          setCurrentCollegeAfflNoState(studentSession.afflNo);
+          setCurrentCollegeIdState(studentSession.afflNo > 0 ? `col-${studentSession.afflNo}` : '');
+        } else if (savedAffl) {
+          setCurrentCollegeAfflNoState(Number(savedAffl));
+          setCurrentCollegeIdState(`col-${savedAffl}`);
         }
-        const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
-        if (savedAffl) return Number(savedAffl);
-      } catch {}
-    }
-    return 0;
-  });
+      } else if (savedAffl) {
+        setCurrentCollegeAfflNoState(Number(savedAffl));
+        setCurrentCollegeIdState(`col-${savedAffl}`);
+      }
 
-  const [currentCollegeId, setCurrentCollegeIdState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (isStudentRoute()) {
-          const studentSession = readStudentSessionFromStorage();
-          if (studentSession) return studentSession.afflNo > 0 ? `col-${studentSession.afflNo}` : '';
-        }
-        const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
-        if (savedAffl) return `col-${savedAffl}`;
-      } catch {}
-    }
-    return '';
-  });
-
-  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (localStorage.getItem('arts_fest_student_session')) return true;
-        if (localStorage.getItem('arts_fest_active_role')) return true;
-      } catch {}
-    }
-    return false;
-  });
+      if (studentSessionRaw || savedRole) {
+        setIsAuthenticatedState(true);
+      }
+    } catch {}
+  }, []);
 
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
