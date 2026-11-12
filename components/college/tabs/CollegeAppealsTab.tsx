@@ -36,7 +36,7 @@ export function CollegeAppealsTab({
   const [selectedItemId, setSelectedItemId] = useState<string>('');
   const [grounds, setGrounds] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<'Cash' | 'GPay'>('Cash');
-  const [paidTo, setPaidTo] = useState<string>('Fazil');
+  const [paidTo, setPaidTo] = useState<string>('Accounts Office');
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
@@ -50,64 +50,104 @@ export function CollegeAppealsTab({
     return [];
   }, [registrations, college]);
 
-  // Filter students based on selected event (only list registered students for that event)
+  const isStudentInRegistration = React.useCallback((student: Student, reg: Registration) => {
+    const sId = String(student.id || '').trim();
+    const sChest = String(student.chest_no || '').trim().toLowerCase();
+    const sAdm = String(student.admission_no || '').trim().toLowerCase();
+    const sCic = String(student.cic_no || '').trim().toLowerCase();
+
+    const regChest = String(reg.chest_no || '').trim().toLowerCase();
+    if (regChest && (regChest === sChest || regChest === sAdm || regChest === sCic)) {
+      return true;
+    }
+
+    const checkPerson = (p?: Partial<Student> | null) => {
+      if (!p) return false;
+      if (p.id && sId && String(p.id) === sId) return true;
+      const pChest = String(p.chest_no || '').trim().toLowerCase();
+      const pAdm = String(p.admission_no || '').trim().toLowerCase();
+      const pCic = String(p.cic_no || '').trim().toLowerCase();
+      return (
+        (pChest && (pChest === sChest || pChest === sAdm || pChest === sCic)) ||
+        (pAdm && (pAdm === sAdm || pAdm === sCic || pAdm === sChest)) ||
+        (pCic && (pCic === sCic || pCic === sAdm || pCic === sChest))
+      );
+    };
+
+    if (checkPerson(reg.student)) return true;
+    if (reg.participants && reg.participants.some(p => checkPerson(p))) return true;
+    return false;
+  }, []);
+
+  const isItemInRegistration = React.useCallback((item: Item, reg: Registration) => {
+    const numItemId = Number(item.item_id);
+    if (!Number.isNaN(numItemId) && Number(reg.item_id) === numItemId) return true;
+    if (String(reg.item_id) === String(item.id)) return true;
+    if (reg.item) {
+      if (!Number.isNaN(numItemId) && Number(reg.item.item_id) === numItemId) return true;
+      if (String(reg.item.id) === String(item.id)) return true;
+    }
+    return false;
+  }, []);
+
+  // Only students who have at least one registration in this college
+  const registeredStudents = useMemo(() => {
+    return students.filter(s => activeRegistrations.some(r => isStudentInRegistration(s, r)));
+  }, [students, activeRegistrations, isStudentInRegistration]);
+
+  // Only events that this college has registered for
+  const registeredItems = useMemo(() => {
+    return allItems.filter(item => activeRegistrations.some(r => isItemInRegistration(item, r)));
+  }, [allItems, activeRegistrations, isItemInRegistration]);
+
+  // Filter registered students based on selected event (if any)
   const availableStudents = useMemo(() => {
     if (!selectedItemId) {
-      return students;
+      return registeredStudents;
     }
-
-    const numericItemId = Number(selectedItemId);
-
-    // Find all registration entries for the selected event
-    const itemRegs = activeRegistrations.filter(r =>
-      Number(r.item_id) === numericItemId ||
-      String(r.item_id) === selectedItemId ||
-      (r.item && (Number(r.item.id) === numericItemId || String(r.item.id) === selectedItemId))
+    const selectedItem = registeredItems.find(
+      i => String(i.id) === selectedItemId || String(i.item_id) === selectedItemId
     );
+    if (!selectedItem) return [];
+    return registeredStudents.filter(s =>
+      activeRegistrations.some(
+        r => isItemInRegistration(selectedItem, r) && isStudentInRegistration(s, r)
+      )
+    );
+  }, [selectedItemId, registeredItems, registeredStudents, activeRegistrations, isItemInRegistration, isStudentInRegistration]);
 
-    if (itemRegs.length === 0) {
-      return [];
+  // Filter registered events based on selected student (if any)
+  const availableItems = useMemo(() => {
+    if (!selectedStudentId) {
+      return registeredItems;
     }
-
-    const registeredChestNos = new Set<string>();
-    const registeredStudentIds = new Set<string>();
-
-    itemRegs.forEach(r => {
-      if (r.chest_no) registeredChestNos.add(String(r.chest_no).trim().toLowerCase());
-      if (r.student) {
-        if (r.student.id) registeredStudentIds.add(String(r.student.id));
-        if (r.student.chest_no) registeredChestNos.add(String(r.student.chest_no).trim().toLowerCase());
-        if (r.student.admission_no) registeredChestNos.add(String(r.student.admission_no).trim().toLowerCase());
-      }
-      if (r.participants && r.participants.length > 0) {
-        r.participants.forEach(p => {
-          if (p.id) registeredStudentIds.add(String(p.id));
-          if (p.chest_no) registeredChestNos.add(String(p.chest_no).trim().toLowerCase());
-          if (p.admission_no) registeredChestNos.add(String(p.admission_no).trim().toLowerCase());
-        });
-      }
-    });
-
-    return students.filter(s => {
-      const sId = String(s.id);
-      const sChest = String(s.chest_no || '').trim().toLowerCase();
-      const sAdm = String(s.admission_no || '').trim().toLowerCase();
-
-      return (
-        (sId && registeredStudentIds.has(sId)) ||
-        (sChest && registeredChestNos.has(sChest)) ||
-        (sAdm && registeredChestNos.has(sAdm))
-      );
-    });
-  }, [selectedItemId, activeRegistrations, students]);
+    const selectedStudent = registeredStudents.find(
+      std => String(std.id) === selectedStudentId || String(std.admission_no) === selectedStudentId
+    );
+    if (!selectedStudent) return [];
+    return registeredItems.filter(item =>
+      activeRegistrations.some(
+        r => isItemInRegistration(item, r) && isStudentInRegistration(selectedStudent, r)
+      )
+    );
+  }, [selectedStudentId, registeredStudents, registeredItems, activeRegistrations, isItemInRegistration, isStudentInRegistration]);
 
   // Handle Event selection change
   const handleItemSelect = (itemId: string) => {
     setSelectedItemId(itemId);
-    // Reset participant selection when event changes
-    setSelectedStudentId('');
-    setParticipantName('');
-    setChestNo('');
+    if (selectedStudentId && itemId) {
+      const item = registeredItems.find(i => String(i.id) === itemId || String(i.item_id) === itemId);
+      const student = registeredStudents.find(std => String(std.id) === selectedStudentId);
+      const stillMatches =
+        item &&
+        student &&
+        activeRegistrations.some(r => isItemInRegistration(item, r) && isStudentInRegistration(student, r));
+      if (!stillMatches) {
+        setSelectedStudentId('');
+        setParticipantName('');
+        setChestNo('');
+      }
+    }
   };
 
   // Handle participant selection change
@@ -119,10 +159,21 @@ export function CollegeAppealsTab({
       return;
     }
 
-    const s = students.find(std => String(std.id) === studentId || String(std.admission_no) === studentId);
+    const s = registeredStudents.find(
+      std => String(std.id) === studentId || String(std.admission_no) === studentId
+    );
     if (s) {
       setParticipantName(s.full_name || s.name || '');
       setChestNo(String(s.chest_no ?? s.admission_no ?? ''));
+      if (selectedItemId) {
+        const item = registeredItems.find(i => String(i.id) === selectedItemId || String(i.item_id) === selectedItemId);
+        const stillMatches =
+          item &&
+          activeRegistrations.some(r => isItemInRegistration(item, r) && isStudentInRegistration(s, r));
+        if (!stillMatches) {
+          setSelectedItemId('');
+        }
+      }
     }
   };
 
@@ -133,7 +184,7 @@ export function CollegeAppealsTab({
     setSelectedItemId('');
     setGrounds('');
     setPaymentMode('Cash');
-    setPaidTo('Fazil');
+    setPaidTo('Accounts Office');
     setErrorMessage('');
   };
 
@@ -165,7 +216,7 @@ export function CollegeAppealsTab({
       current_status: 'Pending',
       status: 'Pending',
       team_manager_name: college?.team_manager_name || 'Team Manager',
-      mobile_number: college?.team_manager_phone || college?.staff_coordinator_phone || '9800000000'
+      mobile_number: college?.team_manager_phone || college?.staff_coordinator_phone || college?.contact_no || ''
     });
 
     if (!res.success) {
@@ -269,17 +320,12 @@ export function CollegeAppealsTab({
                         onChange={e => handleStudentSelect(e.target.value)}
                         className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                       >
-                        {!selectedItemId ? (
-                          <>
-                            <option value="">Select a student...</option>
-                            {students.map(s => (
-                              <option key={s.id} value={s.id}>
-                                {s.full_name || s.name} {(s.cic_no || s.admission_no || s.cic_number || s.chest_no) ? `(CIC: ${s.cic_no || s.admission_no || s.cic_number || s.chest_no})` : ''}
-                              </option>
-                            ))}
-                          </>
-                        ) : availableStudents.length === 0 ? (
-                          <option value="">No registered students for this event</option>
+                        {availableStudents.length === 0 ? (
+                          <option value="">
+                            {selectedItemId
+                              ? 'No registered students for this event'
+                              : 'No registered students found'}
+                          </option>
                         ) : (
                           <>
                             <option value="">Select a registered student...</option>
@@ -303,7 +349,7 @@ export function CollegeAppealsTab({
                     <input
                       type="text"
                       readOnly
-                      value={collegeName}
+                      value={collegeName || ''}
                       className="w-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2.5 text-xs font-heading font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-not-allowed select-none"
                     />
                   </div>
@@ -334,12 +380,22 @@ export function CollegeAppealsTab({
                         className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                         required
                       >
-                        <option value="">Select an event...</option>
-                        {allItems.map(item => (
-                          <option key={item.id} value={item.id}>
-                            {item.code || item.item_code} - {item.name_eng || item.name}
+                        {availableItems.length === 0 ? (
+                          <option value="">
+                            {selectedStudentId
+                              ? 'No registered events for this student'
+                              : 'No registered events found'}
                           </option>
-                        ))}
+                        ) : (
+                          <>
+                            <option value="">Select a registered event...</option>
+                            {availableItems.map(item => (
+                              <option key={item.id} value={item.id}>
+                                {item.code || item.item_code} - {item.name_eng || item.name}
+                              </option>
+                            ))}
+                          </>
+                        )}
                       </select>
                       <ChevronDown className="w-4 h-4 text-[var(--text-muted)] absolute right-3 top-3 pointer-events-none" />
                     </div>
@@ -403,7 +459,6 @@ export function CollegeAppealsTab({
                         onChange={e => setPaidTo(e.target.value)}
                         className="w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3.5 py-2.5 text-xs font-sans font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 appearance-none transition-colors"
                       >
-                        <option value="Fazil">Fazil</option>
                         <option value="Accounts Office">Accounts Office</option>
                         <option value="Convenor">Convenor</option>
                         <option value="Treasurer">Treasurer</option>
@@ -440,7 +495,7 @@ export function CollegeAppealsTab({
       {/* SUB-TAB 2: APPEAL STATUS TABLE */}
       {activeSubTab === 'status' && (
         <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
             <div>
               <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
                 Submitted Grievances & Appeals
@@ -453,20 +508,20 @@ export function CollegeAppealsTab({
               size="sm"
               variant="saffron"
               onClick={() => setActiveSubTab('form')}
-              className="font-heading font-bold"
+              className="font-heading font-bold self-start sm:self-auto shrink-0"
             >
               + New Appeal
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+            <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
               <TableHeader>
                 <TableRow>
                   <TableHead>Event</TableHead>
-                  <TableHead>Participant / Chest No</TableHead>
-                  <TableHead>Grounds & Description</TableHead>
-                  <TableHead>Payment Details</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Participant / Chest No</TableHead>
+                  <TableHead>Grounds &amp; Description</TableHead>
+                  <TableHead className="whitespace-nowrap">Payment Details</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
                   <TableHead>Admin Remarks</TableHead>
                 </TableRow>
               </TableHeader>

@@ -1,7 +1,5 @@
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
-
 export const alt = '14th Wafy Arts Fest | Official Management Portal';
 export const size = {
   width: 1200,
@@ -57,7 +55,9 @@ export default async function OpenGraphImage() {
                 boxShadow: '0 8px 24px rgba(5, 150, 105, 0.4)',
               }}
             >
-              ✦
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" />
+              </svg>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '1px', color: '#ffffff' }}>

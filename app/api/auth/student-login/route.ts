@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getClientIp, rateLimit, rateLimitHeaders } from '@/lib/rateLimit';
+import { getClientIp, rateLimitAsync, rateLimitHeaders } from '@/lib/rateLimit';
+import {
+  STUDENT_CIC_COOKIE,
+  STUDENT_ID_COOKIE,
+  STUDENT_TOKEN_COOKIE,
+  getStudentCookieOptions,
+  signStudentToken,
+} from '@/lib/studentSession';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,7 +29,7 @@ interface SafeStudentSession {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit({ key: `student-login:${ip}`, limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_MS });
+  const rl = await rateLimitAsync({ key: `student-login:${ip}`, limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_MS });
 
   if (!rl.allowed) {
     const retryMins = Math.ceil(rl.retryAfterMs / 60_000);
@@ -196,16 +203,16 @@ export async function POST(req: NextRequest) {
     }
   );
 
-  response.cookies.set('arts_fest_student_id', String(safeStudent.id), {
-    path: '/',
-    maxAge: 86400,
-    sameSite: 'lax',
+  const cookieOpts = getStudentCookieOptions();
+  const signedToken = signStudentToken({
+    id: safeStudent.id,
+    cic_no: safeStudent.cic_no,
+    college_affl_no: safeStudent.college_affl_no,
   });
-  response.cookies.set('arts_fest_student_cic', String(safeStudent.cic_no), {
-    path: '/',
-    maxAge: 86400,
-    sameSite: 'lax',
-  });
+
+  response.cookies.set(STUDENT_TOKEN_COOKIE, signedToken, cookieOpts);
+  response.cookies.set(STUDENT_ID_COOKIE, String(safeStudent.id), cookieOpts);
+  response.cookies.set(STUDENT_CIC_COOKIE, String(safeStudent.cic_no), cookieOpts);
 
   return response;
 }

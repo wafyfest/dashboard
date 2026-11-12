@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   GraduationCap,
@@ -28,6 +29,7 @@ export default function StudentLoginPage() {
     setCurrentRole,
     setCurrentCollegeAfflNo,
     setCurrentCollegeId,
+    refreshSessionAndSync,
     festSettings
   } = useFest();
 
@@ -73,8 +75,7 @@ export default function StudentLoginPage() {
 
       const student = payload.student;
 
-      // Successful verification
-      // Store sanitized student session in localStorage and cookie (never includes password/phone)
+      // Store sanitized student session in localStorage (httpOnly signed cookies are set by the API route)
       if (typeof window !== 'undefined') {
         localStorage.setItem('arts_fest_student_session', JSON.stringify({
           id: student.id,
@@ -87,8 +88,6 @@ export default function StudentLoginPage() {
           phase: student.phase,
           chest_no: student.chest_no || ''
         }));
-        document.cookie = `arts_fest_student_id=${student.id}; path=/; max-age=86400; SameSite=Lax`;
-        document.cookie = `arts_fest_student_cic=${student.cic_no}; path=/; max-age=86400; SameSite=Lax`;
       }
 
       // Set current context role to student and scope to student's college
@@ -97,6 +96,8 @@ export default function StudentLoginPage() {
         setCurrentCollegeAfflNo(Number(student.college_affl_no));
         setCurrentCollegeId(`col-${student.college_affl_no}`);
       }
+
+      await refreshSessionAndSync();
 
       // Redirect to student dashboard
       router.push('/student');
@@ -124,22 +125,22 @@ export default function StudentLoginPage() {
 
       {/* ── Top Header Navigation ── */}
       <header className="absolute top-4 left-4 right-4 sm:top-6 sm:left-6 sm:right-6 z-20 flex items-center justify-between">
-        <a
+        <Link
           href="/"
           className="inline-flex items-center gap-2 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
         >
           <span className="transition-transform duration-150 group-hover:-translate-x-0.5" aria-hidden="true">←</span>
           <span>Back to Fest Home</span>
-        </a>
+        </Link>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
-          <a
+          <Link
             href="/login"
             className="inline-flex items-center gap-1.5 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
           >
             <span>College/Official Login</span>
             <span className="transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true">→</span>
-          </a>
+          </Link>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 transition-all duration-150 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"

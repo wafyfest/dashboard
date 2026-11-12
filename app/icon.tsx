@@ -1,7 +1,5 @@
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
-
 export const size = {
   width: 32,
   height: 32,
@@ -26,7 +24,9 @@ export default function Icon() {
           fontWeight: 800,
         }}
       >
-        ✦
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" />
+        </svg>
       </div>
     ),
     {

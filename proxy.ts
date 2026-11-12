@@ -12,7 +12,7 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
 
 const PROTECTED_PREFIXES = Object.keys(ROUTE_ROLE_MAP);
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Only enforce authentication on protected dashboard routes.

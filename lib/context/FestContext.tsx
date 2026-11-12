@@ -22,17 +22,44 @@ interface FestContextType {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
+  refreshSessionAndSync: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
 const FestContext = createContext<FestContextType | undefined>(undefined);
 
+function isStudentRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  const p = window.location.pathname;
+  return p === '/student' || p.startsWith('/student/') || p === '/student-login';
+}
+
+function readStudentSessionFromStorage(): { afflNo: number } | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('arts_fest_student_session');
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.id || parsed.cic_no)) {
+      const afflNo =
+        parsed.college_affl_no !== undefined &&
+        parsed.college_affl_no !== null &&
+        parsed.college_affl_no !== ''
+          ? Number(parsed.college_affl_no)
+          : 0;
+      return { afflNo: Number.isFinite(afflNo) ? afflNo : 0 };
+    }
+  } catch {
+    // Ignore malformed student session
+  }
+  return null;
+}
+
 export function FestProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const studentSession = localStorage.getItem('arts_fest_student_session');
-        if (studentSession) return 'student';
+        if (isStudentRoute() && localStorage.getItem('arts_fest_student_session')) return 'student';
         const role = localStorage.getItem('arts_fest_active_role');
         if (role) return role as UserRole;
       } catch {}
@@ -43,10 +70,9 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [currentCollegeAfflNo, setCurrentCollegeAfflNoState] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const studentSessionStr = localStorage.getItem('arts_fest_student_session');
-        if (studentSessionStr) {
-          const parsed = JSON.parse(studentSessionStr);
-          if (parsed && parsed.college_affl_no) return Number(parsed.college_affl_no);
+        if (isStudentRoute()) {
+          const studentSession = readStudentSessionFromStorage();
+          if (studentSession) return studentSession.afflNo;
         }
         const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
         if (savedAffl) return Number(savedAffl);
@@ -58,10 +84,9 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [currentCollegeId, setCurrentCollegeIdState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const studentSessionStr = localStorage.getItem('arts_fest_student_session');
-        if (studentSessionStr) {
-          const parsed = JSON.parse(studentSessionStr);
-          if (parsed && parsed.college_affl_no) return `col-${parsed.college_affl_no}`;
+        if (isStudentRoute()) {
+          const studentSession = readStudentSessionFromStorage();
+          if (studentSession) return studentSession.afflNo > 0 ? `col-${studentSession.afflNo}` : '';
         }
         const savedAffl = localStorage.getItem('arts_fest_active_affl_no');
         if (savedAffl) return `col-${savedAffl}`;
@@ -87,16 +112,139 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
   const isAuthenticatedRef = React.useRef<boolean>(false);
+  const currentCollegeAfflNoRef = React.useRef<number>(currentCollegeAfflNo);
   const setIsAuthenticated = (auth: boolean) => {
     isAuthenticatedRef.current = auth;
     setIsAuthenticatedState(auth);
   };
 
   useEffect(() => {
+    currentCollegeAfflNoRef.current = currentCollegeAfflNo;
+  }, [currentCollegeAfflNo]);
+
+  const resolveUserAndSync = React.useCallback(async (
+    supabaseClient: NonNullable<ReturnType<typeof createClient>>,
+    user: AuthUser,
+    forceSync: boolean,
+    updateRefresh: boolean = true
+  ): Promise<boolean> => {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (accessToken && supabaseClient.realtime?.setAuth) {
+      supabaseClient.realtime.setAuth(accessToken);
+    }
+
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('role, college_affl_no')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    let role = profile?.role as UserRole | undefined;
+    let afflNo: number | null | undefined = profile?.college_affl_no;
+
+    if ((!role || !afflNo) && user.email) {
+      const { data: matchedCollege } = await supabaseClient
+        .from('colleges')
+        .select('affl_no')
+        .eq('email', user.email.trim().toLowerCase())
+        .maybeSingle();
+      if (matchedCollege?.affl_no) {
+        afflNo = matchedCollege.affl_no;
+        if (!role) role = 'college';
+      }
+    }
+
+    if (role === 'admin' || role === 'convenor' || role === 'stage_controller' || role === 'result_entry') {
+      setCurrentRoleState(role);
+      currentCollegeAfflNoRef.current = 0;
+      const connected = await festService.syncWithSupabase(undefined, forceSync);
+      setIsSupabaseConnected(connected);
+      setFestSettings(festService.getFestSettings());
+      if (updateRefresh) setRefreshKey(prev => prev + 1);
+      setIsAuthenticated(true);
+      return true;
+    }
+
+    if (role === 'college' && afflNo) {
+      setCurrentRoleState('college');
+      setCurrentCollegeAfflNoState(afflNo);
+      setCurrentCollegeIdState(`col-${afflNo}`);
+      currentCollegeAfflNoRef.current = afflNo;
+      const connected = await festService.syncWithSupabase(afflNo, forceSync);
+      setIsSupabaseConnected(connected);
+      setFestSettings(festService.getFestSettings());
+      if (updateRefresh) setRefreshKey(prev => prev + 1);
+      setIsAuthenticated(true);
+      return true;
+    }
+
+    console.warn('[FestContext] User profile missing or college affiliation not assigned');
+    setIsAuthenticated(false);
+    return false;
+  }, []);
+
+  const refreshSessionAndSync = React.useCallback(async (): Promise<boolean> => {
+    if (isStudentRoute()) {
+      const studentSession = readStudentSessionFromStorage();
+      if (studentSession) {
+        const sAffl = studentSession.afflNo;
+        setCurrentRoleState('student');
+        setCurrentCollegeAfflNoState(sAffl);
+        setCurrentCollegeIdState(sAffl > 0 ? `col-${sAffl}` : '');
+        currentCollegeAfflNoRef.current = sAffl;
+        setIsAuthenticated(true);
+        const connected = await festService.syncWithSupabase(sAffl > 0 ? sAffl : undefined, true);
+        setIsSupabaseConnected(connected);
+        setFestSettings(festService.getFestSettings());
+        setRefreshKey(prev => prev + 1);
+        setIsLoadingAuth(false);
+        return true;
+      }
+    }
+
+    const supabaseClient = createClient();
+    if (supabaseClient) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session?.access_token && supabaseClient.realtime?.setAuth) {
+        supabaseClient.realtime.setAuth(session.access_token);
+      }
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user) {
+        const ok = await resolveUserAndSync(supabaseClient, user, true, true);
+        setIsLoadingAuth(false);
+        return ok;
+      }
+    }
+
+    const studentSession = readStudentSessionFromStorage();
+    if (studentSession) {
+      const sAffl = studentSession.afflNo;
+      setCurrentRoleState('student');
+      setCurrentCollegeAfflNoState(sAffl);
+      setCurrentCollegeIdState(sAffl > 0 ? `col-${sAffl}` : '');
+      currentCollegeAfflNoRef.current = sAffl;
+      setIsAuthenticated(true);
+      const connected = await festService.syncWithSupabase(sAffl > 0 ? sAffl : undefined, true);
+      setIsSupabaseConnected(connected);
+      setFestSettings(festService.getFestSettings());
+      setRefreshKey(prev => prev + 1);
+      setIsLoadingAuth(false);
+      return true;
+    }
+
+    setIsLoadingAuth(false);
+    return false;
+  }, [resolveUserAndSync]);
+
+  useEffect(() => {
     // Subscribe to live Realtime updates via WebSockets
-    const unsubscribeRealtime = festService.subscribeToRealtimeChanges(() => {
-      triggerRefresh();
-    });
+    const unsubscribeRealtime = festService.subscribeToRealtimeChanges(
+      () => {
+        triggerRefresh();
+      },
+      () => currentCollegeAfflNoRef.current || undefined
+    );
 
     const supabase = createClient();
     if (!supabase) {
@@ -108,108 +256,82 @@ export function FestProvider({ children }: { children: ReactNode }) {
     let authSubscription: { unsubscribe: () => void } | null = null;
 
     // Load initial authenticated user session
-    supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, college_affl_no')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        const role = profile?.role as UserRole | undefined;
-        const afflNo = profile?.college_affl_no;
-
-        if (role === 'admin' || role === 'convenor' || role === 'stage_controller' || role === 'result_entry') {
-          setCurrentRoleState(role);
-          const connected = await festService.syncWithSupabase(undefined, true);
-          setIsSupabaseConnected(connected);
-          if (connected) {
-            setFestSettings(festService.getFestSettings());
-            setRefreshKey(prev => prev + 1);
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-        } else if (role === 'college' && afflNo) {
-          setCurrentRoleState('college');
-          setCurrentCollegeAfflNoState(afflNo);
-          setCurrentCollegeIdState(`col-${afflNo}`);
-          const connected = await festService.syncWithSupabase(afflNo, true);
-          setIsSupabaseConnected(connected);
-          if (connected) {
-            setFestSettings(festService.getFestSettings());
-            setRefreshKey(prev => prev + 1);
-            setIsAuthenticated(true);
-          } else {
-            setIsAuthenticated(false);
-          }
-        } else {
-          console.warn('[FestContext] User profile missing or college affiliation not assigned');
-          setIsAuthenticated(false);
+    const initialStudentSession = isStudentRoute() ? readStudentSessionFromStorage() : null;
+    if (initialStudentSession) {
+      const sAffl = initialStudentSession.afflNo;
+      setCurrentRoleState('student');
+      setCurrentCollegeAfflNoState(sAffl);
+      setCurrentCollegeIdState(sAffl > 0 ? `col-${sAffl}` : '');
+      currentCollegeAfflNoRef.current = sAffl;
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      festService.syncWithSupabase(sAffl > 0 ? sAffl : undefined, false).then(connected => {
+        setIsSupabaseConnected(connected);
+        if (connected) {
+          setFestSettings(festService.getFestSettings());
+          setRefreshKey(prev => prev + 1);
         }
-      } else {
-        // Check for active student session
-        let hasStudentSession = false;
-        if (typeof window !== 'undefined') {
-          const studentSessionStr = localStorage.getItem('arts_fest_student_session');
-          if (studentSessionStr) {
-            try {
-              const studentSession = JSON.parse(studentSessionStr);
-              if (studentSession && studentSession.college_affl_no) {
-                const sAffl = Number(studentSession.college_affl_no);
-                setCurrentRoleState('student');
-                setCurrentCollegeAfflNoState(sAffl);
-                setCurrentCollegeIdState(`col-${sAffl}`);
-                setIsAuthenticated(true);
-                hasStudentSession = true;
-                // Fast background sync without blocking UI
-                festService.syncWithSupabase(sAffl, false).then(connected => {
-                  setIsSupabaseConnected(connected);
-                  if (connected) {
-                    setFestSettings(festService.getFestSettings());
-                    setRefreshKey(prev => prev + 1);
-                  }
-                });
+      });
+    } else {
+      supabase.auth.getUser().then(async ({ data: { user } }: { data: { user: AuthUser | null } }) => {
+        if (user) {
+          await resolveUserAndSync(supabase, user, true, true);
+        } else {
+          // Check for active student session
+          let hasStudentSession = false;
+          const studentSession = readStudentSessionFromStorage();
+          if (studentSession) {
+            const sAffl = studentSession.afflNo;
+            setCurrentRoleState('student');
+            setCurrentCollegeAfflNoState(sAffl);
+            setCurrentCollegeIdState(sAffl > 0 ? `col-${sAffl}` : '');
+            currentCollegeAfflNoRef.current = sAffl;
+            setIsAuthenticated(true);
+            hasStudentSession = true;
+            // Fast background sync without blocking UI
+            festService.syncWithSupabase(sAffl > 0 ? sAffl : undefined, false).then(connected => {
+              setIsSupabaseConnected(connected);
+              if (connected) {
+                setFestSettings(festService.getFestSettings());
+                setRefreshKey(prev => prev + 1);
               }
-            } catch (e) {
-              // Ignore JSON parse error
+            });
+          }
+
+          if (!hasStudentSession) {
+            setIsAuthenticated(false);
+            const connected = await festService.syncWithSupabase(undefined, false);
+            setIsSupabaseConnected(connected);
+            if (connected) {
+              setFestSettings(festService.getFestSettings());
+              setRefreshKey(prev => prev + 1);
             }
           }
         }
-
-        if (!hasStudentSession) {
-          setIsAuthenticated(false);
-          const connected = await festService.syncWithSupabase(undefined, false);
-          setIsSupabaseConnected(connected);
-          if (connected) {
-            setFestSettings(festService.getFestSettings());
-            setRefreshKey(prev => prev + 1);
-          }
-        }
-      }
-      setIsLoadingAuth(false);
-    });
+        setIsLoadingAuth(false);
+      });
+    }
 
     // Subscribe to Supabase Auth State Changes (login, logout, token refresh, window focus)
     const { data } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      if (isStudentRoute() && readStudentSessionFromStorage()) {
+        return;
+      }
       if (event === 'SIGNED_OUT') {
-        const hasStudent = typeof window !== 'undefined' && localStorage.getItem('arts_fest_student_session');
-        if (!hasStudent) {
+        const studentSession = readStudentSessionFromStorage();
+        if (!studentSession) {
           setIsAuthenticated(false);
           setCurrentRoleState('student');
           setCurrentCollegeAfflNoState(0);
           setCurrentCollegeIdState('');
+          currentCollegeAfflNoRef.current = 0;
         } else {
-          try {
-            const studentSession = JSON.parse(localStorage.getItem('arts_fest_student_session') || '{}');
-            if (studentSession && studentSession.college_affl_no) {
-              const sAffl = Number(studentSession.college_affl_no);
-              setCurrentRoleState('student');
-              setCurrentCollegeAfflNoState(sAffl);
-              setCurrentCollegeIdState(`col-${sAffl}`);
-              setIsAuthenticated(true);
-            }
-          } catch {}
+          const sAffl = studentSession.afflNo;
+          setCurrentRoleState('student');
+          setCurrentCollegeAfflNoState(sAffl);
+          setCurrentCollegeIdState(sAffl > 0 ? `col-${sAffl}` : '');
+          currentCollegeAfflNoRef.current = sAffl;
+          setIsAuthenticated(true);
         }
       }
       if (event === 'SIGNED_IN' && session?.user) {
@@ -217,44 +339,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
         if (isFreshLogin) {
           setIsLoadingAuth(true);
         }
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, college_affl_no')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        const role = profile?.role as UserRole | undefined;
-        const afflNo = profile?.college_affl_no;
-
-        if (role === 'admin' || role === 'convenor' || role === 'stage_controller' || role === 'result_entry') {
-          setCurrentRoleState(role);
-          const connected = await festService.syncWithSupabase(undefined, isFreshLogin);
-          setIsSupabaseConnected(connected);
-          if (connected) {
-            setFestSettings(festService.getFestSettings());
-            if (isFreshLogin) setRefreshKey(prev => prev + 1);
-            setIsAuthenticated(true);
-          } else {
-            if (isFreshLogin) setIsAuthenticated(false);
-          }
-        } else if (role === 'college' && afflNo) {
-          setCurrentRoleState('college');
-          setCurrentCollegeAfflNoState(afflNo);
-          setCurrentCollegeIdState(`col-${afflNo}`);
-          const connected = await festService.syncWithSupabase(afflNo, isFreshLogin);
-          setIsSupabaseConnected(connected);
-          if (connected) {
-            setFestSettings(festService.getFestSettings());
-            if (isFreshLogin) setRefreshKey(prev => prev + 1);
-            setIsAuthenticated(true);
-          } else {
-            if (isFreshLogin) setIsAuthenticated(false);
-          }
-        } else {
-          console.warn('[FestContext] User profile missing or college affiliation not assigned');
-          setIsAuthenticated(false);
-        }
+        await resolveUserAndSync(supabase, session.user, isFreshLogin, isFreshLogin);
         if (isFreshLogin) {
           setIsLoadingAuth(false);
         }
@@ -324,14 +409,22 @@ export function FestProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      if (supabase) {
-        await supabase.auth.signOut();
+    const signingOutStudent = isStudentRoute() || currentRole === 'student';
+    if (!signingOutStudent) {
+      try {
+        const { createClient } = await import('@/lib/supabase/client');
+        const supabase = createClient();
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
+      } catch {
+        // Proceed even if Supabase signout fails
       }
+    }
+    try {
+      await fetch('/api/auth/student-logout', { method: 'POST' });
     } catch {
-      // Proceed even if Supabase signout fails
+      // Proceed even if server cookie clear fails
     }
     if (typeof window !== 'undefined') {
       localStorage.removeItem('arts_fest_active_role');
@@ -339,13 +432,13 @@ export function FestProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('arts_fest_student_session');
       document.cookie = 'arts_fest_active_role=; path=/; max-age=0; SameSite=Lax';
       document.cookie = 'arts_fest_active_affl_no=; path=/; max-age=0; SameSite=Lax';
-      document.cookie = 'arts_fest_student_id=; path=/; max-age=0; SameSite=Lax';
-      document.cookie = 'arts_fest_student_cic=; path=/; max-age=0; SameSite=Lax';
     }
     setCurrentRoleState('student');
     setCurrentCollegeAfflNoState(0);
     setCurrentCollegeIdState('');
+    currentCollegeAfflNoRef.current = 0;
     setIsAuthenticated(false);
+    festService.clearSessionCache();
   };
 
   const setCurrentCollegeId = (colId: string) => {
@@ -387,6 +480,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
         theme,
         setTheme,
         toggleTheme,
+        refreshSessionAndSync,
         signOut,
       }}
     >

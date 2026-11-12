@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Trophy } from 'lucide-react';
+import { Trophy, Search } from 'lucide-react';
 
 interface StudentAllResultsTabProps {
   results: any[];
@@ -20,20 +20,45 @@ export function StudentAllResultsTab({
   results,
   leaderboard,
 }: StudentAllResultsTabProps) {
-  const publishedResults = results.filter(r => r.published);
+  const [searchQuery, setSearchQuery] = useState('');
+  const publishedResults = useMemo(() => {
+    const base = results.filter(r => r.published);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter(r => {
+      const eventName = String(r.item?.name_eng || r.item?.name || '').toLowerCase();
+      const c1 = String(r.first_reg?.college?.name || r.first_reg?.college?.short_name || r.first_reg?.college?.code || '').toLowerCase();
+      const c2 = String(r.second_reg?.college?.name || r.second_reg?.college?.short_name || r.second_reg?.college?.code || '').toLowerCase();
+      const c3 = String(r.third_reg?.college?.name || r.third_reg?.college?.short_name || r.third_reg?.college?.code || '').toLowerCase();
+      return eventName.includes(q) || c1.includes(q) || c2.includes(q) || c3.includes(q);
+    });
+  }, [results, searchQuery]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-4">
         <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl overflow-hidden">
-          <CardHeader>
-            <div>
-              <CardTitle className="text-base font-heading font-bold text-[var(--text-primary)]">
-                Published Event Results
-              </CardTitle>
-              <CardDescription className="text-xs mt-0.5 font-sans">
-                Officially finalized competition rankings & grade points
-              </CardDescription>
+          <CardHeader className="gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-heading font-bold text-[var(--text-primary)]">
+                  Published Event Results
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5 font-sans">
+                  Officially finalized competition rankings &amp; grade points
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Filter by event or college..."
+                  aria-label="Filter published results"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none font-sans"
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">

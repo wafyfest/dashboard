@@ -65,29 +65,29 @@ export function StudentDashboardTab({
   const currentSlide = slides[activeSlide] || slides[0];
 
   return (
-    <div className="space-y-6">
-      {/* A. Highlighted Images Slideshow */}
+    <div className="space-y-4">
+      {/* A. Compact Fest Spotlight Banner */}
       <div className="relative rounded-3xl overflow-hidden shadow-elevated border border-[var(--border-subtle)] [box-shadow:var(--shadow-elevated),var(--glass-highlight)]">
         <div
-          className={`p-8 sm:p-12 bg-gradient-to-br ${currentSlide.theme} text-white min-h-[220px] flex flex-col justify-between transition-all duration-500 relative`}
+          className={`p-5 sm:p-7 bg-gradient-to-br ${currentSlide.theme} text-white min-h-[155px] flex flex-col justify-between transition-all duration-500 relative`}
         >
-          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="space-y-3 relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 backdrop-blur-md text-amber-300 text-xs font-heading font-bold border border-amber-500/35 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div className="space-y-2 relative z-10 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 backdrop-blur-md text-amber-300 text-[11px] font-heading font-bold border border-amber-500/35">
+              <Sparkles className="w-3 h-3 text-amber-400" />
               <span>{currentSlide.badge}</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight leading-tight text-white">
+            <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight leading-tight text-white">
               {currentSlide.title}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
+            <p className="text-xs text-slate-300 leading-relaxed font-sans">
               {currentSlide.subtitle}
             </p>
           </div>
 
           {/* Slider Controls */}
-          <div className="flex items-center justify-between pt-6 border-t border-white/10 relative z-10">
+          <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/10 relative z-10">
             <div className="flex items-center gap-2">
               {slides.map((_, idx) => (
                 <button
@@ -304,7 +304,7 @@ export function StudentDashboardTab({
                           {star.student.full_name || star.student.name}
                         </div>
                         <div className="text-[10px] text-[var(--text-muted)] font-mono">
-                          Adm: {star.student.admission_no} • {star.student.phase}
+                          CIC: {star.student.cic_no || star.student.admission_no || '—'} • {star.student.phase}
                         </div>
                       </div>
                     </div>

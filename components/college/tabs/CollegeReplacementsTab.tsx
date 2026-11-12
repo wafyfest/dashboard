@@ -82,7 +82,7 @@ export function CollegeReplacementsTab({
       </div>
 
       {/* Minimalist Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-[var(--bg-surface)] p-4 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] shadow-2xs flex items-center justify-between backdrop-blur-md">
           <div>
             <p className="text-[10px] font-heading font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Requests</p>
@@ -143,9 +143,9 @@ export function CollegeReplacementsTab({
               </CardDescription>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
               {/* Search input */}
-              <div className="relative min-w-[200px]">
+              <div className="relative w-full sm:w-auto sm:min-w-[200px]">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-[var(--text-muted)]" />
                 <input
                   type="text"
@@ -160,7 +160,7 @@ export function CollegeReplacementsTab({
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3 py-1.5 text-xs font-heading font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all cursor-pointer"
+                className="w-full sm:w-auto bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl px-3 py-1.5 text-xs font-heading font-semibold text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all cursor-pointer"
               >
                 <option value="All">All Statuses</option>
                 <option value="Pending">Pending</option>
@@ -172,14 +172,14 @@ export function CollegeReplacementsTab({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+          <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
             <TableHeader>
               <TableRow>
                 <TableHead>Original Participant</TableHead>
                 <TableHead>Replacement Participant</TableHead>
                 <TableHead>Reason / Notes</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Requested On</TableHead>
+                <TableHead className="whitespace-nowrap">Status</TableHead>
+                <TableHead className="whitespace-nowrap">Requested On</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

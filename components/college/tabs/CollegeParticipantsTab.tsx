@@ -287,11 +287,11 @@ export function CollegeParticipantsTab({
         })),
         filterSummary: hasActiveFilters
           ? [
-              selectedCategory !== 'All Categories' ? `Category: ${selectedCategory}` : null,
-              selectedItemCode !== 'All Item Codes' ? `Event: ${selectedItemCode}` : null,
-              selectedMode !== 'All Modes' ? `Mode: ${selectedMode}` : null,
-              searchQuery ? `Search: "${searchQuery}"` : null
-            ].filter(Boolean).join(' | ')
+            selectedCategory !== 'All Categories' ? `Category: ${selectedCategory}` : null,
+            selectedItemCode !== 'All Item Codes' ? `Event: ${selectedItemCode}` : null,
+            selectedMode !== 'All Modes' ? `Mode: ${selectedMode}` : null,
+            searchQuery ? `Search: "${searchQuery}"` : null
+          ].filter(Boolean).join(' | ')
           : undefined
       });
 
@@ -309,27 +309,27 @@ export function CollegeParticipantsTab({
     <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
       <CardHeader className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
             </span>
             <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
-              Registered Competition Participants
+              Registered Participants
             </CardTitle>
             <Badge variant="saffron" className="font-mono font-bold">
               {filteredRows.length} / {participantRows.length} Entries
             </Badge>
           </div>
           <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
-            Official participant directory sorted by CIC number
+            Official Participant Directory
           </CardDescription>
         </div>
 
         {/* Toolbar: Category Filter + Item Code Filter + Search + PDF Export */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           {/* Category Filter Dropdown */}
-          <div className="relative min-w-[140px]">
+          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
             <select
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
@@ -346,7 +346,7 @@ export function CollegeParticipantsTab({
           </div>
 
           {/* Item Code Filter Dropdown */}
-          <div className="relative min-w-[140px]">
+          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
             <select
               value={selectedItemCode}
               onChange={e => setSelectedItemCode(e.target.value)}
@@ -363,7 +363,7 @@ export function CollegeParticipantsTab({
           </div>
 
           {/* Stage Mode Filter Dropdown */}
-          <div className="relative min-w-[130px]">
+          <div className="relative flex-1 sm:flex-initial min-w-[130px]">
             <select
               value={selectedMode}
               onChange={e => setSelectedMode(e.target.value)}
@@ -444,28 +444,28 @@ export function CollegeParticipantsTab({
           );
         })()}
 
-        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12 text-center">#</TableHead>
-              <TableHead>Student Name</TableHead>
-              <TableHead>
+              <TableHead className="w-10 text-center whitespace-nowrap">#</TableHead>
+              <TableHead className="whitespace-nowrap">Student Name</TableHead>
+              <TableHead className="whitespace-nowrap">
                 <button
                   onClick={() => setSortAsc(!sortAsc)}
-                  className="flex items-center gap-1 hover:text-[var(--f-saffron)] transition-colors font-bold cursor-pointer text-xs"
+                  className="flex items-center gap-1 hover:text-[var(--f-saffron)] transition-colors font-bold cursor-pointer text-xs whitespace-nowrap"
                   title="Click to toggle CIC sorting direction"
                 >
-                  <span>CIC / Adm No</span>
-                  <ArrowUpDown className="w-3 h-3 text-[var(--f-saffron)]" />
+                  <span>CIC No</span>
+                  <ArrowUpDown className="w-3 h-3 text-[var(--f-saffron)] shrink-0" />
                 </button>
               </TableHead>
-              <TableHead>Chest No</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Event Name</TableHead>
-              <TableHead>Event Code</TableHead>
-              <TableHead className="text-center">Type / Mode</TableHead>
-              <TableHead className="text-center">Blind Code</TableHead>
-              <TableHead className="text-center">Screening &amp; Video/File Link</TableHead>
+              <TableHead className="whitespace-nowrap">Chest No</TableHead>
+              <TableHead className="whitespace-nowrap">Category</TableHead>
+              <TableHead className="whitespace-nowrap">Event Name</TableHead>
+              <TableHead className="whitespace-nowrap">Code</TableHead>
+              <TableHead className="whitespace-nowrap text-center">Type / Mode</TableHead>
+              <TableHead className="whitespace-nowrap text-center">Blind Code</TableHead>
+              <TableHead className="whitespace-nowrap text-center">Screening &amp; Link</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -491,17 +491,17 @@ export function CollegeParticipantsTab({
                       {p.studentName}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       {p.cicNo}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                       {p.chestNo}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <CategoryBadge category={p.category} />
                   </TableCell>
                   <TableCell>
@@ -512,7 +512,7 @@ export function CollegeParticipantsTab({
                       <div className="text-[10px] font-sans text-[var(--text-muted)]">{p.itemNameMal}</div>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono font-bold text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
+                  <TableCell className="font-mono font-bold text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] whitespace-nowrap">
                     {p.itemCode}
                   </TableCell>
                   <TableCell className="text-center">
@@ -541,19 +541,18 @@ export function CollegeParticipantsTab({
                         <div className="flex flex-col items-center gap-1">
                           {p.submissionEntry?.file_url ? (
                             <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                                p.submissionEntry.status === 'late'
-                                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                  : p.submissionEntry.status === 'fine'
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${p.submissionEntry.status === 'late'
+                                ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                : p.submissionEntry.status === 'fine'
                                   ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
                                   : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                              }`}
+                                }`}
                             >
                               {p.submissionEntry.status === 'late'
                                 ? 'Submitted (Late)'
                                 : p.submissionEntry.status === 'fine'
-                                ? 'Submitted (Late Fine)'
-                                : 'Submitted On Time'}
+                                  ? 'Submitted (Late Fine)'
+                                  : 'Submitted On Time'}
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">

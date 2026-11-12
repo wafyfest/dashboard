@@ -1,7 +1,5 @@
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
-
 export const size = {
   width: 180,
   height: 180,
@@ -27,12 +25,16 @@ export default function AppleIcon() {
       >
         <div
           style={{
-            fontSize: 72,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             color: '#34d399',
             marginBottom: 8,
           }}
         >
-          ✦
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" />
+          </svg>
         </div>
         <div
           style={{

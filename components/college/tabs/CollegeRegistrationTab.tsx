@@ -121,21 +121,21 @@ export function CollegeRegistrationTab({
             Enroll student participants in Single and Group events according to quotas
           </CardDescription>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <div className="text-xs text-[var(--text-secondary)] font-sans hidden sm:block">
             Enrolled:{' '}
             <strong className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono font-bold">
-              {registrations.length}
+              {registrationByItemId.size}
             </strong>{' '}
             / <span className="font-mono">{allItemsCount}</span> Events
           </div>
 
           {/* Stage Mode Filter */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
             <select
               value={selectedMode}
               onChange={(e) => setSelectedMode(e.target.value as any)}
-              className="appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
             >
               <option value="All">All Stage Modes</option>
               <option value="onstage">On Stage</option>
@@ -147,11 +147,11 @@ export function CollegeRegistrationTab({
           </div>
 
           {/* Category Filter */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial min-w-[150px]">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3.5 py-2 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
             >
               <option value="All Categories">All Categories</option>
               {categoryOptions.map(cat => (
@@ -187,17 +187,16 @@ export function CollegeRegistrationTab({
             )}
           </div>
         )}
-        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
               <TableHead className="w-12 text-center">#</TableHead>
-              <TableHead>Event (Malayalam)</TableHead>
-              <TableHead>Name (English)</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-center">Type / Mode</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead className="text-center">Registered</TableHead>
-              <TableHead className="text-center w-28">Actions</TableHead>
+              <TableHead className="w-[34%]">Event Name</TableHead>
+              <TableHead className="whitespace-nowrap">Category</TableHead>
+              <TableHead className="text-center whitespace-nowrap">Type / Mode</TableHead>
+              <TableHead className="whitespace-nowrap">Code</TableHead>
+              <TableHead className="text-center whitespace-nowrap">Registered</TableHead>
+              <TableHead className="text-center whitespace-nowrap">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,9 +217,6 @@ export function CollegeRegistrationTab({
                 <TableRow key={item.id}>
                   <TableCell className="text-center font-mono font-medium text-[var(--text-muted)]">
                     {index + 1}
-                  </TableCell>
-                  <TableCell className="font-sans font-medium text-[var(--text-secondary)]">
-                    {item.name_mal || item.name}
                   </TableCell>
                   <TableCell>
                     <div className="font-heading font-bold text-[var(--text-primary)] text-xs sm:text-sm">
@@ -286,9 +282,7 @@ export function CollegeRegistrationTab({
                             disabled={isLocked}
                             onClick={() => {
                               if (isLocked) return;
-                              if (confirm(`Are you sure you want to unregister from "${item.name_eng || item.name}"?`)) {
-                                onUnregisterRegistration?.(item);
-                              }
+                              onUnregisterRegistration?.(item);
                             }}
                           >
                             <Trash2 className="w-4 h-4 text-rose-500" />
@@ -368,7 +362,7 @@ export function CollegeRegistrationTab({
             })}
             {displayedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-[var(--text-muted)] text-xs">
+                <TableCell colSpan={7} className="text-center py-12 text-[var(--text-muted)] text-xs">
                   <div className="max-w-md mx-auto space-y-2">
                     <CalendarCheck className="w-8 h-8 mx-auto opacity-40 text-[var(--text-muted)]" />
                     <p className="font-heading font-semibold text-[var(--text-secondary)]">

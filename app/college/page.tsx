@@ -26,15 +26,15 @@ import { Modal } from '@/components/ui/modal';
 import {
   Item,
   Student,
-  StudentCategory,
   isCategoryMatching,
   isItemEligibleForCollege,
   normalizeCategoryKey,
   isSubmissionEvent,
   isScreeningEvent,
+  requiresPreFestSubmission,
   getItemParticipantBounds
 } from '@/lib/types/fest';
-import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
+import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, isSameStudent } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -48,7 +48,7 @@ import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplace
 import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
 
 export default function CollegePortalPage() {
-  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth } = useFest();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -62,7 +62,7 @@ export default function CollegePortalPage() {
     { id: 'registration', label: 'Registration', icon: ClipboardPen },
     { id: 'participants', label: 'Participants', icon: Users },
     { id: 'students', label: 'Students', icon: UserCheck },
-    { id: 'volunteers', label: 'Volunteer', icon: HeartHandshake },
+    { id: 'volunteers', label: 'Volunteers', icon: HeartHandshake },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     { id: 'admit_card', label: 'Admit Card', icon: Contact },
     { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
@@ -70,15 +70,6 @@ export default function CollegePortalPage() {
   ];
 
   // Modals state
-  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
-  const [newStudent, setNewStudent] = useState<Partial<Student>>({
-    full_name: '',
-    admission_no: '',
-    category: 'Foundation',
-    phone: '',
-    photo_url: ''
-  });
-
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedItemForReg, setSelectedItemForReg] = useState<Item | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
@@ -117,23 +108,23 @@ export default function CollegePortalPage() {
     [refreshKey]
   );
 
-  const [students, setStudents] = useState<Student[]>(() =>
-    festService.getStudents(currentCollegeId)
+  const students = useMemo(
+    () => festService.getStudents(currentCollegeId),
+    [currentCollegeId, refreshKey]
   );
 
+  // Safety net: if portal mounts before authenticated sync ran for this college (e.g. client navigation), sync immediately
   useEffect(() => {
-    const list = festService.getStudents(currentCollegeId);
-    setStudents(list);
-
+    if (isLoadingAuth || !isAuthenticated) return;
     const affl = currentCollegeAfflNo || (college ? college.affl_no : 0);
-    if (affl) {
-      festService.fetchStudentsForCollege(affl).then(fresh => {
-        if (fresh && fresh.length > 0) {
-          setStudents(fresh);
-        }
+    if (!affl) return;
+
+    if (!festService.hasAuthenticatedSync(affl)) {
+      festService.syncWithSupabase(affl, true).then(() => {
+        triggerRefresh();
       });
     }
-  }, [currentCollegeId, currentCollegeAfflNo, college?.affl_no, refreshKey]);
+  }, [isAuthenticated, isLoadingAuth, currentCollegeAfflNo, college?.affl_no]);
 
   const collegeEligibleItems = useMemo(
     () =>
@@ -191,6 +182,27 @@ export default function CollegePortalPage() {
   const schedules = useMemo(() => festService.getSchedules(), [refreshKey]);
   const appeals = useMemo(() => festService.getAppeals(currentCollegeId), [currentCollegeId, refreshKey]);
   const replacements = useMemo(() => festService.getReplacements(currentCollegeId), [currentCollegeId, refreshKey]);
+  const submissions = useMemo(
+    () => festService.getSubmissionEntries(currentCollegeAfflNo || currentCollegeId),
+    [currentCollegeAfflNo, currentCollegeId, refreshKey]
+  );
+
+  const pendingSubmissionsCount = useMemo(() => {
+    const submittedItemIds = new Set(
+      submissions.filter(s => Boolean(s.file_url)).map(s => Number(s.item_id))
+    );
+    const seen = new Set<number>();
+    let missing = 0;
+    for (const r of registrations) {
+      const id = Number(r.item_id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (requiresPreFestSubmission(r.item) && !submittedItemIds.has(id)) {
+        missing++;
+      }
+    }
+    return missing;
+  }, [registrations, submissions]);
 
   // Dynamic filtering for Replacement Modal
   const currentEventRegisteredStudents = useMemo(() => {
@@ -227,26 +239,29 @@ export default function CollegePortalPage() {
     });
   }, [replacementForm.registrationId, registrations, allItems, students]);
 
-  // Category counts calculated in a single pass (memoized)
+  // Category counts calculated in a single pass using normalized phase keys (memoized)
   const categoryCards = useMemo(() => {
     let foundationCount = 0;
     let thamheediyyaCount = 0;
     let aliyaCount = 0;
     let pgCount = 0;
     let generalCount = 0;
+    let specialCount = 0;
 
     if (students.length > 0) {
       students.forEach(s => {
-        const p = (s.category || s.phase || '').toLowerCase();
-        if (p === 'foundation' || p === 'fd' || p.includes('sub_junior') || p.includes('sub junior') || p.includes('sub-junior') || p.includes('pre foundation')) {
+        const key = normalizeCategoryKey(s.category || s.phase);
+        if (key === 'FOUNDATION' || key === 'SPECIAL_FOUNDATION') {
           foundationCount++;
-        } else if (p.includes('thamheed') || p === 'th' || (p.includes('junior') && !p.includes('sub'))) {
+        } else if (key === 'THAMHEEDIYYA') {
           thamheediyyaCount++;
-        } else if (p === 'aliya' || p === 'al' || p.includes('senior')) {
+        } else if (key === 'ALIYA') {
           aliyaCount++;
-        } else if (p === 'pg') {
+        } else if (key === 'PG') {
           pgCount++;
-        } else if (p === 'general') {
+        } else if (key === 'SPECIAL') {
+          specialCount++;
+        } else {
           generalCount++;
         }
       });
@@ -259,7 +274,7 @@ export default function CollegePortalPage() {
 
     const totalCount = students.length > 0
       ? students.length
-      : (foundationCount + thamheediyyaCount + aliyaCount + pgCount + generalCount);
+      : (foundationCount + thamheediyyaCount + aliyaCount + pgCount + generalCount + specialCount);
 
     return [
       { label: 'Foundation', count: foundationCount },
@@ -267,6 +282,7 @@ export default function CollegePortalPage() {
       { label: 'Aliya', count: aliyaCount },
       { label: 'PG', count: pgCount },
       { label: 'General', count: generalCount },
+      { label: 'Special', count: specialCount },
       { label: 'Total Students', count: totalCount, highlight: true },
     ].filter(card => card.count > 0);
   }, [students, college]);
@@ -317,19 +333,18 @@ export default function CollegePortalPage() {
     return count;
   }, [filteredModalStudents, selectedStudentIds]);
 
-  const handleCreateStudent = (e: React.FormEvent) => {
-    e.preventDefault();
-    festService.saveStudent({ ...newStudent, college_id: currentCollegeId });
-    setIsStudentModalOpen(false);
-    setNewStudent({ full_name: '', admission_no: '', category: 'Senior', phone: '', photo_url: '' });
-    triggerRefresh();
-  };
-
   const handleOpenRegistrationModal = (item: Item) => {
-    const existingReg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
-    const preselected = existingReg?.participants?.map(p => p.id) || [];
+    const targetItemId = Number(item.item_id || item.id);
+    const matchingRegs = registrations.filter(
+      r => Number(r.item_id) === targetItemId || String(r.item_id) === String(item.id)
+    );
+    const preselectedSet = new Set<string>();
+    matchingRegs.forEach(reg => {
+      reg.participants?.forEach(p => { if (p.id) preselectedSet.add(p.id); });
+      if (reg.student?.id) preselectedSet.add(reg.student.id);
+    });
     setSelectedItemForReg(item);
-    setSelectedStudentIds(new Set(preselected));
+    setSelectedStudentIds(preselectedSet);
     setRegModalSearch('');
     setRegModalPhaseFilter('All');
     setIsRegisterModalOpen(true);
@@ -392,8 +407,21 @@ export default function CollegePortalPage() {
       alert('Please complete all substitution fields.');
       return;
     }
+
+    // Resolve the exact Registration row belonging to originalStudentId for group events
+    const selectedEventReg = registrations.find(r => r.id === replacementForm.registrationId);
+    const origStudent = students.find(s => s.id === replacementForm.originalStudentId);
+    const exactStudentReg = selectedEventReg
+      ? registrations.find(
+        r =>
+          Number(r.item_id) === Number(selectedEventReg.item_id) &&
+          (r.student?.id === replacementForm.originalStudentId ||
+            (origStudent ? isSameStudent(origStudent, r.chest_no) : false))
+      ) || selectedEventReg
+      : undefined;
+
     const res = await festService.submitReplacement(
-      replacementForm.registrationId,
+      exactStudentReg?.id || replacementForm.registrationId,
       replacementForm.originalStudentId,
       replacementForm.replacementStudentId,
       replacementForm.reason
@@ -418,13 +446,16 @@ export default function CollegePortalPage() {
         activeItemId={activeTab}
         onSelectNavItem={setActiveTab}
       >
-        <div className="space-y-6 max-w-7xl mx-auto">
-          <div className="h-24 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
-          <div className="h-40 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
-            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
-            <div className="h-28 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] animate-pulse" />
+        <div className="space-y-5 max-w-7xl mx-auto">
+          <div className="pb-5 border-b border-[var(--border-subtle)] space-y-2.5">
+            <div className="h-7 w-72 max-w-full rounded bg-[var(--bg-subtle)]" />
+            <div className="h-4 w-96 max-w-full rounded bg-[var(--bg-subtle)]" />
+          </div>
+          <div className="h-12 rounded-xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)]" />
+          <div className="h-28 rounded-xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)]" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-7 h-72 rounded-xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)]" />
+            <div className="lg:col-span-5 h-72 rounded-xl bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)]" />
           </div>
         </div>
       </DashboardLayout>
@@ -447,8 +478,19 @@ export default function CollegePortalPage() {
               college={college}
               festSettings={festSettings}
               categoryCards={categoryCards}
-              registrationsCount={registrations.length}
-              totalEventsCount={allItems.length}
+              registrationsCount={registeredItemIds.size}
+              totalEventsCount={collegeEligibleItems.length}
+              allEventsCount={allItems.length}
+              totalEntriesCount={registrations.length}
+              pendingSubmissionsCount={pendingSubmissionsCount}
+              students={students}
+              registrations={registrations}
+              eligibleItems={collegeEligibleItems}
+              submissions={submissions}
+              schedules={schedules}
+              appeals={appeals}
+              replacements={replacements}
+              onNavigateTab={setActiveTab}
             />
           )}
 
@@ -457,7 +499,7 @@ export default function CollegePortalPage() {
             <CollegeRegistrationTab
               filteredItems={filteredItems}
               registrations={registrations}
-              submissions={festService.getSubmissionEntries(currentCollegeAfflNo || currentCollegeId)}
+              submissions={submissions}
               selectedCategory={selectedCategory}
               setSelectedCategory={setSelectedCategory}
               categoryOptions={categoryOptions}
@@ -547,73 +589,6 @@ export default function CollegePortalPage() {
           )}
         </div>
 
-        {/* Modal: Enroll Student */}
-        <Modal
-          isOpen={isStudentModalOpen}
-          onClose={() => setIsStudentModalOpen(false)}
-          title="Enroll Student in Directory"
-          description="Add a student profile to allocate chest numbers and register for arts fest competitions"
-        >
-          <form onSubmit={handleCreateStudent} className="space-y-4">
-            <div>
-              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Full Student Name</label>
-              <input
-                type="text"
-                value={newStudent.full_name || ''}
-                onChange={e => setNewStudent({ ...newStudent, full_name: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all font-sans"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">College Admission / Roll No</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 22801"
-                  value={newStudent.admission_no || ''}
-                  onChange={e => setNewStudent({ ...newStudent, admission_no: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono font-semibold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Category</label>
-                <select
-                  value={newStudent.category || 'Foundation'}
-                  onChange={e => setNewStudent({ ...newStudent, category: e.target.value as StudentCategory })}
-                  className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans cursor-pointer"
-                >
-                  <option value="Foundation">Foundation</option>
-                  <option value="Thamheediyya">Thamheediyya</option>
-                  <option value="Aliya">Aliya</option>
-                  <option value="PG">PG</option>
-                  <option value="General">General</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Contact Phone</label>
-              <input
-                type="tel"
-                placeholder="+91 98..."
-                value={newStudent.phone || ''}
-                onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono"
-              />
-            </div>
-
-            <div className="pt-4 flex justify-end gap-2 border-t border-[var(--border-subtle)]">
-              <Button type="button" variant="outline" className="font-heading" onClick={() => setIsStudentModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="saffron" className="font-heading font-bold">Add Student</Button>
-            </div>
-          </form>
-        </Modal>
-
         {/* Modal: Event Registration with Capacity Verification */}
         <Modal
           isOpen={isRegisterModalOpen}
@@ -657,7 +632,7 @@ export default function CollegePortalPage() {
                     <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search student name, chest no, admission/CIC no..."
+                      placeholder="Search student name, chest no, CIC no..."
                       value={regModalSearch}
                       onChange={e => setRegModalSearch(e.target.value)}
                       className="w-full pl-9 pr-8 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all font-sans font-medium"
@@ -681,7 +656,7 @@ export default function CollegePortalPage() {
                       onChange={e => setRegModalPhaseFilter(e.target.value)}
                       className="w-full appearance-none pl-8 pr-7 py-2 text-xs font-heading font-semibold border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer"
                     >
-                      <option value="All">All Phases</option>
+                      <option value="All">All Categories</option>
                       {availableStudentPhases.map(ph => (
                         <option key={ph} value={ph}>
                           {ph.replace(/_/g, ' ')}
@@ -723,7 +698,7 @@ export default function CollegePortalPage() {
                     {filteredModalStudents.length === 0 ? (
                       <div className="py-8 text-center text-xs text-[var(--text-muted)]">
                         <p className="font-heading font-semibold text-[var(--text-secondary)]">No participants match your criteria</p>
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">Try clearing the search query or phase filter</p>
+                        <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">Try clearing the search query or category filter</p>
                         {(regModalSearch || regModalPhaseFilter !== 'All') && (
                           <Button
                             type="button"
@@ -797,7 +772,7 @@ export default function CollegePortalPage() {
                                 <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono mt-0.5 flex-wrap">
                                   <span>Chest: {getCanonicalChestNo(s)}</span>
                                   <span>•</span>
-                                  <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
+                                  <span>CIC: {s.admission_no || s.cic_no || s.cic_number || 'N/A'}</span>
                                   <span>•</span>
                                   <span className="text-[var(--text-secondary)] font-sans">
                                     On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
@@ -815,7 +790,7 @@ export default function CollegePortalPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex items-center justify-between border-t border-[var(--border-subtle)]">
+                <div className="pt-4 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--border-subtle)]">
                   <div className="text-xs">
                     {selectedStudentIds.size < minPart && (
                       <span className="text-rose-600 font-sans font-medium">
@@ -827,7 +802,7 @@ export default function CollegePortalPage() {
                         <span className="text-emerald-600 font-sans font-semibold">Capacity verified!</span>
                       )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {isAlreadyRegistered && (
                       <Button
                         type="button"
@@ -876,12 +851,21 @@ export default function CollegePortalPage() {
                 className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-sans"
                 required
               >
-                <option value="">-- Select Event --</option>
-                {allItems.map(item => (
-                  <option key={item.id} value={item.id}>
-                    {item.code || item.item_code}: {item.name || item.name_eng}
-                  </option>
-                ))}
+                <option value="">-- Select Registered Event --</option>
+                {allItems
+                  .filter(item =>
+                    registrations.some(
+                      r =>
+                        Number(r.item_id) === Number(item.item_id) ||
+                        String(r.item_id) === String(item.id) ||
+                        String(r.item?.id) === String(item.id)
+                    )
+                  )
+                  .map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.code || item.item_code}: {item.name || item.name_eng}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -942,7 +926,7 @@ export default function CollegePortalPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">Student to Replace</label>
                 <select

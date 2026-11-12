@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -22,7 +23,7 @@ import { TilePattern } from '@/components/fest/FestPattern';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setCurrentRole, setCurrentCollegeAfflNo, festSettings, theme, toggleTheme } = useFest();
+  const { setCurrentRole, setCurrentCollegeAfflNo, refreshSessionAndSync, festSettings, theme, toggleTheme } = useFest();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -106,6 +107,9 @@ export default function LoginPage() {
         setCurrentCollegeAfflNo(afflNo);
       }
 
+      // Hydrate Supabase browser session & sync authenticated data before navigating
+      await refreshSessionAndSync();
+
       // Navigate to user's assigned portal
       const destination = routeMap[userRole] || '/college';
       router.push(destination);
@@ -141,22 +145,22 @@ export default function LoginPage() {
 
       {/* Top Bar Navigation */}
       <header className="absolute top-4 left-4 right-4 sm:top-6 sm:left-6 sm:right-6 z-20 flex items-center justify-between">
-        <a
+        <Link
           href="/"
           className="inline-flex items-center gap-2 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
         >
           <span className="transition-transform duration-150 group-hover:-translate-x-0.5" aria-hidden="true">←</span>
           <span>Back to Fest Home</span>
-        </a>
+        </Link>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
-          <a
+          <Link
             href="/student-login"
             className="inline-flex items-center gap-1.5 text-xs font-heading font-semibold text-[var(--f-saffron-text)] hover:text-[var(--f-saffron-text-strong)] dark:hover:text-amber-300 hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
           >
             <span>Student Login</span>
             <span className="transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true">→</span>
-          </a>
+          </Link>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 transition-all duration-150 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"

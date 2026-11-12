@@ -51,15 +51,23 @@ export function AdmitCardTable({
     }
 
     const registeredKeys = new Set<string>();
+    const addKey = (val: string | number | null | undefined) => {
+      const clean = String(val ?? '').trim().toUpperCase();
+      if (!clean || clean === '—') return;
+      registeredKeys.add(clean);
+      const stripped = clean.replace(/^(ST-|CH-)/i, '');
+      if (stripped) registeredKeys.add(stripped);
+    };
+
     registrations.forEach(r => {
-      if (r.chest_no) registeredKeys.add(r.chest_no.trim().toUpperCase());
+      addKey(r.chest_no);
       if (r.student?.id) registeredKeys.add(r.student.id);
-      if (r.student?.chest_no) registeredKeys.add(r.student.chest_no.trim().toUpperCase());
+      addKey(r.student?.chest_no);
+      addKey(r.student?.admission_no ?? r.student?.cic_no ?? r.student?.cic_number);
       r.participants?.forEach(p => {
         if (p.id) registeredKeys.add(p.id);
-        if (p.chest_no) registeredKeys.add(p.chest_no.trim().toUpperCase());
-        const cic = p.admission_no ?? p.cic_no ?? p.cic_number;
-        if (cic) registeredKeys.add(String(cic).trim().toUpperCase());
+        addKey(p.chest_no);
+        addKey(p.admission_no ?? p.cic_no ?? p.cic_number);
       });
     });
 
@@ -67,9 +75,11 @@ export function AdmitCardTable({
       if (student.id && registeredKeys.has(student.id)) return true;
       const chest = getCanonicalChestNo(student).toUpperCase();
       if (chest !== '—' && registeredKeys.has(chest)) return true;
+      const rawChest = String(student.chest_no ?? '').trim().toUpperCase();
+      if (rawChest && registeredKeys.has(rawChest)) return true;
       const cic = String(student.admission_no ?? student.cic_no ?? student.cic_number ?? '').trim().toUpperCase();
       if (cic && registeredKeys.has(cic)) return true;
-      return registrationContainsStudent(registrations[0], student, students);
+      return false;
     });
   }, [students, registrations]);
 
@@ -153,7 +163,7 @@ export function AdmitCardTable({
           </CardDescription>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <Badge variant="saffron" size="md" className="font-mono font-bold">
             {registeredStudents.length} Registered
           </Badge>
@@ -194,14 +204,14 @@ export function AdmitCardTable({
         </div>
 
         {/* Modern Glass Table */}
-        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">#</TableHead>
-              <TableHead>Participant Name</TableHead>
-              <TableHead>CIC Identifier</TableHead>
-              <TableHead>Chest Number</TableHead>
-              <TableHead className="text-right w-36">Action</TableHead>
+              <TableHead className="w-12 whitespace-nowrap">#</TableHead>
+              <TableHead className="w-[38%]">Participant Name</TableHead>
+              <TableHead className="whitespace-nowrap">CIC Identifier</TableHead>
+              <TableHead className="whitespace-nowrap">Chest Number</TableHead>
+              <TableHead className="whitespace-nowrap text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

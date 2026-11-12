@@ -87,7 +87,7 @@ export function TableHead({
   return (
     <th
       className={twMerge(
-        clsx('px-4 py-3 font-heading font-bold select-none text-[var(--text-secondary)] tracking-wider text-[11px] uppercase', className)
+        clsx('px-2.5 py-2.5 first:pl-4 last:pr-4 font-heading font-bold select-none text-[var(--text-secondary)] tracking-wider text-[11px] uppercase', className)
       )}
       {...props}
     >
@@ -103,7 +103,7 @@ export function TableCell({
 }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
-      className={twMerge(clsx('px-4 py-3 align-middle leading-normal text-[var(--text-primary)] font-sans', className))}
+      className={twMerge(clsx('px-2.5 py-2.5 first:pl-4 last:pr-4 align-middle leading-normal text-[var(--text-primary)] font-sans', className))}
       {...props}
     >
       {children}

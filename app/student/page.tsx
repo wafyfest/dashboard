@@ -28,13 +28,13 @@ export default function StudentPage() {
   if (!isMounted) {
     return (
       <DashboardLayout
-        portalTitle="Student Login"
-        roleBadge="Student Viewer"
+        portalTitle="Student Portal"
+        roleBadge=""
         navItems={navItems}
         activeItemId={activeTab}
         onSelectNavItem={(id) => setActiveTab(id as StudentTab)}
       >
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
+        <div className="max-w-7xl mx-auto space-y-4">
           <div className="h-28 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] animate-pulse" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
@@ -49,13 +49,13 @@ export default function StudentPage() {
 
   return (
     <DashboardLayout
-      portalTitle="Student Login"
-      roleBadge="Student Viewer"
+      portalTitle="Student Portal"
+      roleBadge=""
       navItems={navItems}
       activeItemId={activeTab}
       onSelectNavItem={(id) => setActiveTab(id as StudentTab)}
     >
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
+      <div className="max-w-7xl mx-auto space-y-4">
         <StudentView activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
     </DashboardLayout>

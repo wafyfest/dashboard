@@ -1,13 +1,12 @@
+import { createClient } from '@supabase/supabase-js';
+
 /**
- * In-memory sliding-window rate limiter.
+ * Sliding-window rate limiter.
  *
- * Uses a module-level Map so the state is shared across all requests
- * within the same Node.js server process. Works with Next.js Route Handlers
- * running on the Node.js runtime (not Edge).
- *
- * On serverless platforms each instance is independent — this provides
- * per-instance limiting which is still a strong deterrent against brute-force.
- * For multi-instance production, swap the Map for an Upstash Redis store.
+ * `rateLimitAsync` uses:
+ *  1. Upstash Redis REST API (when UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set),
+ *  2. Supabase Postgres `check_rate_limit` RPC (when NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set),
+ *  3. In-memory sliding-window fallback (`rateLimit`) if neither external store is available or fails.
  */
 
 interface RateLimitEntry {
@@ -89,6 +88,106 @@ export function rateLimit({ key, limit, windowMs }: RateLimitOptions): RateLimit
   const remaining = Math.max(0, limit - entry.timestamps.length);
 
   return { allowed, remaining, resetAt, retryAfterMs };
+}
+
+/**
+ * Persistent cross-instance sliding-window rate limiter.
+ * Prefers Upstash Redis REST, then Supabase Postgres RPC (`check_rate_limit`),
+ * and falls back to the in-memory limiter if unavailable.
+ */
+export async function rateLimitAsync(options: RateLimitOptions): Promise<RateLimitResult> {
+  const { key, limit, windowMs } = options;
+
+  // 1. Upstash Redis REST sliding window (zero extra dependencies)
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (upstashUrl && upstashToken) {
+    try {
+      const now = Date.now();
+      const cutoff = now - windowMs;
+      const member = `${now}-${Math.random().toString(36).slice(2, 10)}`;
+      const redisKey = `rl:${key}`;
+
+      const pipelineRes = await fetch(`${upstashUrl.replace(/\/$/, '')}/pipeline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${upstashToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([
+          ['ZREMRANGEBYSCORE', redisKey, '0', String(cutoff)],
+          ['ZCARD', redisKey],
+          ['ZRANGE', redisKey, '0', '0', 'WITHSCORES'],
+        ]),
+        cache: 'no-store',
+      });
+
+      if (pipelineRes.ok) {
+        const results = (await pipelineRes.json()) as Array<{ result?: unknown }>;
+        const currentCount = Number(results?.[1]?.result ?? 0);
+        const oldestArr = Array.isArray(results?.[2]?.result) ? (results[2].result as string[]) : [];
+        const oldestScore = oldestArr.length >= 2 ? Number(oldestArr[1]) : now;
+        const allowed = currentCount < limit;
+
+        if (allowed) {
+          await fetch(`${upstashUrl.replace(/\/$/, '')}/pipeline`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${upstashToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify([
+              ['ZADD', redisKey, String(now), member],
+              ['PEXPIRE', redisKey, String(windowMs)],
+            ]),
+            cache: 'no-store',
+          });
+        }
+
+        const effectiveCount = allowed ? currentCount + 1 : currentCount;
+        const resetAt = (allowed && currentCount === 0 ? now : oldestScore) + windowMs;
+        return {
+          allowed,
+          remaining: Math.max(0, limit - effectiveCount),
+          resetAt,
+          retryAfterMs: Math.max(0, resetAt - now),
+        };
+      }
+    } catch {
+      // Fall through to Supabase / in-memory fallback
+    }
+  }
+
+  // 2. Supabase Postgres persistent sliding-window RPC
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceRoleKey && serviceRoleKey !== 'your-service-role-key') {
+    try {
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await adminClient.rpc('check_rate_limit', {
+        p_key: key,
+        p_limit: limit,
+        p_window_ms: windowMs,
+      });
+
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!error && row && typeof row.allowed === 'boolean') {
+        return {
+          allowed: row.allowed,
+          remaining: Number(row.remaining ?? 0),
+          resetAt: Number(row.reset_at ?? Date.now() + windowMs),
+          retryAfterMs: Number(row.retry_after_ms ?? 0),
+        };
+      }
+    } catch {
+      // Fall through to in-memory fallback
+    }
+  }
+
+  // 3. In-memory fallback
+  return rateLimit(options);
 }
 
 /**

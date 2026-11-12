@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Sparkles,
-  Sliders,
   Search,
   Medal,
   Award,
@@ -23,7 +22,6 @@ interface StudentMyResultsTabProps {
   setGuestStudent: (stu: Student | null) => void;
   handleGuestLookup: (e: React.FormEvent) => void;
   myResults: any[];
-  openCustomPoster: () => void;
   openPosterForResult: (res: any) => void;
 }
 
@@ -35,33 +33,43 @@ export function StudentMyResultsTab({
   setGuestStudent,
   handleGuestLookup,
   myResults,
-  openCustomPoster,
   openPosterForResult,
 }: StudentMyResultsTabProps) {
+  const goldCount = myResults.filter(r => Number(r.rank) === 1).length;
+  const silverCount = myResults.filter(r => Number(r.rank) === 2).length;
+  const bronzeCount = myResults.filter(r => Number(r.rank) === 3).length;
+
   return (
     <div className="space-y-6">
       {/* Header Action Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1f1303] via-[#121829] to-[#090d1a] p-6 sm:p-8 text-white border border-amber-500/25 shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)]">
+      <div className="relative overflow-hidden rounded-3xl bg-[var(--bg-surface)] p-5 sm:p-7 border border-[var(--border-subtle)] border-l-4 border-l-[var(--f-saffron)] shadow-card [box-shadow:var(--shadow-card),var(--glass-highlight)]">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/35 text-amber-300 text-xs font-heading font-semibold uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Social Media Poster Generator</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] text-[11px] font-heading font-bold uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 text-[var(--f-saffron)]" />
+              <span>Winner Celebration Posters</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">My Fest Results & Celebration Posters</h2>
-            <p className="text-xs text-slate-300 max-w-xl font-sans leading-relaxed">
-              Download high-resolution official achievement posters tailored with your name, English event title, category phase, and prize won to share directly on WhatsApp and Instagram status.
+            <h2 className="text-lg sm:text-2xl font-heading font-extrabold tracking-tight text-[var(--text-primary)]">
+              My Fest Results &amp; Posters
+            </h2>
+            <p className="text-xs text-[var(--text-muted)] max-w-xl font-sans leading-relaxed">
+              Download high-resolution official achievement posters for published winning results (1st, 2nd, and 3rd prize) to share directly on WhatsApp and Instagram status.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <Button
-              onClick={openCustomPoster}
-              className="bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] text-[#090d1a] font-heading font-bold text-xs shadow-md shadow-amber-500/25 flex items-center gap-2 cursor-pointer border-0 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
-            >
-              <Sliders className="w-4 h-4 text-[#090d1a]" />
-              <span>Custom Poster Designer</span>
-            </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="px-3 py-2 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-center min-w-[64px]">
+              <div className="text-[10px] text-[var(--text-muted)] font-heading font-semibold">1st</div>
+              <div className="text-sm font-mono font-extrabold text-amber-600 dark:text-amber-400">{goldCount}</div>
+            </div>
+            <div className="px-3 py-2 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-center min-w-[64px]">
+              <div className="text-[10px] text-[var(--text-muted)] font-heading font-semibold">2nd</div>
+              <div className="text-sm font-mono font-extrabold text-[var(--text-primary)]">{silverCount}</div>
+            </div>
+            <div className="px-3 py-2 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-center min-w-[64px]">
+              <div className="text-[10px] text-[var(--text-muted)] font-heading font-semibold">3rd</div>
+              <div className="text-sm font-mono font-extrabold text-orange-600 dark:text-orange-400">{bronzeCount}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -139,17 +147,8 @@ export function StudentMyResultsTab({
                 No Published Results Yet for {targetStu?.full_name || targetStu?.name || 'this participant'}
               </h4>
               <p className="text-xs font-sans text-[var(--text-muted)] max-w-md mx-auto">
-                Evaluation results are announced live once judge score sheets are submitted. You can still generate and preview your celebration poster anytime using the designer below.
+                Evaluation results are announced live once judge score sheets are published. Celebration posters can be generated here only for published winners (1st, 2nd, or 3rd place).
               </p>
-            </div>
-            <div>
-              <Button
-                onClick={openCustomPoster}
-                className="bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] text-[#090d1a] font-heading font-bold text-xs inline-flex items-center gap-2 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] active:scale-[0.98]"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Open Poster Designer</span>
-              </Button>
             </div>
           </Card>
         ) : (
@@ -220,47 +219,23 @@ export function StudentMyResultsTab({
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[var(--bg-subtle)] border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
-                    <Button
-                      onClick={() => openPosterForResult(res)}
-                      className="w-full bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] text-[#090d1a] font-heading font-bold text-xs shadow-xs flex items-center justify-center gap-2 border-0 cursor-pointer active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Generate & Download Poster</span>
-                    </Button>
-                  </div>
+                  {res.published && Number(res.rank) >= 1 && Number(res.rank) <= 3 && (
+                    <div className="p-3 bg-[var(--bg-subtle)] border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                      <Button
+                        onClick={() => openPosterForResult(res)}
+                        className="w-full bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-hover)] text-[#090d1a] font-heading font-bold text-xs shadow-xs flex items-center justify-center gap-2 border-0 cursor-pointer active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Generate & Download Poster</span>
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Poster Specifications Card */}
-      <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-card [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl p-5">
-        <h4 className="text-xs font-heading font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
-          <span>Poster Specifications & Sharing Guide</span>
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs text-[var(--text-secondary)]">
-          <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-            <div className="font-heading font-bold text-[var(--text-primary)] mb-1">1. Student Name</div>
-            <p className="text-[11px] text-[var(--text-muted)] font-sans">Placed front and center in elegant gold typography.</p>
-          </div>
-          <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-            <div className="font-heading font-bold text-[var(--text-primary)] mb-1">2. Event Name (English)</div>
-            <p className="text-[11px] text-[var(--text-muted)] font-sans">Official English title of the participated event.</p>
-          </div>
-          <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-            <div className="font-heading font-bold text-[var(--text-primary)] mb-1">3. Phase Category</div>
-            <p className="text-[11px] text-[var(--text-muted)] font-sans">Category level (Senior, Junior, Sub-Junior, General).</p>
-          </div>
-          <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-            <div className="font-heading font-bold text-[var(--text-primary)] mb-1">4. Prize Won</div>
-            <p className="text-[11px] text-[var(--text-muted)] font-sans">Distinctive ribbon badge: First, Second, Third or Grade.</p>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

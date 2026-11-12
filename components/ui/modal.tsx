@@ -79,9 +79,9 @@ export function Modal({
           )
         )}
       >
-        <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-center justify-between">
-          <div>
-            <h3 id={titleId} className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)] tracking-tight">
+        <div className="px-4 sm:px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 id={titleId} className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)] tracking-tight break-words">
               {title}
             </h3>
             {description && (
@@ -92,12 +92,12 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none"
+            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-6 max-h-[80vh] overflow-y-auto text-[var(--text-primary)] font-sans">{children}</div>
+        <div className="p-4 sm:p-6 max-h-[82vh] overflow-y-auto text-[var(--text-primary)] font-sans">{children}</div>
       </div>
     </div>,
     document.body

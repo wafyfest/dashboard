@@ -136,7 +136,7 @@ class FestService {
     }
   }
 
-  public async clearCacheAndRefetch(): Promise<void> {
+  public clearSessionCache(): void {
     this.cache = {
       festSettings: null,
       colleges: [],
@@ -150,9 +150,12 @@ class FestService {
       stages: [],
       results: [],
       appeals: [],
+      volunteers: [],
+      announcements: [],
       replacements: [],
       code_letters: [],
       chest_no: [],
+      late_registrations: [],
       submissions: [],
       maxParticipation: [],
       points_matrix: []
@@ -166,11 +169,23 @@ class FestService {
       } catch (e) { }
     }
     this.scopeSyncTimes.clear();
+    this.authenticatedScopes.clear();
+  }
+
+  public async clearCacheAndRefetch(): Promise<void> {
+    this.clearSessionCache();
     await this.syncWithSupabase(undefined, true);
   }
 
   private scopeSyncTimes = new Map<string | number, number>();
+  private authenticatedScopes = new Set<string | number>();
+  private syncInFlight = new Map<string | number, Promise<boolean>>();
   private readonly SYNC_TTL = 15 * 60 * 1000; // 15 minutes TTL for Free Plan bandwidth optimization
+
+  public hasAuthenticatedSync(collegeAfflNo?: number): boolean {
+    const scopeKey = collegeAfflNo ? Number(collegeAfflNo) : 'global';
+    return this.authenticatedScopes.has(scopeKey) || this.authenticatedScopes.has('global');
+  }
 
   // --- Live Supabase Sync (Throttled & Scoped with Specific Columns) ---
   public async syncWithSupabase(collegeAfflNo?: number, force = false): Promise<boolean> {
@@ -182,6 +197,22 @@ class FestService {
       return true; // Use in-memory RAM cache
     }
 
+    const existingFlight = this.syncInFlight.get(scopeKey);
+    if (existingFlight && !force) {
+      return existingFlight;
+    }
+
+    const runPromise = this.performSyncWithSupabase(collegeAfflNo, scopeKey).finally(() => {
+      if (this.syncInFlight.get(scopeKey) === runPromise) {
+        this.syncInFlight.delete(scopeKey);
+      }
+    });
+    this.syncInFlight.set(scopeKey, runPromise);
+    return runPromise;
+  }
+
+  private async performSyncWithSupabase(collegeAfflNo: number | undefined, scopeKey: string | number): Promise<boolean> {
+    if (!supabase) return false;
     try {
       const client = supabase;
       let hasError = false;
@@ -630,20 +661,35 @@ class FestService {
         console.warn('Notice: Supabase code_letters sync deferred');
       }
 
-      // 15. Chest Nos mapping table
-      try {
-        const { data: chestData, error: chestErr } = await client
-          .from('chest_no')
-          .select('*');
-        if (!chestErr && chestData) {
-          this.setStorage('chest_no', this.normalizeChestRows(chestData));
+      // 15. Chest Nos mapping table (authenticated only — anon SELECT is revoked via RLS)
+      if (hasAuthSession) {
+        try {
+          let chestQuery = client.from('chest_no').select('*');
+          if (collegeAfflNo) {
+            chestQuery = chestQuery.eq('college_affl_no', collegeAfflNo);
+          }
+          const { data: chestData, error: chestErr } = await chestQuery;
+          if (!chestErr && chestData) {
+            const normalizedChest = this.normalizeChestRows(chestData);
+            if (collegeAfflNo) {
+              const numAffl = Number(collegeAfflNo);
+              const existingChest = this.getStorage<any[]>('chest_no', []);
+              const otherChest = existingChest.filter(c => Number(c.college_affl_no) !== numAffl);
+              this.setStorage('chest_no', [...otherChest, ...normalizedChest]);
+            } else {
+              this.setStorage('chest_no', normalizedChest);
+            }
+          }
+        } catch (err) {
+          console.warn('Notice: Supabase chest_no sync deferred');
         }
-      } catch (err) {
-        console.warn('Notice: Supabase chest_no sync deferred');
       }
 
       if (!hasError) {
         this.scopeSyncTimes.set(scopeKey, Date.now());
+        if (hasAuthSession) {
+          this.authenticatedScopes.add(scopeKey);
+        }
       }
       return !hasError;
     } catch (err) {
@@ -653,7 +699,10 @@ class FestService {
   }
 
   // --- Supabase Realtime Subscriptions (Replaces Polling with WebSockets) ---
-  public subscribeToRealtimeChanges(onUpdate: () => void): () => void {
+  public subscribeToRealtimeChanges(
+    onUpdate: () => void,
+    getCollegeAfflNo?: () => number | undefined
+  ): () => void {
     if (!supabase) return () => { };
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -661,7 +710,8 @@ class FestService {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         this.scopeSyncTimes.clear(); // Invalidate cache
-        this.syncWithSupabase(undefined, true).then(onUpdate);
+        const scopedAffl = getCollegeAfflNo?.();
+        this.syncWithSupabase(scopedAffl, true).then(onUpdate);
       }, 300);
     };
 
@@ -2343,6 +2393,8 @@ class FestService {
   public async fetchChestNos(): Promise<any[]> {
     if (!supabase) return this.getChestNos();
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return this.getChestNos();
       const { data, error } = await supabase
         .from('chest_no')
         .select('*')
@@ -2496,13 +2548,16 @@ class FestService {
         // submission_entries optional
       }
 
-      // 4. Fetch chest_no mapping table
+      // 4. Fetch chest_no mapping table (authenticated only)
       let chestMapRows: any[] = [];
       try {
-        const { data: cData } = await client.from('chest_no').select('*');
-        if (cData) {
-          chestMapRows = this.normalizeChestRows(cData);
-          this.setStorage('chest_no', chestMapRows);
+        const { data: sessionData } = await client.auth.getSession();
+        if (sessionData?.session) {
+          const { data: cData } = await client.from('chest_no').select('*');
+          if (cData) {
+            chestMapRows = this.normalizeChestRows(cData);
+            this.setStorage('chest_no', chestMapRows);
+          }
         }
       } catch (e) {
         // chest_no table optional
@@ -3958,7 +4013,7 @@ class FestService {
     }));
   }
 
-  // --- Volunteers (Aliya & PG Phases) ---
+  // --- Volunteers (Aliya & PG) ---
   public notifyVolunteerChange(): void {
     if (this.isClient) {
       try {

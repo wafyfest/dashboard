@@ -52,11 +52,11 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
-  const { signOut } = useFest();
+  const { signOut, currentRole: contextRole } = useFest();
 
   // Canonical resolution of props ensuring 100% contract compliance
   const effectivePortalTitle = portalTitle || roleTitle || 'Fest Dashboard';
-  const effectiveRoleBadge = roleBadge || (currentRole ? currentRole.replace('_', ' ') : undefined);
+  const effectiveRoleBadge = roleBadge !== undefined ? roleBadge : (currentRole ? currentRole.replace('_', ' ') : undefined);
   const effectiveNavItems = navItems || navigationTabs || [];
   const effectiveActiveItemId = activeItemId || currentTab || (effectiveNavItems[0]?.id ?? '');
 
@@ -74,8 +74,9 @@ export function DashboardLayout({
   };
 
   const handleSignOut = async () => {
+    const isStudent = (currentRole || contextRole) === 'student';
     await signOut();
-    router.push('/login');
+    router.push(isStudent ? '/student-login' : '/login');
   };
 
   return (
@@ -294,7 +295,7 @@ export function DashboardLayout({
         />
 
         {/* Dynamic Route Content */}
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Button } from '../ui/button';
@@ -12,7 +13,11 @@ import {
   Trophy,
   Sparkles,
   LogIn,
+  Calendar,
+  Ticket,
+  Star,
 } from 'lucide-react';
+import { TilePattern } from '@/components/fest/FestPattern';
 import { Student, College, Item, LeaderboardEntry, formatStudentCategory } from '@/lib/types/fest';
 import { ResultPosterModal, PosterInitialData } from '@/components/student/ResultPosterModal';
 import {
@@ -77,7 +82,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       try {
         const stored = localStorage.getItem('arts_fest_student_session');
         if (stored) return JSON.parse(stored);
-      } catch {}
+      } catch { }
     }
     return null;
   });
@@ -121,7 +126,8 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     }
   }, []);
 
-  const { currentCollegeAfflNo, currentRole, refreshKey } = useFest();
+  const router = useRouter();
+  const { currentCollegeAfflNo, currentRole, refreshKey, signOut } = useFest();
 
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
@@ -194,12 +200,15 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     return undefined;
   }, [colleges, userAfflNo, targetStu, loggedInStudent]);
 
-  // Events this student is registered for
-  const studentRegistrations = targetStu
-    ? registrations.filter(r => registrationContainsStudent(r, targetStu, students))
-    : [];
-  const studentItemIds = new Set(studentRegistrations.map(r => r.item_id));
-  const studentSchedules = schedules.filter(s => studentItemIds.has(s.item_id));
+  // Events this student is registered for (memoized to avoid recomputing on carousel ticks)
+  const studentRegistrations = useMemo(
+    () => (targetStu ? registrations.filter(r => registrationContainsStudent(r, targetStu, students)) : []),
+    [registrations, targetStu, students]
+  );
+  const studentSchedules = useMemo(() => {
+    const itemIds = new Set(studentRegistrations.map(r => r.item_id));
+    return schedules.filter(s => itemIds.has(s.item_id));
+  }, [schedules, studentRegistrations]);
 
   // 1. My College Results
   const myCollegeResults = useMemo(() => {
@@ -207,8 +216,31 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     return results.filter(r => r.published && Number(r.college_affl_no) === Number(userAfflNo));
   }, [results, userAfflNo]);
 
-  // 2. Notable Stars
-  const notableStars = useMemo(() => {
+  // 2. Notable Stars (server-computed with client fallback)
+  const [serverNotableStars, setServerNotableStars] = useState<
+    Array<{ student: Partial<Student>; points: number; golds: number; silvers: number; bronzes: number }>
+  >([]);
+
+  useEffect(() => {
+    if (!userAfflNo) {
+      setServerNotableStars([]);
+      return;
+    }
+    let active = true;
+    fetch(`/api/notable-stars?college_affl_no=${encodeURIComponent(String(userAfflNo))}`)
+      .then(res => (res.ok ? res.json() : { stars: [] }))
+      .then(payload => {
+        if (active && Array.isArray(payload?.stars)) {
+          setServerNotableStars(payload.stars);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [userAfflNo, refreshKey]);
+
+  const clientNotableStars = useMemo(() => {
     if (!userAfflNo) return [];
     const collegeStudents = students.filter(s => Number(s.college_affl_no) === Number(userAfflNo));
     const studentPointsMap = new Map<string, { student: Student; points: number; golds: number; silvers: number; bronzes: number }>();
@@ -238,6 +270,8 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
       .sort((a, b) => b.points - a.points)
       .slice(0, 4);
   }, [students, results, userAfflNo]);
+
+  const notableStars = serverNotableStars.length > 0 ? serverNotableStars : clientNotableStars;
 
   // 3. Latest Published Results
   const publishedResults = useMemo(() => {
@@ -292,10 +326,15 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     }
   };
 
-  // Open poster from specific result
+  // Open poster only for published winning results (rank 1, 2, or 3)
   const openPosterForResult = (res: any) => {
+    const rankNum = Number(res?.rank);
+    if (!res?.published || !Number.isFinite(rankNum) || rankNum < 1 || rankNum > 3) {
+      return;
+    }
+
     const itm = festService.getItem(res.item_id);
-    const prizeStr = res.rank === 1 ? 'First Prize 🥇' : res.rank === 2 ? 'Second Prize 🥈' : res.rank === 3 ? 'Third Prize 🥉' : (res.grade ? `Grade ${res.grade}` : 'Honorary Mention');
+    const prizeStr = rankNum === 1 ? 'First Prize 🥇' : rankNum === 2 ? 'Second Prize 🥈' : 'Third Prize 🥉';
 
     setSelectedPosterData({
       studentName: targetStu?.full_name || targetStu?.name || 'Participant',
@@ -308,130 +347,212 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     setIsPosterOpen(true);
   };
 
-  // Open custom poster generator directly
-  const openCustomPoster = () => {
-    setSelectedPosterData({
-      studentName: targetStu?.full_name || targetStu?.name || 'Participant Name',
-      itemEnglish: 'Select or Enter Event',
-      phase: targetStu?.phase ? formatStudentCategory(targetStu.phase) : 'Senior',
-      prize: 'First Prize 🥇',
-      collegeName: studentCollege?.name || studentCollege?.short_name || '',
-      chestNo: targetStu ? getCanonicalChestNo(targetStu) : '101',
-    });
-    setIsPosterOpen(true);
-  };
-
   const handleSharePortal = () => {
     if (navigator.share) {
       navigator.share({
         title: '14th Wafy Arts Fest Student Login',
         text: 'Track my events, results, and celebration posters live on the Wafy Arts Fest portal!',
         url: window.location.href,
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       navigator.clipboard.writeText(window.location.href);
       alert('Student link copied to clipboard!');
     }
   };
 
-  const handleStudentSignOut = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('arts_fest_student_session');
-      localStorage.removeItem('arts_fest_active_role');
-      localStorage.removeItem('arts_fest_active_affl_no');
-      document.cookie = 'arts_fest_student_id=; path=/; max-age=0; SameSite=Lax';
-      document.cookie = 'arts_fest_student_cic=; path=/; max-age=0; SameSite=Lax';
-      document.cookie = 'arts_fest_active_role=; path=/; max-age=0; SameSite=Lax';
-      document.cookie = 'arts_fest_active_affl_no=; path=/; max-age=0; SameSite=Lax';
-      window.location.href = '/student-login';
-    }
+  const handleStudentSignOut = async () => {
+    await signOut();
+    router.push('/student-login');
   };
 
+  const myTotalPoints = useMemo(
+    () => myResults.reduce((sum, r) => sum + (Number(r.points) || 0), 0),
+    [myResults]
+  );
+
+  const myWinCount = useMemo(
+    () => myResults.filter(r => r.published && Number(r.rank) >= 1 && Number(r.rank) <= 3).length,
+    [myResults]
+  );
+
+  const liveScheduleCount = useMemo(
+    () => studentSchedules.filter(s => s.status === 'On_Going').length,
+    [studentSchedules]
+  );
+
   return (
-    <div className="space-y-6">
-      {/* ── Active Student Identity / Guest Lookup Bar ── */}
-      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 sm:p-5 shadow-card [box-shadow:var(--shadow-card),var(--glass-highlight)] flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] flex items-center justify-center font-bold text-lg shrink-0">
-            <GraduationCap className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-heading font-black text-[var(--text-primary)] tracking-tight">
-                {targetStu?.full_name || targetStu?.name || (loggedInStudent ? 'Student Participant' : 'Student Login')}
-              </h1>
-              {targetStu && (
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-300 font-mono text-xs font-bold border border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.15)]">
-                  {getCanonicalChestNo(targetStu)}
-                </span>
-              )}
+    <div className="space-y-4">
+      {/* ── Participant Credential Hero Card ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] border-t-2 border-t-[var(--f-saffron)]/70 shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)] transition-all">
+        <TilePattern id="tiles-student-hero" className="text-[var(--text-primary)] opacity-[0.025] dark:opacity-[0.04]" />
+        <div
+          className="pointer-events-none absolute -top-24 right-0 w-72 h-72 rounded-full bg-[var(--f-saffron)] opacity-10 blur-[100px]"
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 p-5 sm:p-6 space-y-5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4 min-w-0">
+              <div className="relative w-14 h-14 rounded-2xl bg-[var(--bg-elevated)] border border-amber-500/30 text-[var(--f-saffron)] flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.12)]">
+                <GraduationCap className="w-7 h-7" />
+                {loggedInStudent && (
+                  <span
+                    className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-[var(--bg-surface)]"
+                    title="Authenticated Student"
+                  />
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-heading font-black text-[var(--text-primary)] tracking-tight truncate">
+                    {targetStu?.full_name || targetStu?.name || (loggedInStudent ? 'Student Participant' : 'Student Portal')}
+                  </h1>
+                  {targetStu && getCanonicalChestNo(targetStu) !== '—' && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-300 font-mono text-xs font-bold border border-amber-500/30">
+                      Chest #{getCanonicalChestNo(targetStu)}
+                    </span>
+                  )}
+                  {targetStu?.phase && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[11px] font-heading font-semibold border border-[var(--border-subtle)]">
+                      {formatStudentCategory(targetStu.phase)}
+                    </span>
+                  )}
+                  {loggedInStudent ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[11px] font-heading font-semibold border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-800 dark:text-sky-300 text-[11px] font-heading font-semibold border border-sky-500/30">
+                      Guest Mode
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-[var(--text-muted)] font-sans flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                  <span>
+                    <strong className="text-[var(--text-primary)] font-semibold">
+                      {studentCollege?.name || (userAfflNo ? (loggedInStudent?.college_name || `College #${userAfflNo}`) : (loggedInStudent ? 'Student College' : 'Public Access'))}
+                    </strong>
+                    {studentCollege?.short_name && ` (${studentCollege.short_name})`}
+                  </span>
+                  {targetStu && (targetStu?.admission_no || targetStu?.cic_no) && (
+                    <>
+                      <span className="text-[var(--border-strong)]">•</span>
+                      <span>
+                        CIC:{' '}
+                        <span className="font-mono font-semibold text-[var(--text-secondary)]">
+                          {targetStu?.admission_no || targetStu?.cic_no}
+                        </span>
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               {loggedInStudent ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-[11px] font-heading font-semibold border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Authenticated
-                </span>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setActiveTab('my_results')}
+                    className="text-xs font-heading font-semibold flex items-center gap-1.5 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+                  >
+                    <Award className="w-3.5 h-3.5" />
+                    <span>My Results</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSharePortal}
+                    className="text-xs font-heading font-semibold flex items-center gap-1.5 border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Share</span>
+                  </Button>
+                  <button
+                    onClick={handleStudentSignOut}
+                    className="text-xs font-heading font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
+                </>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-800 dark:text-sky-300 text-[11px] font-heading font-semibold border border-sky-500/30">
-                  Guest / Viewer Mode
-                </span>
+                <Link href="/student-login">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="text-xs font-heading font-semibold flex items-center gap-1.5 bg-[var(--f-saffron)] text-[#090d1a] hover:bg-[var(--f-saffron-hover)] cursor-pointer"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Student Login</span>
+                  </Button>
+                </Link>
               )}
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-1 font-sans">
-              College: <strong className="text-[var(--text-primary)]">
-                {studentCollege?.name || (userAfflNo ? (loggedInStudent?.college_name || `College #${userAfflNo}`) : (loggedInStudent ? 'Student College' : 'General / Public Access'))}
-              </strong>{' '}
-              {studentCollege?.short_name && `(${studentCollege.short_name})`}
-              {targetStu && (
-                <>
-                  {' '}• CIC No:{' '}
-                  <span className="font-mono font-semibold text-[var(--text-secondary)]">
-                    {targetStu?.admission_no || targetStu?.cic_no}
-                  </span>
-                </>
-              )}
-            </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          {loggedInStudent ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setActiveTab('my_results')}
-                className="text-xs font-heading font-semibold flex items-center gap-1.5 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>My Results</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSharePortal}
-                className="text-xs font-heading font-semibold flex items-center gap-1.5 border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)]"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Share</span>
-              </Button>
-              <button
-                onClick={handleStudentSignOut}
-                className="text-xs font-heading font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 transition-colors cursor-pointer"
-              >
-                Sign Out
-              </button>
-            </>
-          ) : (
-            <Link href="/student-login">
-              <Button
-                size="sm"
-                variant="primary"
-                className="text-xs font-heading font-semibold flex items-center gap-1.5 bg-[var(--f-saffron)] text-[#090d1a] hover:bg-[var(--f-saffron-hover)] cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Student Login</span>
-              </Button>
-            </Link>
+          {/* Personal Stat Strip */}
+          {targetStu && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-[var(--border-subtle)]">
+              <div className="rounded-2xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] px-3.5 py-2.5 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-[var(--f-saffron-text)] flex items-center justify-center shrink-0">
+                  <Ticket className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-sans">Registered</div>
+                  <div className="text-base font-mono font-extrabold text-[var(--text-primary)] leading-tight">
+                    {studentRegistrations.length}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] px-3.5 py-2.5 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-sans">
+                    {liveScheduleCount > 0 ? 'Live / Scheduled' : 'Scheduled'}
+                  </div>
+                  <div className="text-base font-mono font-extrabold text-[var(--text-primary)] leading-tight">
+                    {studentSchedules.length}
+                    {liveScheduleCount > 0 && (
+                      <span className="ml-1.5 text-[10px] font-sans font-bold text-emerald-500">
+                        ({liveScheduleCount} live)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] px-3.5 py-2.5 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-sans">Published Wins</div>
+                  <div className="text-base font-mono font-extrabold text-[var(--text-primary)] leading-tight">
+                    {myWinCount}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--bg-subtle)]/80 border border-[var(--border-subtle)] px-3.5 py-2.5 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Star className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-[var(--text-muted)] font-sans">Points Earned</div>
+                  <div className="text-base font-mono font-extrabold text-[var(--text-primary)] leading-tight">
+                    {myTotalPoints}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -474,7 +595,6 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
           setGuestStudent={setGuestStudent}
           handleGuestLookup={handleGuestLookup}
           myResults={myResults}
-          openCustomPoster={openCustomPoster}
           openPosterForResult={openPosterForResult}
         />
       )}

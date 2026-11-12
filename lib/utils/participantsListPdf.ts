@@ -198,7 +198,7 @@ export function generateParticipantsListPdf({
     doc.setTextColor(148, 163, 184);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.5);
-    doc.text('No registered competition participants found for this college.', margin + contentWidth / 2, currentY + 7.5, {
+    doc.text('No Registered Participants  found for this college.', margin + contentWidth / 2, currentY + 7.5, {
       align: 'center'
     });
   } else {

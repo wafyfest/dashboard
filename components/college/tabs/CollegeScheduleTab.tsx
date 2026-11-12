@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { StageStatusBadge, ItemModeBadge } from '@/components/ui/badge';
 import { Schedule, Registration, isSubmissionEvent, isScreeningEvent } from '@/lib/types/fest';
+import { formatIstDisplay } from '@/lib/utils/istDate';
 import { Calendar } from 'lucide-react';
 
 interface CollegeScheduleTabProps {
@@ -36,13 +37,13 @@ export function CollegeScheduleTab({ schedules, registrations }: CollegeSchedule
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
-              <TableHead>Event</TableHead>
-              <TableHead>Stage / Venue</TableHead>
-              <TableHead>Scheduled Time</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="w-[28%]">Event</TableHead>
+              <TableHead className="whitespace-nowrap">Stage / Venue</TableHead>
+              <TableHead className="whitespace-nowrap">Scheduled Time</TableHead>
+              <TableHead className="whitespace-nowrap">Status</TableHead>
               <TableHead>Participants</TableHead>
             </TableRow>
           </TableHeader>
@@ -83,7 +84,9 @@ export function CollegeScheduleTab({ schedules, registrations }: CollegeSchedule
                       </span>
                     </TableCell>
                     <TableCell className="font-mono font-semibold text-[var(--text-secondary)] text-xs sm:text-sm tabular-nums">
-                      {new Date(sch.scheduled_start || sch.starting || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {(sch.scheduled_start || sch.starting)
+                        ? formatIstDisplay(sch.scheduled_start || sch.starting, { showTimeOnly: true })
+                        : 'TBD'}
                     </TableCell>
                     <TableCell>
                       <StageStatusBadge status={sch.status} />

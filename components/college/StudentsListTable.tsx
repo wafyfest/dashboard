@@ -18,7 +18,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
-export type SortField = 'index' | 'name' | 'cic_no' | 'class' | 'category';
+export type SortField = 'none' | 'cic_no' | 'class' | 'category';
 export type SortDirection = 'asc' | 'desc';
 
 interface StudentsListTableProps {
@@ -53,7 +53,7 @@ export function StudentsListTable({
   );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortField, setSortField] = useState<SortField>('index');
+  const [sortField, setSortField] = useState<SortField>('none');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   // Load students for this college (cached first, then sync with Supabase)
@@ -87,7 +87,7 @@ export function StudentsListTable({
       if (sortDirection === 'asc') {
         setSortDirection('desc');
       } else {
-        setSortField('index');
+        setSortField('none');
         setSortDirection('asc');
       }
     } else {
@@ -98,7 +98,7 @@ export function StudentsListTable({
 
   // Search across student name OR CIC number through one space
   const filteredAndSorted = useMemo(() => {
-    let list = students.map((s, idx) => ({ ...s, originalIndex: idx + 1 }));
+    let list = students;
 
     const query = searchQuery.trim().toLowerCase();
     if (query) {
@@ -118,14 +118,10 @@ export function StudentsListTable({
     }
 
     // Sort list
-    if (sortField !== 'index') {
-      list.sort((a, b) => {
+    if (sortField !== 'none') {
+      list = [...list].sort((a, b) => {
         let cmp = 0;
-        if (sortField === 'name') {
-          const nameA = (a.name || a.full_name || '').toLowerCase();
-          const nameB = (b.name || b.full_name || '').toLowerCase();
-          cmp = nameA.localeCompare(nameB);
-        } else if (sortField === 'cic_no') {
+        if (sortField === 'cic_no') {
           const cicA = Number(a.admission_no ?? a.cic_no ?? a.cic_number ?? 0);
           const cicB = Number(b.admission_no ?? b.cic_no ?? b.cic_number ?? 0);
           if (isNaN(cicA) || isNaN(cicB)) {
@@ -145,10 +141,6 @@ export function StudentsListTable({
 
         return sortDirection === 'desc' ? -cmp : cmp;
       });
-    } else {
-      if (sortDirection === 'desc') {
-        list.reverse();
-      }
     }
 
     return list;
@@ -229,37 +221,21 @@ export function StudentsListTable({
 
       <CardContent className="space-y-4">
         {/* Main Table Container */}
-        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+        <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
               {/* Column 1: # (Serial Number) */}
-              <TableHead
-                onClick={() => handleSort('index')}
-                className="w-16 cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>#</span>
-                  {renderSortIcon('index')}
-                </div>
-              </TableHead>
+              <TableHead className="w-12 text-center whitespace-nowrap">#</TableHead>
 
               {/* Column 2: Name */}
-              <TableHead
-                onClick={() => handleSort('name')}
-                className="cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
-              >
-                <div className="flex items-center gap-2">
-                  <span>Name</span>
-                  {renderSortIcon('name')}
-                </div>
-              </TableHead>
+              <TableHead className="w-[38%]">Name</TableHead>
 
               {/* Column 3: CIC No */}
               <TableHead
                 onClick={() => handleSort('cic_no')}
-                className="cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
+                className="whitespace-nowrap cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span>CIC No</span>
                   {renderSortIcon('cic_no')}
                 </div>
@@ -268,9 +244,9 @@ export function StudentsListTable({
               {/* Column 4: Class */}
               <TableHead
                 onClick={() => handleSort('class')}
-                className="cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
+                className="whitespace-nowrap cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span>Class</span>
                   {renderSortIcon('class')}
                 </div>
@@ -279,9 +255,9 @@ export function StudentsListTable({
               {/* Column 5: Category */}
               <TableHead
                 onClick={() => handleSort('category')}
-                className="cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
+                className="whitespace-nowrap cursor-pointer select-none hover:text-[var(--f-saffron)] transition-colors group"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span>Category</span>
                   {renderSortIcon('category')}
                 </div>
@@ -322,17 +298,14 @@ export function StudentsListTable({
                   student.cic_number ??
                   '—';
                 const phaseCode = student.phase || student.category || '—';
-                const serialNumber =
-                  sortField === 'index'
-                    ? student.originalIndex
-                    : idx + 1;
+                const serialNumber = idx + 1;
 
                 return (
                   <TableRow
                     key={student.id || `stu-${idx}`}
                   >
                     {/* # (Serial number) */}
-                    <TableCell className="font-mono font-semibold text-[var(--text-muted)] text-xs sm:text-sm">
+                    <TableCell className="text-center font-mono font-semibold text-[var(--text-muted)] text-xs sm:text-sm">
                       {serialNumber}
                     </TableCell>
 
