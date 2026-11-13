@@ -263,6 +263,113 @@ export function requiresPreFestSubmission(
   return isSubmissionEvent(item) || isScreeningEvent(item);
 }
 
+export type EventKind = 'screening' | 'submission' | 'onstage' | 'offstage' | 'general';
+
+export interface EventDeadlineSetting {
+  id: string;
+  event_kind: EventKind;
+  display_name: string;
+  description?: string | null;
+  start_time: string;
+  no_fine_deadline: string;
+  fine_deadline: string;
+  fine_amount: number;
+  has_super_fine?: boolean;
+  super_fine_deadline?: string | null;
+  super_fine_amount?: number | null;
+  /** Separate deadline for screening link (YouTube URL) submission – only for screening kind */
+  link_submission_deadline?: string | null;
+  is_active: boolean;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
+  {
+    id: 'deadline-screening',
+    event_kind: 'screening',
+    display_name: 'Screening Events',
+    description: 'Pre-Fest online preliminary screening competitions (Circular WSFWF_26_016).',
+    start_time: '2026-11-15T04:30:00.000Z', // 15/11/2026, 10:00 AM IST
+    no_fine_deadline: '2026-11-22T16:30:00.000Z', // 22/11/2026, 10:00 PM IST (No fine)
+    fine_deadline: '2026-11-24T16:30:00.000Z', // 24/11/2026, 10:00 PM IST (₹200 fine)
+    fine_amount: 200,
+    has_super_fine: false,
+    super_fine_deadline: null,
+    super_fine_amount: null,
+    link_submission_deadline: '2026-11-24T16:30:00.000Z', // defaults to fine_deadline
+    is_active: true,
+  },
+  {
+    id: 'deadline-submission',
+    event_kind: 'submission',
+    display_name: 'Digital Submission Events',
+    description: 'Pre-Fest digital submission competitions requiring video/drive upload.',
+    start_time: '2026-11-01T04:30:00.000Z',
+    no_fine_deadline: '2026-11-15T16:30:00.000Z',
+    fine_deadline: '2026-11-17T16:30:00.000Z',
+    fine_amount: 500,
+    has_super_fine: true,
+    super_fine_deadline: '2026-11-18T16:30:00.000Z',
+    super_fine_amount: 1000,
+    is_active: true,
+  },
+  {
+    id: 'deadline-onstage',
+    event_kind: 'onstage',
+    display_name: 'On-Stage Events',
+    description: 'Main festival live stage performance competitions.',
+    start_time: '2026-11-01T04:30:00.000Z',
+    no_fine_deadline: '2026-11-10T16:30:00.000Z',
+    fine_deadline: '2026-11-11T16:30:00.000Z',
+    fine_amount: 500,
+    has_super_fine: true,
+    super_fine_deadline: '2026-11-12T16:30:00.000Z',
+    super_fine_amount: 1000,
+    is_active: true,
+  },
+  {
+    id: 'deadline-offstage',
+    event_kind: 'offstage',
+    display_name: 'Off-Stage Events',
+    description: 'Main festival offline writing, art, and hall competitions.',
+    start_time: '2026-11-01T04:30:00.000Z',
+    no_fine_deadline: '2026-11-10T16:30:00.000Z',
+    fine_deadline: '2026-11-11T16:30:00.000Z',
+    fine_amount: 500,
+    has_super_fine: true,
+    super_fine_deadline: '2026-11-12T16:30:00.000Z',
+    super_fine_amount: 1000,
+    is_active: true,
+  },
+  {
+    id: 'deadline-general',
+    event_kind: 'general',
+    display_name: 'General Festival Events',
+    description: 'Default master schedule fallback for all standard festival events.',
+    start_time: '2026-11-01T04:30:00.000Z',
+    no_fine_deadline: '2026-11-10T16:30:00.000Z',
+    fine_deadline: '2026-11-11T16:30:00.000Z',
+    fine_amount: 500,
+    has_super_fine: true,
+    super_fine_deadline: '2026-11-12T16:30:00.000Z',
+    super_fine_amount: 1000,
+    is_active: true,
+  },
+];
+
+export function getEventKind(
+  item?: { is_screening?: boolean | null; is_submission?: boolean | null; mode?: string | null } | null
+): EventKind {
+  if (!item) return 'general';
+  if (isScreeningEvent(item) || (item as any).is_screening || (item.mode || '').toLowerCase() === 'screening') return 'screening';
+  if (isSubmissionEvent(item) || (item as any).is_submission || (item.mode || '').toLowerCase() === 'submission') return 'submission';
+  const stage = getEffectiveStageMode(item);
+  if (stage === 'onstage') return 'onstage';
+  if (stage === 'offstage') return 'offstage';
+  return 'general';
+}
+
 /**
  * Normalizes an event's stage location strictly to 'onstage' or 'offstage'.
  * Legacy `'submission'` mode events belong to 'offstage'.
@@ -424,6 +531,66 @@ export interface SubmissionEntry {
   item?: Item;
   student?: Student;
 }
+
+// ============================================================================
+// Special Events (Screening & Submission) System Types
+// ============================================================================
+// PRE-FEST EVENTS (Screening & Digital Submission) System Types
+// ============================================================================
+
+export type PreFestEventType = 'SCREENING' | 'SUBMISSION';
+
+export interface PreFestSettings {
+  id: string;
+  event_type: PreFestEventType;
+  registration_enabled: boolean;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  fine_closes_at?: string | null;
+  fine_amount?: number | null;
+  youtube_submission_enabled: boolean;
+  youtube_submission_opens_at: string | null;
+  youtube_submission_closes_at: string | null;
+  disabled_event_ids: string[];
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export interface PreFestRegistration {
+  id: string;
+  college_id: string;
+  college_affl_no: number;
+  event_id: string;
+  event_type: PreFestEventType;
+  registration_status: 'registered' | 'cancelled';
+  registered_at: string;
+  created_at?: string;
+  updated_at?: string;
+  event?: Item;
+  college?: College;
+  submission?: PreFestSubmission;
+}
+
+export interface PreFestSubmission {
+  id: string;
+  registration_id: string;
+  college_id: string;
+  college_affl_no: number;
+  event_id: string;
+  youtube_url: string;
+  submission_status: 'submitted' | 'approved' | 'rejected' | 'pending';
+  submitted_at: string;
+  created_at?: string;
+  updated_at?: string;
+  event?: Item;
+  college?: College;
+}
+
+// Backward-compatible type aliases
+export type SpecialEventType = PreFestEventType;
+export type SpecialEventSettings = PreFestSettings;
+export type SpecialEventRegistration = PreFestRegistration;
+export type SpecialEventSubmission = PreFestSubmission;
 
 export interface Stage {
   id: string;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Appeal,
   College,
@@ -26,6 +26,10 @@ import {
   Link2,
   ArrowRight,
   Building2,
+  Clock,
+  ChevronDown,
+  X,
+  Lock
 } from 'lucide-react';
 import { formatIstDisplay, getDeadlineStatus } from '@/lib/utils/istDate';
 import { useFest } from '@/lib/context/FestContext';
@@ -129,8 +133,8 @@ function ProgressMeterRow({ label, enrolled, total }: ProgressMeterRowProps) {
         <div className="flex items-baseline gap-2 shrink-0 font-mono tabular-nums">
           <span
             className={`text-[10px] font-sans font-semibold ${isCompleted
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-[var(--text-muted)]'
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-[var(--text-muted)]'
               }`}
           >
             {total === 0 ? 'No events' : isCompleted ? 'Completed' : `${total - enrolled} pending`}
@@ -385,110 +389,101 @@ export function CollegeDashboardTab({
     deadlineInfo.status === 'closed'
       ? 'Locked'
       : deadlineInfo.status === 'super_fine'
-        ? 'Super Fine ₹1,000'
+        ? 'With Super Fine'
         : deadlineInfo.status === 'fine'
-          ? 'Fine ₹500'
+          ? 'With Fine'
           : 'Open';
 
   return (
-    <div className="space-y-5">
-      {/* 1. KEY DEADLINES TOP BANNER */}
-      <Card className="rounded-2xl sm:rounded-full">
-        <CardContent className="px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 min-w-0">
-            <div className="flex items-center justify-between gap-2 sm:justify-start">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 ring-4 ${deadlineInfo.status === 'closed'
-                      ? 'bg-rose-500 ring-rose-500/20'
-                      : deadlineInfo.status === 'super_fine'
-                        ? 'bg-orange-500 ring-orange-500/20'
-                        : deadlineInfo.status === 'fine'
-                          ? 'bg-[var(--f-saffron)] ring-amber-500/20'
-                          : 'bg-emerald-500 ring-emerald-500/20'
-                    }`}
-                />
-                <strong className="font-heading font-bold text-[var(--text-primary)] whitespace-nowrap">
-                  Key Deadlines:
-                </strong>
-              </div>
-              <Badge
-                variant={
-                  deadlineInfo.status === 'closed'
-                    ? 'rose'
-                    : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
-                      ? 'saffron'
-                      : 'emerald'
-                }
-                size="sm"
-                className="sm:hidden font-mono uppercase tracking-wider font-semibold shrink-0"
-                suppressHydrationWarning
-              >
-                {deadlineStatusText}
-              </Badge>
-            </div>
-
-            <div className="sm:hidden space-y-1 text-[11px] font-sans text-[var(--text-secondary)]">
-              <div className="flex items-center justify-between gap-2">
-                <span>Normal</span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {formatIstDisplay(festSettings.reg_deadline)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span>Fine (₹500, +1h)</span>
-                <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span>Super Fine (₹1,000, +2h Lock)</span>
-                <span className="font-mono text-rose-600 dark:text-rose-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
-                </span>
-              </div>
-            </div>
-
-            <div className="hidden sm:flex flex-wrap items-center gap-x-1.5 font-sans text-[var(--text-secondary)] leading-relaxed">
-              <span>
-                Normal:{' '}
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {formatIstDisplay(festSettings.reg_deadline)}
-                </span>
-              </span>
-              <span className="text-[var(--text-muted)]">•</span>
-              <span>
-                ₹500 Fine (+1h):{' '}
-                <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
-                </span>
-              </span>
-              <span className="text-[var(--text-muted)]">•</span>
-              <span>
-                ₹1,000 Super Fine (+2h Lock):{' '}
-                <span className="font-mono text-rose-600 dark:text-rose-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
-                </span>
-              </span>
-            </div>
+    <div className="space-y-4">
+      {/* 1. SLIDING TICKER NOTIFICATION (TOP ABOVE COLLEGE DETAILS) */}
+      <div className="relative overflow-hidden text-xs py-1 px-1 group">
+        <div className="flex items-center gap-3">
+          {/* Status Pill Badge (Pinned on Left) */}
+          <div className="flex items-center gap-2 shrink-0 z-10 pr-2 border-r border-[var(--border-subtle)]">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ring-4 ${deadlineInfo.status === 'closed'
+                ? 'bg-rose-500 ring-rose-500/20'
+                : deadlineInfo.status === 'super_fine'
+                  ? 'bg-orange-500 ring-orange-500/20'
+                  : deadlineInfo.status === 'fine'
+                    ? 'bg-[var(--f-saffron)] ring-amber-500/20'
+                    : 'bg-emerald-500 ring-emerald-500/20'
+                }`}
+            />
+            <span className="font-heading font-bold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
+              Key Deadlines:
+            </span>
+            <Badge
+              variant={
+                deadlineInfo.status === 'closed'
+                  ? 'rose'
+                  : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
+                    ? 'saffron'
+                    : 'emerald'
+              }
+              size="sm"
+              className="font-mono uppercase font-semibold text-[10px] px-1.5 py-0.5 shrink-0"
+            >
+              {deadlineStatusText}
+            </Badge>
           </div>
 
-          <Badge
-            variant={
-              deadlineInfo.status === 'closed'
-                ? 'rose'
-                : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
-                  ? 'saffron'
-                  : 'emerald'
-            }
-            size="sm"
-            className="hidden sm:inline-flex font-mono uppercase tracking-wider font-semibold shrink-0"
-            suppressHydrationWarning
-          >
-            {deadlineStatusText}
-          </Badge>
-        </CardContent>
-      </Card>
+          {/* Continuous Smooth Horizontal Sliding Track */}
+          <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-20px),transparent)]">
+            <div className="flex w-max items-center gap-8 animate-[ticker_28s_linear_infinite] hover:[animation-play-state:paused] cursor-default">
+              {/* Primary Content Set */}
+              <div className="flex items-center gap-4 text-[var(--text-secondary)] whitespace-nowrap">
+                <span>
+                  Normal:{' '}
+                  <strong className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {formatIstDisplay(festSettings.reg_deadline)}
+                  </strong>
+                </span>
+                <span className="text-[var(--text-muted)]">•</span>
+                <span>
+                  Fine:{' '}
+                  <strong className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold">
+                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
+                  </strong>
+                </span>
+                <span className="text-[var(--text-muted)]">•</span>
+                <span>
+                  With Super Fine:{' '}
+                  <strong className="font-mono text-rose-600 dark:text-rose-400 font-semibold">
+                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
+                  </strong>
+                </span>
+              </div>
+
+              {/* Duplicate Content Set for Seamless Infinite Loop */}
+              <div className="flex items-center gap-4 text-[var(--text-secondary)] whitespace-nowrap">
+                <span className="text-[var(--text-muted)]">•</span>
+                <span>
+                  Normal:{' '}
+                  <strong className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {formatIstDisplay(festSettings.reg_deadline)}
+                  </strong>
+                </span>
+                <span className="text-[var(--text-muted)]">•</span>
+                <span>
+                  With Fine:{' '}
+                  <strong className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold">
+                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
+                  </strong>
+                </span>
+                <span className="text-[var(--text-muted)]">•</span>
+                <span>
+                  Super Fine:{' '}
+                  <strong className="font-mono text-rose-600 dark:text-rose-400 font-semibold">
+                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 2. INSTITUTION DETAILS */}
       <Card>
@@ -654,16 +649,16 @@ export function CollegeDashboardTab({
               <CardContent className="p-4 sm:p-4 flex flex-col justify-between gap-1.5">
                 <span
                   className={`text-xs font-medium truncate ${card.highlight
-                      ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
-                      : 'text-[var(--text-muted)]'
+                    ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
+                    : 'text-[var(--text-muted)]'
                     }`}
                 >
                   {card.label}
                 </span>
                 <span
                   className={`text-2xl font-bold font-mono tabular-nums tracking-tight ${card.highlight
-                      ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
-                      : 'text-[var(--text-primary)]'
+                    ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
+                    : 'text-[var(--text-primary)]'
                     }`}
                 >
                   {card.count}
@@ -957,8 +952,8 @@ export function CollegeDashboardTab({
                       {ev.needsSubmission ? (
                         <span
                           className={`text-[11px] font-medium ${ev.hasSubmission
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]'
                             }`}
                         >
                           {ev.hasSubmission ? 'Link added' : 'Link needed'}

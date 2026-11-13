@@ -10,6 +10,58 @@ export function isUuid(val: string | null | undefined): boolean {
   return UUID_REGEX.test(val.trim());
 }
 
+const inMemoryChestToCic = new Map<string, string>();
+const inMemoryCicToChest = new Map<string, string>();
+let hasHydratedSessionStorage = false;
+
+function hydrateSessionStorageOnce(): void {
+  if (hasHydratedSessionStorage) return;
+  if (typeof window === 'undefined') return;
+  hasHydratedSessionStorage = true;
+  try {
+    const raw = sessionStorage.getItem('arts_fest_chest_no');
+    if (raw) {
+      const rows = JSON.parse(raw);
+      if (Array.isArray(rows)) {
+        registerChestNoMapping(rows);
+      }
+    }
+  } catch (e) {
+    // ignore sessionStorage errors
+  }
+}
+
+export function registerChestNoMapping(
+  rows: Array<{ cic_no?: number | string; chest_no?: number | string }> | null | undefined
+): void {
+  hasHydratedSessionStorage = true;
+  if (!rows || !Array.isArray(rows)) return;
+  rows.forEach(r => {
+    if (r.cic_no != null && r.chest_no != null) {
+      const cic = String(r.cic_no).trim();
+      const chest = String(r.chest_no).trim();
+      if (cic && chest) {
+        inMemoryChestToCic.set(chest, cic);
+        inMemoryCicToChest.set(cic, chest);
+      }
+    }
+  });
+}
+
+export function getCicForChest(chestStr: string): string | undefined {
+  if (!chestStr) return undefined;
+  const trimmed = chestStr.trim();
+  hydrateSessionStorageOnce();
+  return inMemoryChestToCic.get(trimmed);
+}
+
+export function getChestForCic(cicStr: string): string | undefined {
+  if (!cicStr) return undefined;
+  const trimmed = cicStr.trim();
+  hydrateSessionStorageOnce();
+  return inMemoryCicToChest.get(trimmed);
+}
+
 /**
  * Returns a human-friendly canonical chest number for a student.
  * Never exposes raw UUIDs as chest numbers.
@@ -28,7 +80,12 @@ export function getRegistrationStudentKey(student: Partial<Student> | null | und
 
   const cic = student.cic_no ?? student.admission_no ?? student.cic_number;
   if (cic !== undefined && cic !== null && String(cic).trim() !== '') {
-    return String(cic).trim().replace(/^(ST-|CH-)/i, '');
+    const cicKey = String(cic).trim();
+    const mapped = getChestForCic(cicKey);
+    if (mapped && /^\d+$/.test(mapped)) {
+      return mapped;
+    }
+    return cicKey.replace(/^(ST-|CH-)/i, '');
   }
 
   return student.id || '';
@@ -49,7 +106,68 @@ export function getCanonicalChestNo(student: Partial<Student> | null | undefined
     }
   }
 
+  // Check if student's CIC has an assigned chest number in the mapping
+  const cic = student.cic_no ?? student.admission_no ?? student.cic_number;
+  if (cic !== undefined && cic !== null) {
+    const mappedChest = getChestForCic(String(cic).trim());
+    if (mappedChest && /^\d+$/.test(mappedChest)) {
+      return mappedChest;
+    }
+  }
+
   return '—';
+}
+
+interface StudentPoolIndex {
+  byId: Map<string, Student>;
+  byChest: Map<string, Student>;
+  byCic: Map<string, Student>;
+  byCanonical: Map<string, Student>;
+}
+
+const studentPoolIndexes = new WeakMap<Student[], StudentPoolIndex>();
+
+function getStudentPoolIndex(list: Student[]): StudentPoolIndex {
+  let index = studentPoolIndexes.get(list);
+  if (index) return index;
+
+  const byId = new Map<string, Student>();
+  const byChest = new Map<string, Student>();
+  const byCic = new Map<string, Student>();
+  const byCanonical = new Map<string, Student>();
+
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (s.id) byId.set(s.id, s);
+
+    const rawChest = String(s.chest_no ?? '').trim();
+    if (rawChest) {
+      const up = rawChest.toUpperCase();
+      byChest.set(up, s);
+      const digits = rawChest.replace(/\D/g, '');
+      if (digits) byChest.set(digits, s);
+    }
+
+    const cic = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').trim();
+    if (cic) {
+      const upperCic = cic.toUpperCase();
+      byCic.set(cic, s);
+      byCic.set(upperCic, s);
+      byCic.set(`ST-${upperCic}`, s);
+      byCic.set(`CH-${upperCic}`, s);
+      const digits = cic.replace(/\D/g, '');
+      if (digits) byCic.set(digits, s);
+    }
+
+    const canonical = getCanonicalChestNo(s);
+    if (canonical && canonical !== '—') {
+      byCanonical.set(canonical.toUpperCase(), s);
+    }
+  }
+
+  index = { byId, byChest, byCic, byCanonical };
+  studentPoolIndexes.set(list, index);
+  return index;
 }
 
 /**
@@ -68,49 +186,44 @@ export function findStudentByIdentifier(
   const upperStr = rawStr.toUpperCase();
   const digitsOnly = rawStr.replace(/\D/g, '');
 
-  // Scope to college if specified; do not fallback to other colleges if collegeAfflNo is provided
-  const pool = collegeAfflNo
-    ? students.filter(s => s.college_affl_no === collegeAfflNo)
+  const numColAffl = collegeAfflNo != null ? Number(collegeAfflNo) : undefined;
+  const pool = !isNaN(numColAffl as number) && (numColAffl as number) > 0
+    ? students.filter(s => Number(s.college_affl_no) === numColAffl)
     : students;
-  const fallbackPool: Student[] = [];
+  const fallbackPool = pool !== students ? students : [];
 
   const searchInPool = (list: Student[]): Student | undefined => {
-    // 1. Direct ID match
-    let match = list.find(s => s.id === rawStr);
-    if (match) return match;
+    if (!list || list.length === 0) return undefined;
+    const index = getStudentPoolIndex(list);
 
-    // 2. Direct Assigned Chest No match ('101', 'ST-23993', etc.)
-    match = list.find(s => String(s.chest_no ?? '').trim().toUpperCase() === upperStr);
-    if (match) return match;
-
-    // 3. Primary CIC No / Admission No / ST-<cic> match
-    match = list.find(s => {
-      const cic = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').trim();
-      if (!cic) return false;
-      const upperCic = cic.toUpperCase();
-      return (
-        cic === rawStr ||
-        upperCic === upperStr ||
-        `ST-${upperCic}` === upperStr ||
-        `CH-${upperCic}` === upperStr ||
-        (digitsOnly !== '' && cic === digitsOnly && /^(ST-|CH-)?\d+$/i.test(rawStr))
-      );
-    });
-    if (match) return match;
-
-    // 4. Formatted Chest No / Digits match (e.g., searching "20194" matches "ST-20194")
-    if (digitsOnly) {
-      match = list.find(s => {
-        const cicDigits = String(s.cic_no ?? s.admission_no ?? s.cic_number ?? '').replace(/\D/g, '');
-        const chestDigits = String(s.chest_no ?? '').replace(/\D/g, '');
-        return (cicDigits !== '' && cicDigits === digitsOnly) || (chestDigits !== '' && chestDigits === digitsOnly);
-      });
-      if (match) return match;
+    // 0. If mapped in chest_no table, resolve directly to CIC
+    const mappedCic = getCicForChest(rawStr);
+    if (mappedCic) {
+      const hit = index.byCic.get(mappedCic);
+      if (hit) return hit;
     }
 
-    // 5. Match canonical chest number derived for each student
-    match = list.find(s => getCanonicalChestNo(s).toUpperCase() === upperStr);
-    if (match) return match;
+    // 1. Direct ID match
+    let hit = index.byId.get(rawStr);
+    if (hit) return hit;
+
+    // 2. Direct Assigned Chest No match
+    hit = index.byChest.get(upperStr);
+    if (hit) return hit;
+
+    // 3. Primary CIC match
+    hit = index.byCic.get(upperStr);
+    if (hit) return hit;
+
+    // 4. Digits match
+    if (digitsOnly) {
+      hit = index.byCic.get(digitsOnly) || index.byChest.get(digitsOnly);
+      if (hit) return hit;
+    }
+
+    // 5. Canonical chest match
+    hit = index.byCanonical.get(upperStr);
+    if (hit) return hit;
 
     return undefined;
   };
@@ -160,6 +273,18 @@ export function isSameStudent(
       `CH-${cicA}`.toUpperCase() === rawId.toUpperCase())
   ) {
     return true;
+  }
+
+  // Check if rawId is a server-assigned chest_no matching studentA's CIC or vice versa
+  if (cicA) {
+    const mappedCic = getCicForChest(rawId);
+    if (mappedCic && (mappedCic === cicA || `ST-${mappedCic}`.toUpperCase() === `ST-${cicA}`.toUpperCase())) {
+      return true;
+    }
+    const mappedChest = getChestForCic(cicA);
+    if (mappedChest && (mappedChest === rawId || mappedChest.toUpperCase() === rawId.toUpperCase())) {
+      return true;
+    }
   }
 
   return false;
@@ -252,9 +377,10 @@ export function normalizeRegistration(
   colleges?: College[],
   allOrGroupRegistrations?: Registration[]
 ): Registration {
-  const colAffl = registration.college_affl_no;
-  const item = items?.find(i => i.item_id === registration.item_id);
-  const college = colleges?.find(c => c.affl_no === colAffl);
+  const colAffl = Number(registration.college_affl_no);
+  const itmId = Number(registration.item_id);
+  const item = items?.find(i => Number(i.item_id || i.id) === itmId);
+  const college = colleges?.find(c => Number(c.affl_no) === colAffl);
 
   // Resolve main student for this registration row
   const student = findStudentByIdentifier(students, registration.chest_no, colAffl);
@@ -262,13 +388,9 @@ export function normalizeRegistration(
   // Group event participant aggregation
   let participants: Student[] = [];
   if (allOrGroupRegistrations && allOrGroupRegistrations.length > 0) {
-    const groupRows = allOrGroupRegistrations.every(
-      r => r.item_id === registration.item_id && r.college_affl_no === colAffl
-    )
-      ? allOrGroupRegistrations
-      : allOrGroupRegistrations.filter(
-          r => r.item_id === registration.item_id && r.college_affl_no === colAffl
-        );
+    const groupRows = allOrGroupRegistrations.filter(
+      r => Number(r.item_id) === itmId && Number(r.college_affl_no) === colAffl
+    );
     participants = groupRows
       .map(r => findStudentByIdentifier(students, r.chest_no, colAffl))
       .filter((s): s is Student => s !== undefined);
@@ -300,7 +422,8 @@ export function normalizeRegistration(
 export function calculateStudentEvents(
   student: Student,
   registrations: Registration[],
-  items?: Item[]
+  items?: Item[],
+  allStudents?: Student[]
 ): {
   registeredEventsCount: number;
   onstageCount: number;
@@ -309,13 +432,14 @@ export function calculateStudentEvents(
   groupCount: number;
   events: Array<{ registration: Registration; item?: Item }>;
 } {
-  const studentRegs = registrations.filter(r => registrationContainsStudent(r, student));
+  const studentRegs = registrations.filter(r => registrationContainsStudent(r, student, allStudents));
 
   // Deduplicate by item_id to avoid counting multiple participant rows for the same group event
   const uniqueItemRegs = new Map<number, Registration>();
   studentRegs.forEach(r => {
-    if (!uniqueItemRegs.has(r.item_id)) {
-      uniqueItemRegs.set(r.item_id, r);
+    const itmId = Number(r.item_id);
+    if (!isNaN(itmId) && !uniqueItemRegs.has(itmId)) {
+      uniqueItemRegs.set(itmId, r);
     }
   });
 
@@ -328,7 +452,7 @@ export function calculateStudentEvents(
   const events: Array<{ registration: Registration; item?: Item }> = [];
 
   uniqueItemRegs.forEach((reg, itemId) => {
-    const item = reg.item || items?.find(i => i.item_id === itemId);
+    const item = reg.item || items?.find(i => Number(i.item_id || i.id) === itemId);
     events.push({ registration: reg, item });
 
     // Special Programs are exempt from student max_participation quotas
@@ -364,32 +488,51 @@ export interface QuotaCheckResult {
     individualCount: number;
     groupCount: number;
   };
+  totalStats: {
+    registeredEventsCount: number;
+    onstageCount: number;
+    offstageCount: number;
+    individualCount: number;
+    groupCount: number;
+  };
+  isAlreadyRegisteredInItem: boolean;
   quota?: MaxParticipation;
 }
 
 const DEFAULT_FALLBACK_QUOTAS: MaxParticipation[] = [
-  { phase: 'Foundation', off_max: 3, on_max: 2, total_max: 4, group_max: 2 },
-  { phase: 'Thamheediyya', off_max: 4, on_max: 3, total_max: 5, group_max: 3 },
-  { phase: 'Aliya', off_max: 5, on_max: 4, total_max: 6, group_max: 4 },
+  { phase: 'Foundation', off_max: 4, on_max: 3, total_max: 7, group_max: 2 },
+  { phase: 'Thamheediyya', off_max: 4, on_max: 3, total_max: 7, group_max: 3 },
+  { phase: 'Aliya', off_max: 4, on_max: 3, total_max: 7, group_max: 4 },
   { phase: 'PG', off_max: 5, on_max: 4, total_max: 6, group_max: 4 },
-  { phase: 'General', off_max: 3, on_max: 3, total_max: 5, group_max: 3 }
+  { phase: 'General', off_max: 2, on_max: 2, total_max: 2, group_max: 2 }
 ];
 
 /**
  * Validates a student's participation quota against max_participation quotas.
  * Accurately checks onstage (on_max), offstage (off_max), group (group_max), and total (total_max).
+ * Provides both totalStats (true festival-wide total) and stats (headroom excluding target item).
  */
 export function checkStudentQuota(
   student: Student,
   targetItem: Item,
   collegeRegistrations: Registration[],
   allItems: Item[],
-  quotaLimits?: MaxParticipation[]
+  quotaLimits?: MaxParticipation[],
+  allStudents?: Student[]
 ): QuotaCheckResult {
-  // Exclude current item in case we are modifying an existing roster for this item
   const targetItemId = Number(targetItem.item_id || targetItem.id);
+
+  // Check if student is already in this event in collegeRegistrations
+  const isAlreadyRegisteredInItem = collegeRegistrations.some(
+    r => Number(r.item_id) === targetItemId && registrationContainsStudent(r, student, allStudents)
+  );
+
+  // Absolute stats across all registrations in the festival (consistent across all modals)
+  const totalStats = calculateStudentEvents(student, collegeRegistrations, allItems, allStudents);
+
+  // Stats excluding current target item (to evaluate available headroom for adding this event)
   const otherRegs = collegeRegistrations.filter(r => Number(r.item_id) !== targetItemId);
-  const stats = calculateStudentEvents(student, otherRegs, allItems);
+  const stats = calculateStudentEvents(student, otherRegs, allItems, allStudents);
 
   const quotas = (quotaLimits && quotaLimits.length > 0) ? quotaLimits : DEFAULT_FALLBACK_QUOTAS;
   const studentCatKey = normalizeCategoryKey(student.category || student.phase);
@@ -401,6 +544,8 @@ export function checkStudentQuota(
     return {
       allowed: true,
       stats,
+      totalStats,
+      isAlreadyRegisteredInItem,
       quota
     };
   }
@@ -415,6 +560,8 @@ export function checkStudentQuota(
       allowed: false,
       reason: `Exceeds max onstage limit (${stats.onstageCount}/${quota.on_max})`,
       stats,
+      totalStats,
+      isAlreadyRegisteredInItem,
       quota
     };
   }
@@ -425,6 +572,8 @@ export function checkStudentQuota(
       allowed: false,
       reason: `Exceeds max offstage limit (${stats.offstageCount}/${quota.off_max})`,
       stats,
+      totalStats,
+      isAlreadyRegisteredInItem,
       quota
     };
   }
@@ -435,6 +584,8 @@ export function checkStudentQuota(
       allowed: false,
       reason: `Exceeds max group limit (${stats.groupCount}/${quota.group_max})`,
       stats,
+      totalStats,
+      isAlreadyRegisteredInItem,
       quota
     };
   }
@@ -445,6 +596,8 @@ export function checkStudentQuota(
       allowed: false,
       reason: `Exceeds max total events (${stats.registeredEventsCount}/${quota.total_max})`,
       stats,
+      totalStats,
+      isAlreadyRegisteredInItem,
       quota
     };
   }
@@ -452,6 +605,8 @@ export function checkStudentQuota(
   return {
     allowed: true,
     stats,
+    totalStats,
+    isAlreadyRegisteredInItem,
     quota
   };
 }

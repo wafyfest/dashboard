@@ -38,6 +38,7 @@ import {
 import { Item, College, ItemType, StudentCategory, EntryLock, Student, Result } from '@/lib/types/fest';
 import { LocksMatrixTab } from '../admin/tabs/LocksMatrixTab';
 import { SettingsTab } from '../admin/tabs/SettingsTab';
+import { EventDeadlinesTab } from '../admin/tabs/EventDeadlinesTab';
 import { EventsCatalogTab } from '../admin/tabs/EventsCatalogTab';
 import { CollegesTab } from '../admin/tabs/CollegesTab';
 import { CollegeRegistrationsTab } from '../admin/tabs/CollegeRegistrationsTab';
@@ -46,14 +47,19 @@ import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
 import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
 import { EventRegistrationsTab } from '../admin/tabs/EventRegistrationsTab';
 import { SystemLogsTab } from '../admin/tabs/SystemLogsTab';
-
+import { PreFestEventsTab } from '../admin/tabs/PreFestEventsTab';
 
 export type AdminTab =
   | 'overview'
   | 'schedule'
   | 'locks_matrix'
   | 'settings'
+  | 'event_deadlines'
   | 'items'
+  | 'prefest_setup'
+  | 'prefest_events'
+  | 'prefest_registrations'
+  | 'special_events' // backward compat
   | 'event_registrations'
   | 'colleges'
   | 'college_registrations'
@@ -83,15 +89,15 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
   const [appealRemarks, setAppealRemarks] = useState<{ [id: string]: string }>({});
 
-  const colleges = festService.getColleges();
-  const items = festService.getItems();
-  const students = festService.getStudents();
-  const registrations = festService.getRegistrations();
-  const appeals = festService.getAppeals();
-  const replacements = festService.getReplacements();
-  const results = festService.getResults();
-  const locks = festService.getEntryLocks();
-  const schedules = festService.getSchedules();
+  const colleges = React.useMemo(() => festService.getColleges(), [refreshKey]);
+  const items = React.useMemo(() => festService.getItems(), [refreshKey]);
+  const students = React.useMemo(() => festService.getStudents(), [refreshKey]);
+  const registrations = React.useMemo(() => festService.getRegistrations(), [refreshKey]);
+  const appeals = React.useMemo(() => festService.getAppeals(), [refreshKey]);
+  const replacements = React.useMemo(() => festService.getReplacements(), [refreshKey]);
+  const results = React.useMemo(() => festService.getResults(), [refreshKey]);
+  const locks = React.useMemo(() => festService.getEntryLocks(), [refreshKey]);
+  const schedules = React.useMemo(() => festService.getSchedules(), [refreshKey]);
 
   // Deduplicate results by event item_id for display and publishing controls
   const groupedResults = React.useMemo(() => {
@@ -317,11 +323,21 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       {/* 2. REGISTRATION LOCK TAB */}
       {activeTab === 'locks_matrix' && <LocksMatrixTab />}
 
-      {/* 2. DEADLINES & FINES TAB */}
-      {activeTab === 'settings' && <SettingsTab />}
+      {/* 2. UNIVERSAL DEADLINES & FINES POLICY TAB */}
+      {(activeTab === 'settings' || activeTab === 'event_deadlines') && <EventDeadlinesTab />}
 
       {/* 3. ITEMS CATALOG TAB */}
       {activeTab === 'items' && <EventsCatalogTab />}
+
+      {/* 3.0. PRE-FEST EVENT CATALOG & DEADLINES (IN SETUP) */}
+      {(activeTab === 'prefest_setup' || activeTab === 'prefest_events' || activeTab === 'special_events') && (
+        <PreFestEventsTab mode="setup" />
+      )}
+
+      {/* 3.0.1. PRE-FEST REGISTRATIONS & SUBMISSIONS (UNDER REGISTRATIONS) */}
+      {activeTab === 'prefest_registrations' && (
+        <PreFestEventsTab mode="registrations" />
+      )}
 
       {/* 3.1. EVENT-WISE ALL COLLEGES REGISTRATIONS TAB */}
       {activeTab === 'event_registrations' && <EventRegistrationsTab />}

@@ -29,7 +29,7 @@ export default function StudentPage() {
     return (
       <DashboardLayout
         portalTitle="Student Portal"
-        roleBadge=""
+        roleBadge="Student Viewer"
         navItems={navItems}
         activeItemId={activeTab}
         onSelectNavItem={(id) => setActiveTab(id as StudentTab)}
@@ -50,7 +50,7 @@ export default function StudentPage() {
   return (
     <DashboardLayout
       portalTitle="Student Portal"
-      roleBadge=""
+      roleBadge="Student Viewer"
       navItems={navItems}
       activeItemId={activeTab}
       onSelectNavItem={(id) => setActiveTab(id as StudentTab)}

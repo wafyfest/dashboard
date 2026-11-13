@@ -56,7 +56,7 @@ export function DashboardLayout({
 
   // Canonical resolution of props ensuring 100% contract compliance
   const effectivePortalTitle = portalTitle || roleTitle || 'Fest Dashboard';
-  const effectiveRoleBadge = roleBadge !== undefined ? roleBadge : (currentRole ? currentRole.replace('_', ' ') : undefined);
+  const effectiveRoleBadge = roleBadge || (currentRole ? currentRole.replace('_', ' ') : undefined);
   const effectiveNavItems = navItems || navigationTabs || [];
   const effectiveActiveItemId = activeItemId || currentTab || (effectiveNavItems[0]?.id ?? '');
 

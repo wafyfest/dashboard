@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
+import { isValidYouTubeUrl } from '@/lib/utils/youtube';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,23 +41,137 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     if (action === 'submit_appeal') {
-      const payload = body?.payload;
-      if (!payload || typeof payload !== 'object') {
-        return NextResponse.json({ error: 'Invalid appeal payload.' }, { status: 400 });
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return NextResponse.json({ error: 'Invalid request body: Expected JSON object.' }, { status: 400 });
       }
-      const targetAffl = Number(payload.college_affl_no);
-      if (
-        auth.role === 'college' &&
-        (auth.collegeAfflNo === null || Number.isNaN(targetAffl) || Number(auth.collegeAfflNo) !== targetAffl)
-      ) {
-        return NextResponse.json(
-          { error: 'Forbidden: you can only submit appeals for your own college.' },
-          { status: 403 }
-        );
+
+      const payload = body.payload;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return NextResponse.json({ error: 'Invalid appeal payload: Expected JSON object.' }, { status: 400 });
       }
-      const { error } = await auth.db.from('appeals').insert(payload);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ success: true });
+
+      // Enforce college affiliation from authenticated server context for college users
+      let targetAffl = Number(payload.college_affl_no);
+      if (auth.role === 'college') {
+        if (auth.collegeAfflNo === null || Number.isNaN(Number(auth.collegeAfflNo))) {
+          return NextResponse.json({ error: 'Forbidden: College affiliation context missing.' }, { status: 403 });
+        }
+        targetAffl = Number(auth.collegeAfflNo);
+      } else if (auth.role === 'admin') {
+        if (Number.isNaN(targetAffl) || !Number.isInteger(targetAffl) || targetAffl <= 0) {
+          return NextResponse.json({ error: 'Invalid target college affiliation number.' }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({ error: 'Forbidden: Unauthorized role.' }, { status: 403 });
+      }
+
+      // Validate mandatory fields
+      const reason = typeof payload.reason_for_appeal === 'string' ? payload.reason_for_appeal.trim() : '';
+      const txNo = typeof payload.transaction_number === 'string' ? payload.transaction_number.trim() : '';
+      const tmName = typeof payload.team_manager_name === 'string' ? payload.team_manager_name.trim() : '';
+      const mobile = typeof payload.mobile_number === 'string' ? payload.mobile_number.trim() : '';
+      const phase = typeof payload.phase === 'string' ? payload.phase.trim() : '';
+
+      if (!reason || reason.length > 2000) {
+        return NextResponse.json({ error: 'Reason for appeal is required (max 2000 characters).' }, { status: 400 });
+      }
+      if (!txNo || txNo.length > 100) {
+        return NextResponse.json({ error: 'Transaction number is required (max 100 characters).' }, { status: 400 });
+      }
+      if (!tmName || tmName.length > 200) {
+        return NextResponse.json({ error: 'Team manager name is required (max 200 characters).' }, { status: 400 });
+      }
+      if (!mobile || !/^\+?[0-9\s\-]{7,20}$/.test(mobile)) {
+        return NextResponse.json({ error: 'Valid contact mobile number is required.' }, { status: 400 });
+      }
+      if (!phase || phase.length > 50) {
+        return NextResponse.json({ error: 'Phase is required.' }, { status: 400 });
+      }
+
+      // Strict boolean acknowledgment check (rejects strings 'true', numbers, null)
+      if (payload.acknowledgment !== true) {
+        return NextResponse.json({ error: 'Acknowledgment must be explicitly accepted (boolean true).' }, { status: 400 });
+      }
+
+      // Validate optional numeric item_id
+      const itemId = payload.item_id !== undefined && payload.item_id !== null ? Number(payload.item_id) : null;
+      if (itemId !== null && (!Number.isInteger(itemId) || itemId <= 0)) {
+        return NextResponse.json({ error: 'Invalid event item_id.' }, { status: 400 });
+      }
+
+      const chestNo = typeof payload.chest_no === 'string' ? payload.chest_no.trim().slice(0, 50) : null;
+      const codeLetter = typeof payload.code_letter === 'string' ? payload.code_letter.trim().slice(0, 2) : null;
+      const appealDesc = typeof payload.appeal_description === 'string' ? payload.appeal_description.trim().slice(0, 5000) : null;
+
+      // Validate receipt ownership and expected private storage object path
+      let feeReceiptUrl: string | null = null;
+      if (payload.fee_receipt_url) {
+        if (typeof payload.fee_receipt_url !== 'string') {
+          return NextResponse.json({ error: 'Invalid fee_receipt_url format.' }, { status: 400 });
+        }
+        const cleanUrl = payload.fee_receipt_url.trim();
+        const expectedPrefix = `${targetAffl}/`;
+        const containsExpectedFolder = cleanUrl.includes(`/fest-receipts/${expectedPrefix}`) || cleanUrl.startsWith(expectedPrefix);
+        if (!containsExpectedFolder && cleanUrl.startsWith('http')) {
+          return NextResponse.json(
+            { error: `Invalid fee receipt path: Receipt must reside in college ${targetAffl} private folder.` },
+            { status: 403 }
+          );
+        }
+        feeReceiptUrl = cleanUrl.slice(0, 1000);
+      }
+
+      // Verify registration relationship if chest_no and item_id are provided
+      if (itemId !== null && chestNo !== null) {
+        const { data: regMatch } = await auth.db
+          .from('registrations')
+          .select('id')
+          .eq('item_id', itemId)
+          .eq('college_affl_no', targetAffl)
+          .eq('chest_no', chestNo)
+          .maybeSingle();
+
+        if (!regMatch) {
+          return NextResponse.json(
+            { error: `Registration record for event ${itemId} and participant ${chestNo} not found for your college.` },
+            { status: 404 }
+          );
+        }
+      }
+
+      // Enforce server-side whitelist: Forces 'Pending' status and rejects client-provided status/remarks
+      const cleanAppeal = {
+        college_affl_no: targetAffl,
+        phase,
+        item_id: itemId,
+        chest_no: chestNo,
+        code_letter: codeLetter,
+        appeal_description: appealDesc,
+        reason_for_appeal: reason,
+        transaction_number: txNo,
+        fee_receipt_url: feeReceiptUrl,
+        team_manager_name: tmName,
+        mobile_number: mobile,
+        acknowledgment: true,
+        current_status: 'Pending', // Enforced server-side
+        admin_remarks: null        // Enforced server-side
+      };
+
+      const { data: insertedAppeal, error: insertError } = await auth.db
+        .from('appeals')
+        .insert(cleanAppeal)
+        .select('id, college_affl_no, item_id, phase, current_status, created_at')
+        .single();
+
+      if (insertError) {
+        console.error('[API /api/submissions] Appeal insertion error:', insertError.message);
+        return NextResponse.json({ error: 'Failed to record appeal. Please try again.' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        appeal: insertedAppeal
+      });
     }
 
     if (action === 'submit_replacement') {
@@ -211,6 +326,50 @@ export async function POST(req: NextRequest) {
           .eq('item_id', itemId)
           .eq('college_affl_no', collegeAfflNo)
           .neq('chest_no', data.chest_no);
+      }
+
+      // Keep prefest_submissions in sync if video URL is a valid YouTube link
+      if (isValidYouTubeUrl(fileUrl)) {
+        try {
+          const { data: pfEvent } = await auth.db
+            .from('events')
+            .select('id, is_screening, is_submission, mode')
+            .eq('item_id', itemId)
+            .maybeSingle();
+
+          if (
+            pfEvent &&
+            (pfEvent.is_screening ||
+              pfEvent.is_submission ||
+              (pfEvent as any).mode === 'screening' ||
+              (pfEvent as any).mode === 'submission')
+          ) {
+            const { data: pfReg } = await auth.db
+              .from('prefest_registrations')
+              .select('id')
+              .eq('college_affl_no', collegeAfflNo)
+              .eq('event_id', pfEvent.id)
+              .maybeSingle();
+
+            if (pfReg?.id) {
+              await auth.db.from('prefest_submissions').upsert(
+                {
+                  registration_id: pfReg.id,
+                  college_id: `col-${collegeAfflNo}`,
+                  college_affl_no: collegeAfflNo,
+                  event_id: pfEvent.id,
+                  youtube_url: fileUrl,
+                  submission_status: status === 'fine' ? 'fine' : status === 'late' ? 'late' : 'submitted',
+                  submitted_at: nowIso,
+                  updated_at: new Date().toISOString()
+                },
+                { onConflict: 'registration_id' }
+              );
+            }
+          }
+        } catch (pfErr) {
+          console.warn('Notice: prefest_submissions mirror sync deferred:', pfErr);
+        }
       }
 
       return NextResponse.json({ success: true, data });

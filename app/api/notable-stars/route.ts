@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     const { data: studentsData, error: stuErr } = await adminClient
       .from('students')
-      .select('id, name, cic_no, chest_no, phase')
+      .select('id, name, cic_no, phase')
       .eq('college_affl_no', afflNo);
 
     if (stuErr || !studentsData || studentsData.length === 0) {
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
     const studentByKey = new Map<string, SafeStarStudent>();
     for (const s of studentsData) {
       const cicStr = s.cic_no != null ? String(s.cic_no).trim() : '';
-      const mappedChest = (cicStr && chestByCic.get(cicStr)) || (s.chest_no ? String(s.chest_no).trim() : '');
+      const mappedChest = (cicStr && chestByCic.get(cicStr)) || '';
       const safeStu: SafeStarStudent = {
         id: String(s.id),
         name: String(s.name || 'Participant'),

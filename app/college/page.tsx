@@ -16,7 +16,8 @@ import {
   Search,
   Filter,
   X,
-  ChevronDown
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -33,9 +34,11 @@ import {
   isSubmissionEvent,
   isScreeningEvent,
   requiresPreFestSubmission,
-  getItemParticipantBounds
+  getItemParticipantBounds,
+  isSpecialEvent,
+  getEffectiveStageMode
 } from '@/lib/types/fest';
-import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, isSameStudent } from '@/lib/utils/studentIdentity';
+import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, isSameStudent, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -47,6 +50,7 @@ import { CollegeScheduleTab } from '@/components/college/tabs/CollegeScheduleTab
 import { CollegeAppealsTab } from '@/components/college/tabs/CollegeAppealsTab';
 import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplacementsTab';
 import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
+import { PreFestEventsCollegeTab } from '@/components/college/tabs/PreFestEventsCollegeTab';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth, timeTick } = useFest();
@@ -61,6 +65,7 @@ export default function CollegePortalPage() {
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'registration', label: 'Registration', icon: ClipboardPen },
+    { id: 'prefest_events_registration', label: 'Pre-Fest Registration', icon: Sparkles },
     { id: 'participants', label: 'Participants', icon: Users },
     { id: 'students', label: 'Students', icon: UserCheck },
     { id: 'volunteers', label: 'Volunteers', icon: HeartHandshake },
@@ -76,6 +81,7 @@ export default function CollegePortalPage() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
   const [regModalSearch, setRegModalSearch] = useState<string>('');
   const [regModalPhaseFilter, setRegModalPhaseFilter] = useState<string>('All');
+  const [isSubmittingReg, setIsSubmittingReg] = useState<boolean>(false);
 
   const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [appealForm, setAppealForm] = useState({ itemId: '', reason: '', feeReceiptUrl: '' });
@@ -97,8 +103,8 @@ export default function CollegePortalPage() {
     [refreshKey]
   );
   const registrations = useMemo(
-    () => festService.getRegistrations(currentCollegeId),
-    [currentCollegeId, refreshKey]
+    () => festService.getRegistrations(currentCollegeAfflNo || currentCollegeId),
+    [currentCollegeAfflNo, currentCollegeId, refreshKey]
   );
   const registeredItemIds = useMemo(
     () => new Set(registrations.map(r => r.item_id)),
@@ -136,21 +142,28 @@ export default function CollegePortalPage() {
   );
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All Categories');
+
+  // Normal events for CollegeRegistrationTab (exclude submission & screening pre-fest events)
+  const normalCollegeItems = useMemo(
+    () => collegeEligibleItems.filter(item => !requiresPreFestSubmission(item)),
+    [collegeEligibleItems]
+  );
+
   const categoryOptions = useMemo(
     () =>
       Array.from(
         new Set(
-          collegeEligibleItems
+          normalCollegeItems
             .map(item => item.phase || item.category)
             .filter(Boolean)
         )
       ),
-    [collegeEligibleItems]
+    [normalCollegeItems]
   );
 
   const filteredItems = useMemo(
     () =>
-      collegeEligibleItems
+      normalCollegeItems
         .filter(item => {
           if (selectedCategory === 'All Categories') return true;
           return normalizeCategoryKey(item.phase || item.category) === normalizeCategoryKey(selectedCategory);
@@ -160,7 +173,7 @@ export default function CollegePortalPage() {
           const codeB = b.item_code || b.code || '';
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         }),
-    [collegeEligibleItems, selectedCategory]
+    [normalCollegeItems, selectedCategory]
   );
 
   const registrationStatusByItem = useMemo(
@@ -302,29 +315,38 @@ export default function CollegePortalPage() {
 
   // Dynamic filter for participant selection inside Registration Modal
   const filteredModalStudents = useMemo(() => {
-    return students.filter(s => {
-      // Phase filter
-      if (regModalPhaseFilter !== 'All') {
-        const sCat = s.category || s.phase;
-        if (normalizeCategoryKey(sCat) !== normalizeCategoryKey(regModalPhaseFilter)) {
-          return false;
-        }
-      }
+    return students
+      .filter(s => {
+        const isSelected = selectedStudentIds.has(s.id);
 
-      // Search query (name, chest no, admission/CIC no)
-      if (regModalSearch.trim()) {
-        const q = regModalSearch.toLowerCase().trim();
-        const name = (s.full_name || s.name || '').toLowerCase();
-        const chest = (getCanonicalChestNo(s) || s.chest_no || '').toLowerCase();
-        const adm = String(s.admission_no || s.cic_no || '').toLowerCase();
-        if (!name.includes(q) && !chest.includes(q) && !adm.includes(q)) {
-          return false;
+        // Phase filter: preserve selected participants regardless of filter
+        if (regModalPhaseFilter !== 'All' && !isSelected) {
+          const sCat = s.category || s.phase;
+          if (normalizeCategoryKey(sCat) !== normalizeCategoryKey(regModalPhaseFilter)) {
+            return false;
+          }
         }
-      }
 
-      return true;
-    });
-  }, [students, regModalSearch, regModalPhaseFilter]);
+        // Search query (name, chest no, admission/CIC no)
+        if (regModalSearch.trim()) {
+          const q = regModalSearch.toLowerCase().trim();
+          const name = (s.full_name || s.name || '').toLowerCase();
+          const chest = (getCanonicalChestNo(s) || s.chest_no || '').toLowerCase();
+          const adm = String(s.admission_no || s.cic_no || s.cic_number || '').toLowerCase();
+          if (!name.includes(q) && !chest.includes(q) && !adm.includes(q) && !isSelected) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const aSel = selectedStudentIds.has(a.id) ? 1 : 0;
+        const bSel = selectedStudentIds.has(b.id) ? 1 : 0;
+        if (aSel !== bSel) return bSel - aSel; // Selected students floated to top!
+        return (a.full_name || a.name || '').localeCompare(b.full_name || b.name || '');
+      });
+  }, [students, regModalSearch, regModalPhaseFilter, selectedStudentIds]);
 
   // Count of selected students currently hidden by active filter
   const hiddenSelectedCount = useMemo(() => {
@@ -343,30 +365,56 @@ export default function CollegePortalPage() {
     );
     const preselectedSet = new Set<string>();
     matchingRegs.forEach(reg => {
-      reg.participants?.forEach(p => { if (p.id) preselectedSet.add(p.id); });
+      reg.participants?.forEach(p => {
+        const found = findStudentByIdentifier(students, p.id || p.chest_no || p.admission_no || p.cic_no, currentCollegeAfflNo || college?.affl_no);
+        if (found?.id) preselectedSet.add(found.id);
+        else if (p.id) preselectedSet.add(p.id);
+      });
       if (reg.student?.id) preselectedSet.add(reg.student.id);
+      if (reg.chest_no) {
+        const found = findStudentByIdentifier(students, reg.chest_no, currentCollegeAfflNo || college?.affl_no);
+        if (found?.id) preselectedSet.add(found.id);
+      }
     });
+
+    // Direct cross-check against all students pool
+    students.forEach(s => {
+      if (matchingRegs.some(r => registrationContainsStudent(r, s, students))) {
+        preselectedSet.add(s.id);
+      }
+    });
+
     setSelectedItemForReg(item);
     setSelectedStudentIds(preselectedSet);
     setRegModalSearch('');
-    setRegModalPhaseFilter('All');
+    // Smart default: default modal phase filter to match the event category
+    const itemCat = item.phase || item.category || 'All';
+    const isGeneralOrSpecial = normalizeCategoryKey(itemCat) === 'GENERAL' || normalizeCategoryKey(itemCat) === 'SPECIAL';
+    setRegModalPhaseFilter(isGeneralOrSpecial ? 'All' : itemCat);
     setIsRegisterModalOpen(true);
   };
 
   const handleConfirmRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedItemForReg) return;
-    const res = await festService.registerCollegeForItem(
-      currentCollegeAfflNo || currentCollegeId,
-      selectedItemForReg.item_id || selectedItemForReg.id,
-      Array.from(selectedStudentIds)
-    );
-    if (!res.success) {
-      alert(`Registration Error: ${res.error}`);
-      return;
+    if (!selectedItemForReg || isSubmittingReg) return;
+    setIsSubmittingReg(true);
+    try {
+      const res = await festService.registerCollegeForItem(
+        currentCollegeAfflNo || currentCollegeId,
+        selectedItemForReg.item_id || selectedItemForReg.id,
+        Array.from(selectedStudentIds)
+      );
+      if (!res.success) {
+        alert(`Registration Error: ${res.error}`);
+        return;
+      }
+      setIsRegisterModalOpen(false);
+      triggerRefresh();
+    } catch (err: any) {
+      alert(`Unexpected Error: ${err.message || 'Failed to complete registration'}`);
+    } finally {
+      setIsSubmittingReg(false);
     }
-    setIsRegisterModalOpen(false);
-    triggerRefresh();
   };
 
   const handleUnregisterRegistration = async (item: Item) => {
@@ -375,16 +423,23 @@ export default function CollegePortalPage() {
     if (!confirm(`Are you sure you want to remove/unregister your entry for "${itemName}"?`)) {
       return;
     }
-    const res = await festService.unregisterCollegeForItem(
-      currentCollegeAfflNo || currentCollegeId,
-      itemId
-    );
-    if (!res.success) {
-      alert(`Unregister Error: ${res.error}`);
-      return;
+    setIsSubmittingReg(true);
+    try {
+      const res = await festService.unregisterCollegeForItem(
+        currentCollegeAfflNo || currentCollegeId,
+        itemId
+      );
+      if (!res.success) {
+        alert(`Unregister Error: ${res.error}`);
+        return;
+      }
+      setIsRegisterModalOpen(false);
+      triggerRefresh();
+    } catch (err: any) {
+      alert(`Unexpected Error: ${err.message || 'Failed to remove registration'}`);
+    } finally {
+      setIsSubmittingReg(false);
     }
-    setIsRegisterModalOpen(false);
-    triggerRefresh();
   };
 
   const handleSubmitAppeal = async (e: React.FormEvent) => {
@@ -503,6 +558,7 @@ export default function CollegePortalPage() {
               filteredItems={filteredItems}
               registrations={registrations}
               submissions={submissions}
+              students={students}
               selectedCategory={selectedCategory}
               setSelectedCategory={setSelectedCategory}
               categoryOptions={categoryOptions}
@@ -512,8 +568,24 @@ export default function CollegePortalPage() {
               onUnregisterRegistration={handleUnregisterRegistration}
               onRefresh={triggerRefresh}
               onOpenParticipantsTab={() => setActiveTab('participants')}
-              allItemsCount={allItems.length}
+              allItemsCount={normalCollegeItems.length}
               registrationStatusByItem={registrationStatusByItem}
+            />
+          )}
+
+          {/* TAB 2.5: PRE-FEST EVENTS REGISTRATION (Screening & Digital Submission) */}
+          {(activeTab === 'prefest_events_registration' || activeTab === 'special_events_registration') && (
+            <PreFestEventsCollegeTab
+              currentCollegeId={currentCollegeId}
+              currentCollegeAfflNo={currentCollegeAfflNo || college?.affl_no}
+              registrations={registrations}
+              submissions={submissions}
+              students={students}
+              allItems={allItems}
+              registrationStatusByItem={registrationStatusByItem}
+              onOpenRegistrationModal={handleOpenRegistrationModal}
+              onUnregisterRegistration={handleUnregisterRegistration}
+              onRefresh={triggerRefresh}
             />
           )}
 
@@ -596,7 +668,11 @@ export default function CollegePortalPage() {
         <Modal
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
-          title={`Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`}
+          title={
+            selectedItemForReg && registrations.some(r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id))
+              ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+              : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+          }
           description={
             selectedItemForReg?.no_of_participants == null
               ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
@@ -605,10 +681,21 @@ export default function CollegePortalPage() {
           maxWidth="xl"
         >
           {selectedItemForReg && (() => {
+            const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
             const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
-            const isAlreadyRegistered = registrations.some(
-              r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id)
+            const matchingEventRegs = registrations.filter(
+              r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
             );
+
+            // Resolve currently enrolled students from records
+            const currentlyRegisteredStudents: Student[] = [];
+            students.forEach(s => {
+              if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
+                currentlyRegisteredStudents.push(s);
+              }
+            });
+            const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
+
             const modalLockCheck = festService.isRegistrationOpen(
               currentCollegeAfflNo || currentCollegeId,
               selectedItemForReg.item_id || selectedItemForReg.id
@@ -632,13 +719,63 @@ export default function CollegePortalPage() {
                   </div>
                 </div>
 
+                {/* Banner: Currently Registered Participants */}
+                {currentlyRegisteredStudents.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 font-sans">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-heading font-bold text-amber-900 dark:text-amber-200">
+                        <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span>Currently Registered Participants ({currentlyRegisteredStudents.length})</span>
+                      </div>
+                      <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                        Saved in database
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      {currentlyRegisteredStudents.map(curStudent => {
+                        const isChecked = selectedStudentIds.has(curStudent.id);
+                        const chest = getCanonicalChestNo(curStudent);
+                        const cic = curStudent.admission_no || curStudent.cic_no || curStudent.cic_number || 'N/A';
+                        return (
+                          <div
+                            key={curStudent.id}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-all ${isChecked
+                              ? 'bg-[var(--bg-surface)] border-amber-500/40 text-[var(--text-primary)] shadow-2xs'
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300 line-through opacity-70'
+                              }`}
+                          >
+                            <div>
+                              <div className="font-heading font-semibold text-[11.5px] leading-tight">
+                                {curStudent.full_name || curStudent.name}
+                              </div>
+                              <div className="text-[10px] font-mono text-[var(--text-muted)] flex items-center gap-1.5">
+                                <span>Chest: {chest}</span>
+                                <span>•</span>
+                                <span>CIC: {cic}</span>
+                              </div>
+                            </div>
+                            {isChecked ? (
+                              <Badge variant="success" size="sm" className="text-[9.5px] py-0 px-1 font-heading">
+                                Enrolled
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" size="sm" className="text-[9.5px] py-0 px-1 font-heading">
+                                Will Remove
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {(modalLockCheck.isFinePeriod || modalLockCheck.isSuperFinePeriod) && (
                   <div
-                    className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-sans ${
-                      modalLockCheck.isSuperFinePeriod
-                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
-                        : 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
-                    }`}
+                    className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-sans ${modalLockCheck.isSuperFinePeriod
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                      }`}
                   >
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span>
@@ -708,8 +845,8 @@ export default function CollegePortalPage() {
                   </div>
                 )}
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
                       Select Participants ({selectedStudentIds.size} / {isOpenPart ? 'Open' : maxPart} selected)
                     </label>
@@ -718,7 +855,45 @@ export default function CollegePortalPage() {
                     </span>
                   </div>
 
-                  <div className="max-h-60 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                  {/* Active Selected Roster Pills */}
+                  {selectedStudentIds.size > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-[var(--bg-subtle)]/70 rounded-xl border border-[var(--border-subtle)]">
+                      <span className="text-[10.5px] font-heading font-semibold text-[var(--text-muted)] px-1">
+                        Active Roster ({selectedStudentIds.size}):
+                      </span>
+                      {Array.from(selectedStudentIds).map(id => {
+                        const stu = students.find(s => s.id === id);
+                        if (!stu) return null;
+                        const chest = getCanonicalChestNo(stu);
+                        const idStr = chest !== '—' ? `#${chest}` : `CIC:${stu.admission_no || stu.cic_no || 'N/A'}`;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--f-saffron)]/40 text-[11px] font-medium text-[var(--text-primary)] shadow-2xs font-sans"
+                          >
+                            <span className="truncate max-w-[140px]">{stu.full_name || stu.name}</span>
+                            <span className="text-[9.5px] font-mono text-[var(--text-muted)]">({idStr})</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedStudentIds(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(id);
+                                  return next;
+                                });
+                              }}
+                              className="text-[var(--text-muted)] hover:text-rose-500 rounded-full p-0.5 transition-colors"
+                              title="Remove participant"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="max-h-80 sm:max-h-96 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
                     {filteredModalStudents.length === 0 ? (
                       <div className="py-8 text-center text-xs text-[var(--text-muted)]">
                         <p className="font-heading font-semibold text-[var(--text-secondary)]">No participants match your criteria</p>
@@ -745,10 +920,64 @@ export default function CollegePortalPage() {
                         const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                         const isCategoryMatch = isCategoryMatching(sCat, itemCat);
 
-                        const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits);
+                        const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits, students);
+                        const isAlreadyInEvent = quotaCheck.isAlreadyRegisteredInItem;
                         const isQuotaComplete = !quotaCheck.allowed;
-                        const isFaded = !isCategoryMatch || (!isSelected && isQuotaComplete);
-                        const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && isQuotaComplete);
+                        const isFaded = !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                        const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+
+                        const isItemSpecial = isSpecialEvent(selectedItemForReg);
+                        const itemStageMode = getEffectiveStageMode(selectedItemForReg);
+                        const isItemOnstage = itemStageMode === 'onstage';
+                        const isItemOffstage = !isItemOnstage;
+
+                        // Base counts across festival (consistent across all event modals)
+                        const baseOn = quotaCheck.totalStats.onstageCount;
+                        const baseOff = quotaCheck.totalStats.offstageCount;
+                        const baseTot = quotaCheck.totalStats.registeredEventsCount;
+
+                        // Dynamic numbers reflecting current selection state in this modal
+                        let displayedOn = baseOn;
+                        let displayedOff = baseOff;
+                        let displayedTot = baseTot;
+                        let deltaBadge: React.ReactNode = null;
+
+                        if (isAlreadyInEvent) {
+                          if (isSelected) {
+                            // Kept in roster: same as current saved total
+                            deltaBadge = (
+                              <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-400 font-bold bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/30">
+                                Enrolled
+                              </span>
+                            );
+                          } else {
+                            // Unchecked: will be removed on submit!
+                            if (!isItemSpecial) {
+                              if (isItemOnstage) displayedOn = Math.max(0, baseOn - 1);
+                              if (isItemOffstage) displayedOff = Math.max(0, baseOff - 1);
+                              displayedTot = Math.max(0, baseTot - 1);
+                            }
+                            deltaBadge = (
+                              <span className="ml-1 text-[10px] text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/30">
+                                -1 will remove
+                              </span>
+                            );
+                          }
+                        } else {
+                          if (isSelected) {
+                            // Newly checked to add!
+                            if (!isItemSpecial) {
+                              if (isItemOnstage) displayedOn = baseOn + 1;
+                              if (isItemOffstage) displayedOff = baseOff + 1;
+                              displayedTot = baseTot + 1;
+                            }
+                            deltaBadge = (
+                              <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/30">
+                                +1 added
+                              </span>
+                            );
+                          }
+                        }
 
                         return (
                           <label
@@ -757,7 +986,7 @@ export default function CollegePortalPage() {
                               ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
                               : 'hover:bg-[var(--bg-hover)] cursor-pointer'
                               }`}
-                            title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
+                            title={!isCategoryMatch ? 'Category does not match event requirement' : (!isAlreadyInEvent && isQuotaComplete ? quotaCheck.reason : undefined)}
                           >
                             <div className="flex items-center gap-2.5 min-w-0 pr-2">
                               <input
@@ -787,7 +1016,7 @@ export default function CollegePortalPage() {
                                   <span className="font-heading font-bold text-[var(--text-primary)] truncate">
                                     {s.full_name || s.name}
                                   </span>
-                                  {isQuotaComplete && !isSelected && (
+                                  {isQuotaComplete && !isSelected && !isAlreadyInEvent && (
                                     <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5 font-sans">
                                       {quotaCheck.reason}
                                     </Badge>
@@ -798,8 +1027,9 @@ export default function CollegePortalPage() {
                                   <span>•</span>
                                   <span>CIC: {s.admission_no || s.cic_no || s.cic_number || 'N/A'}</span>
                                   <span>•</span>
-                                  <span className="text-[var(--text-secondary)] font-sans">
-                                    On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
+                                  <span className={`font-sans ${isSelected ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold' : 'text-[var(--text-secondary)]'}`}>
+                                    On: {displayedOn}/{quotaCheck.quota?.on_max ?? '-'} | Off: {displayedOff}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {displayedTot}/{quotaCheck.quota?.total_max ?? '-'}
+                                    {deltaBadge}
                                   </span>
                                 </div>
                               </div>
@@ -831,14 +1061,21 @@ export default function CollegePortalPage() {
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={isSubmittingReg}
                         className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-heading"
                         onClick={() => handleUnregisterRegistration(selectedItemForReg)}
                       >
                         <Trash2 className="w-3.5 h-3.5 mr-1" />
-                        Remove Registration
+                        {isSubmittingReg ? 'Processing...' : 'Remove Registration'}
                       </Button>
                     )}
-                    <Button type="button" variant="outline" className="font-heading" onClick={() => setIsRegisterModalOpen(false)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="font-heading"
+                      disabled={isSubmittingReg}
+                      onClick={() => setIsRegisterModalOpen(false)}
+                    >
                       Cancel
                     </Button>
                     <Button
@@ -846,11 +1083,17 @@ export default function CollegePortalPage() {
                       variant="saffron"
                       className="font-heading font-bold"
                       disabled={
+                        isSubmittingReg ||
                         selectedStudentIds.size < minPart ||
-                        selectedStudentIds.size > maxPart
+                        selectedStudentIds.size > maxPart ||
+                        !modalLockCheck.canRegister
                       }
                     >
-                      Save Registration
+                      {isSubmittingReg
+                        ? 'Saving Registration...'
+                        : isAlreadyRegistered
+                          ? 'Update Registration'
+                          : 'Save Registration'}
                     </Button>
                   </div>
                 </div>

@@ -24,7 +24,8 @@ import {
   Search,
   Filter,
   X,
-  ChevronDown
+  ChevronDown,
+  UserCheck
 } from 'lucide-react';
 import {
   Item,
@@ -36,10 +37,12 @@ import {
   isSubmissionEvent,
   isScreeningEvent,
   getItemParticipantBounds,
-  formatParticipantQuotaLabel
+  formatParticipantQuotaLabel,
+  isSpecialEvent,
+  getEffectiveStageMode
 } from '@/lib/types/fest';
 import { formatIstDisplay, evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
-import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
+import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
 import { CollegeVolunteersTab } from '../college/tabs/CollegeVolunteersTab';
@@ -188,12 +191,37 @@ export function CollegeView() {
   }, [filteredModalStudents, selectedStudentIds]);
 
   const handleOpenRegistrationModal = (item: Item) => {
-    const existingReg = registrations.find(r => r.item_id === item.item_id || String(r.item_id) === item.id);
-    const preselected = existingReg?.participants?.map(p => p.id) || [];
+    const targetItemId = Number(item.item_id || item.id);
+    const matchingRegs = registrations.filter(
+      r => Number(r.item_id) === targetItemId || String(r.item_id) === String(item.id)
+    );
+    const preselectedSet = new Set<string>();
+    matchingRegs.forEach(reg => {
+      reg.participants?.forEach(p => {
+        const found = findStudentByIdentifier(students, p.id || p.chest_no || p.admission_no || p.cic_no, currentCollegeAfflNo || college?.affl_no);
+        if (found?.id) preselectedSet.add(found.id);
+        else if (p.id) preselectedSet.add(p.id);
+      });
+      if (reg.student?.id) preselectedSet.add(reg.student.id);
+      if (reg.chest_no) {
+        const found = findStudentByIdentifier(students, reg.chest_no, currentCollegeAfflNo || college?.affl_no);
+        if (found?.id) preselectedSet.add(found.id);
+      }
+    });
+
+    // Cross-check against full students pool
+    students.forEach(s => {
+      if (matchingRegs.some(r => registrationContainsStudent(r, s, students))) {
+        preselectedSet.add(s.id);
+      }
+    });
+
     setSelectedItemForReg(item);
-    setSelectedStudentIds(preselected);
+    setSelectedStudentIds(Array.from(preselectedSet));
     setRegModalSearch('');
-    setRegModalPhaseFilter('All');
+    const itemCat = item.phase || item.category || 'All';
+    const isGeneralOrSpecial = normalizeCategoryKey(itemCat) === 'GENERAL' || normalizeCategoryKey(itemCat) === 'SPECIAL';
+    setRegModalPhaseFilter(isGeneralOrSpecial ? 'All' : itemCat);
     setIsRegisterModalOpen(true);
   };
 
@@ -328,8 +356,8 @@ export function CollegeView() {
       {isFineApplicable && (
         <div
           className={`border rounded-xl p-3 text-xs flex items-center gap-2 ${tierInfo.tier === 'super_fine'
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
-              : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-300'
+            ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
+            : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-300'
             }`}
         >
           <AlertTriangle
@@ -811,7 +839,11 @@ export function CollegeView() {
       <Modal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
-        title={`Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`}
+        title={
+          selectedItemForReg && registrations.some(r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id))
+            ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+            : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+        }
         description={
           selectedItemForReg?.no_of_participants == null
             ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
@@ -820,10 +852,20 @@ export function CollegeView() {
         maxWidth="xl"
       >
         {selectedItemForReg && (() => {
+          const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
           const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
-          const isAlreadyRegistered = registrations.some(
-            r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id)
+          const matchingEventRegs = registrations.filter(
+            r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
           );
+
+          // Resolve currently enrolled students
+          const currentlyRegisteredStudents: Student[] = [];
+          students.forEach(s => {
+            if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
+              currentlyRegisteredStudents.push(s);
+            }
+          });
+          const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
 
           return (
             <form onSubmit={handleConfirmRegistration} className="space-y-4">
@@ -842,6 +884,57 @@ export function CollegeView() {
                   />
                 </div>
               </div>
+
+              {/* Banner: Currently Registered Participants */}
+              {currentlyRegisteredStudents.length > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 font-sans">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-heading font-bold text-amber-900 dark:text-amber-200">
+                      <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span>Currently Registered Participants ({currentlyRegisteredStudents.length})</span>
+                    </div>
+                    <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                      Saved in database
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-0.5">
+                    {currentlyRegisteredStudents.map(curStudent => {
+                      const isChecked = selectedStudentIds.includes(curStudent.id);
+                      const chest = getCanonicalChestNo(curStudent);
+                      const cic = curStudent.admission_no || curStudent.cic_no || (curStudent as any).cic_number || 'N/A';
+                      return (
+                        <div
+                          key={curStudent.id}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-all ${isChecked
+                            ? 'bg-[var(--bg-surface)] border-amber-500/40 text-[var(--text-primary)] shadow-2xs'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300 line-through opacity-70'
+                            }`}
+                        >
+                          <div>
+                            <div className="font-heading font-semibold text-[11.5px] leading-tight">
+                              {curStudent.full_name || curStudent.name}
+                            </div>
+                            <div className="text-[10px] font-mono text-[var(--text-muted)] flex items-center gap-1.5">
+                              <span>Chest: {chest}</span>
+                              <span>•</span>
+                              <span>CIC: {cic}</span>
+                            </div>
+                          </div>
+                          {isChecked ? (
+                            <Badge variant="success" size="sm" className="text-[9.5px] py-0 px-1 font-heading">
+                              Enrolled
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" size="sm" className="text-[9.5px] py-0 px-1 font-heading">
+                              Will Remove
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Participant Search and Phase Filter */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -939,10 +1032,61 @@ export function CollegeView() {
                       const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                       const isCategoryMatch = isCategoryMatching(sCat, itemCat);
 
-                      const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits);
+                      const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits, students);
+                      const isAlreadyInEvent = quotaCheck.isAlreadyRegisteredInItem;
                       const isQuotaComplete = !quotaCheck.allowed;
-                      const isFaded = !isCategoryMatch || (!isSelected && isQuotaComplete);
-                      const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && isQuotaComplete);
+                      const isFaded = !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                      const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+
+                      const isItemSpecial = isSpecialEvent(selectedItemForReg);
+                      const itemStageMode = getEffectiveStageMode(selectedItemForReg);
+                      const isItemOnstage = itemStageMode === 'onstage';
+                      const isItemOffstage = !isItemOnstage;
+
+                      // Base counts across festival (consistent across all event modals)
+                      const baseOn = quotaCheck.totalStats.onstageCount;
+                      const baseOff = quotaCheck.totalStats.offstageCount;
+                      const baseTot = quotaCheck.totalStats.registeredEventsCount;
+
+                      // Dynamic numbers reflecting current selection state in this modal
+                      let displayedOn = baseOn;
+                      let displayedOff = baseOff;
+                      let displayedTot = baseTot;
+                      let deltaBadge: React.ReactNode = null;
+
+                      if (isAlreadyInEvent) {
+                        if (isSelected) {
+                          deltaBadge = (
+                            <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-400 font-bold bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/30">
+                              Enrolled
+                            </span>
+                          );
+                        } else {
+                          if (!isItemSpecial) {
+                            if (isItemOnstage) displayedOn = Math.max(0, baseOn - 1);
+                            if (isItemOffstage) displayedOff = Math.max(0, baseOff - 1);
+                            displayedTot = Math.max(0, baseTot - 1);
+                          }
+                          deltaBadge = (
+                            <span className="ml-1 text-[10px] text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/30">
+                              -1 will remove
+                            </span>
+                          );
+                        }
+                      } else {
+                        if (isSelected) {
+                          if (!isItemSpecial) {
+                            if (isItemOnstage) displayedOn = baseOn + 1;
+                            if (isItemOffstage) displayedOff = baseOff + 1;
+                            displayedTot = baseTot + 1;
+                          }
+                          deltaBadge = (
+                            <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/30">
+                              +1 added
+                            </span>
+                          );
+                        }
+                      }
 
                       return (
                         <label
@@ -951,7 +1095,7 @@ export function CollegeView() {
                             ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
                             : 'hover:bg-[var(--bg-subtle)]/60 cursor-pointer'
                             }`}
-                          title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
+                          title={!isCategoryMatch ? 'Category does not match event requirement' : (!isAlreadyInEvent && isQuotaComplete ? quotaCheck.reason : undefined)}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">
                             <input
@@ -976,7 +1120,7 @@ export function CollegeView() {
                                 <span className="font-heading font-bold text-[var(--text-primary)] truncate">
                                   {s.full_name || s.name}
                                 </span>
-                                {isQuotaComplete && !isSelected && (
+                                {isQuotaComplete && !isSelected && !isAlreadyInEvent && (
                                   <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
                                     {quotaCheck.reason}
                                   </Badge>
@@ -987,8 +1131,9 @@ export function CollegeView() {
                                 <span>•</span>
                                 <span>Adm: {s.admission_no || s.cic_no || 'N/A'}</span>
                                 <span>•</span>
-                                <span className="text-[var(--text-secondary)] font-sans">
-                                  On: {quotaCheck.stats.onstageCount}/{quotaCheck.quota?.on_max ?? '-'} | Off: {quotaCheck.stats.offstageCount}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {quotaCheck.stats.registeredEventsCount}/{quotaCheck.quota?.total_max ?? '-'}
+                                <span className={`font-sans ${isSelected ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold' : 'text-[var(--text-secondary)]'}`}>
+                                  On: {displayedOn}/{quotaCheck.quota?.on_max ?? '-'} | Off: {displayedOff}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {displayedTot}/{quotaCheck.quota?.total_max ?? '-'}
+                                  {deltaBadge}
                                 </span>
                               </div>
                             </div>
@@ -1033,12 +1178,9 @@ export function CollegeView() {
                   <Button
                     type="submit"
                     variant="saffron"
-                    disabled={
-                      selectedStudentIds.length < minPart ||
-                      selectedStudentIds.length > maxPart
-                    }
+                    disabled={selectedStudentIds.length < minPart || selectedStudentIds.length > maxPart}
                   >
-                    Save Registration
+                    {isAlreadyRegistered ? 'Update Registration' : 'Confirm Registration'}
                   </Button>
                 </div>
               </div>

@@ -131,12 +131,29 @@ export function FestProvider({ children }: { children: ReactNode }) {
     };
 
     let bc: BroadcastChannel | null = null;
+    let globalBc: BroadcastChannel | null = null;
+
+    const applyGlobalSync = () => {
+      const scopedAffl = currentCollegeAfflNoRef.current || undefined;
+      festService.syncWithSupabase(scopedAffl, true).then(() => {
+        setFestSettings(festService.getFestSettings());
+        setRefreshKey(prev => prev + 1);
+      });
+    };
+
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         bc = new BroadcastChannel('wsf_settings_sync');
         bc.onmessage = (event) => {
           if (event.data?.type === 'SETTINGS_UPDATED') {
             applyFreshSettings();
+          }
+        };
+
+        globalBc = new BroadcastChannel('wsf_global_sync');
+        globalBc.onmessage = (event) => {
+          if (event.data?.type === 'DATA_MUTATED') {
+            applyGlobalSync();
           }
         };
       } catch {}
@@ -152,16 +169,23 @@ export function FestProvider({ children }: { children: ReactNode }) {
       applyFreshSettings();
     };
 
+    const handleGlobalSyncEvent = () => {
+      applyGlobalSync();
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleStorage);
       window.addEventListener('wsf_settings_updated', handleCustomEvent);
+      window.addEventListener('wsf_global_sync', handleGlobalSyncEvent);
     }
 
     return () => {
       if (bc) bc.close();
+      if (globalBc) globalBc.close();
       if (typeof window !== 'undefined') {
         window.removeEventListener('storage', handleStorage);
         window.removeEventListener('wsf_settings_updated', handleCustomEvent);
+        window.removeEventListener('wsf_global_sync', handleGlobalSyncEvent);
       }
     };
   }, []);
@@ -171,7 +195,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const pollTimer = setInterval(() => {
       const scopedAffl = currentCollegeAfflNoRef.current || undefined;
-      festService.syncWithSupabase(scopedAffl, false).then(connected => {
+      festService.syncWithSupabase(scopedAffl, true).then(connected => {
         if (connected) {
           const fresh = festService.getFestSettings();
           setFestSettings(fresh);

@@ -218,8 +218,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
 
         return {
           code_letter: letter,
-          chest_no: existing?.chest_no || matchingCode?.chest_no,
-          college_affl_no: existing?.college_affl_no || matchingCode?.college_affl_no,
           mark_percentage: marks,
           grade,
           rank,

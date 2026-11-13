@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const auth = await requireServerRole(['admin', 'convenor', 'college']);
+    const auth = await requireServerRole(['admin', 'college']);
     if (!auth.ok) return auth.response;
 
     const student = body?.student;

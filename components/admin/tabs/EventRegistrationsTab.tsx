@@ -60,7 +60,11 @@ interface EnrolledParticipantRow {
 export function EventRegistrationsTab() {
   const { festSettings, refreshKey, triggerRefresh } = useFest();
 
-  const items = useMemo(() => festService.getItems(), [refreshKey]);
+  // Only display standard festival events here; Pre-Fest screening & submission events are strictly housed in PreFestEventsTab
+  const items = useMemo(
+    () => festService.getItems().filter(itm => !requiresPreFestSubmission(itm)),
+    [refreshKey]
+  );
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
@@ -81,11 +85,13 @@ export function EventRegistrationsTab() {
     return map;
   }, [students]);
 
-  // Group registrations by item_id
+  // Group registrations by item_id (only for items in this roster)
   const itemRegistrationsMap = useMemo(() => {
     const map = new Map<number, EnrolledParticipantRow[]>();
     registrations.forEach(r => {
       const itmId = Number(r.item_id);
+      const evt = itemMap.get(itmId);
+      if (!evt) return; // skip pre-fest or non-existent items
       if (!map.has(itmId)) {
         map.set(itmId, []);
       }
@@ -97,7 +103,6 @@ export function EventRegistrationsTab() {
       const lateRow = lateRegistrations.find(
         l => Number(l.item_id) === itmId && l.chest_no === r.chest_no
       );
-      const evt = itemMap.get(itmId);
       const regDeadlineIso = evt?.reg_deadline || festSettings.reg_deadline;
       const tierInfo = r.created_at ? evaluateDeadlineTierAtTime(regDeadlineIso, r.created_at) : null;
       const isLate = Boolean(lateRow) || Boolean(tierInfo && tierInfo.tier !== 'open');
@@ -308,8 +313,12 @@ export function EventRegistrationsTab() {
   }, [items, itemRegistrationsMap]);
 
   const totalRegisteredEntries = useMemo(() => {
-    return registrations.length;
-  }, [registrations]);
+    let count = 0;
+    itemRegistrationsMap.forEach(regs => {
+      count += regs.length;
+    });
+    return count;
+  }, [itemRegistrationsMap]);
 
   // Export single event PDF
   const handleExportEventPdf = (itm: Item, participants: EnrolledParticipantRow[]) => {
@@ -442,7 +451,7 @@ export function EventRegistrationsTab() {
 
             {/* Mode Filter */}
             <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs flex-wrap">
-              {(['All', 'onstage', 'offstage', 'submission', 'screening'] as const).map(m => (
+              {(['All', 'onstage', 'offstage'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
@@ -457,11 +466,7 @@ export function EventRegistrationsTab() {
                     ? 'All Modes'
                     : m === 'onstage'
                     ? 'On Stage'
-                    : m === 'offstage'
-                    ? 'Off Stage'
-                    : m === 'submission'
-                    ? 'Submission'
-                    : 'Screening'}
+                    : 'Off Stage'}
                 </button>
               ))}
             </div>

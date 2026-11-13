@@ -15,7 +15,8 @@ import {
   BellRing,
   Layers,
   ScrollText,
-  UserPlus
+  UserPlus,
+  Sparkles
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -35,12 +36,14 @@ export default function AdminPage() {
 
     // Setup & Rules
     { id: 'items', label: 'Events Catalog', icon: Award, group: 'Setup' },
+    { id: 'prefest_setup', label: 'Pre-Fest Catalog & Deadlines', icon: Sparkles, group: 'Setup' },
     { id: 'locks_matrix', label: 'Registration Locks', icon: Lock, group: 'Setup' },
     { id: 'settings', label: 'Deadlines & Fines', icon: Clock, group: 'Setup' },
 
     // Delegations & Rosters
     { id: 'college_registrations', label: 'College Delegations', icon: Building2, group: 'Registrations' },
     { id: 'event_registrations', label: 'Participant Rosters', icon: Layers, group: 'Registrations' },
+    { id: 'prefest_registrations', label: 'Pre-Fest Registrations', icon: Sparkles, group: 'Registrations' },
     { id: 'colleges', label: 'Institutions & Overrides', icon: UserCheck, group: 'Registrations' },
     { id: 'volunteers', label: 'Volunteer Force', icon: HeartHandshake, group: 'Registrations' },
 

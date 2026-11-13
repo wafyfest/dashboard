@@ -286,3 +286,252 @@ export function getDeadlineStatus(
     schedule,
   };
 }
+
+export interface EventDeadlineEvaluation {
+  tier: 'upcoming' | 'open' | 'fine' | 'super_fine' | 'closed';
+  canRegister: boolean;
+  fineAmount: number;
+  label: string;
+  badgeClass: string;
+  timeRemainingText: string;
+  diffMs: number;
+}
+
+export function evaluateEventDeadlineSetting(
+  setting?: {
+    start_time?: string | null;
+    no_fine_deadline?: string | null;
+    fine_deadline?: string | null;
+    fine_amount?: number | null;
+    has_super_fine?: boolean;
+    super_fine_deadline?: string | null;
+    super_fine_amount?: number | null;
+    is_active?: boolean;
+  } | null,
+  atTime: string | Date | number = Date.now()
+): EventDeadlineEvaluation {
+  const atMs =
+    typeof atTime === 'number'
+      ? atTime
+      : atTime instanceof Date
+        ? atTime.getTime()
+        : new Date(atTime).getTime();
+
+  if (!setting) {
+    return {
+      tier: 'open',
+      canRegister: true,
+      fineAmount: 0,
+      label: 'Open (No Schedule Restriction)',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: 'Always Open',
+      diffMs: 0
+    };
+  }
+
+  // Explicitly disabled by admin
+  if (setting.is_active === false) {
+    return {
+      tier: 'closed',
+      canRegister: false,
+      fineAmount: 0,
+      label: 'Registration Disabled',
+      badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+      timeRemainingText: 'Registration disabled by fest admin',
+      diffMs: 0
+    };
+  }
+
+  const startMs = setting.start_time ? new Date(setting.start_time).getTime() : 0;
+  const noFineMs = setting.no_fine_deadline ? new Date(setting.no_fine_deadline).getTime() : Infinity;
+  const fineMs = setting.fine_deadline ? new Date(setting.fine_deadline).getTime() : noFineMs;
+  const fineAmt = setting.fine_amount ?? 500;
+  const hasSuperFine = Boolean(setting.has_super_fine && setting.super_fine_deadline);
+  const superFineMs = hasSuperFine ? new Date(setting.super_fine_deadline!).getTime() : fineMs;
+  const superFineAmt = setting.super_fine_amount ?? 1000;
+
+  // 1. Not yet started
+  if (startMs > 0 && atMs < startMs) {
+    const diff = startMs - atMs;
+    return {
+      tier: 'upcoming',
+      canRegister: false,
+      fineAmount: 0,
+      label: 'Registration Upcoming',
+      badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+      timeRemainingText: `Opens in ${formatDurationCompact(diff)}`,
+      diffMs: diff
+    };
+  }
+
+  // 2. Open without fine
+  if (atMs <= noFineMs) {
+    const diff = noFineMs - atMs;
+    return {
+      tier: 'open',
+      canRegister: true,
+      fineAmount: 0,
+      label: 'Open (No Fine)',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: `${formatDurationCompact(diff)} left (Free)`,
+      diffMs: diff
+    };
+  }
+
+  // 3. Late Fine window
+  if (atMs <= fineMs) {
+    const diff = fineMs - atMs;
+    return {
+      tier: 'fine',
+      canRegister: true,
+      fineAmount: fineAmt,
+      label: `Late Fine Active (₹${fineAmt})`,
+      badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹${fineAmt} Fine)`,
+      diffMs: diff
+    };
+  }
+
+  // 4. Super Fine window (only if super fine is enabled)
+  if (hasSuperFine && atMs <= superFineMs) {
+    const diff = superFineMs - atMs;
+    return {
+      tier: 'super_fine',
+      canRegister: true,
+      fineAmount: superFineAmt,
+      label: `Super Fine Active (₹${superFineAmt})`,
+      badgeClass: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/25',
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹${superFineAmt} Super Fine)`,
+      diffMs: diff
+    };
+  }
+
+  // 5. Complete lockout
+  return {
+    tier: 'closed',
+    canRegister: false,
+    fineAmount: hasSuperFine ? superFineAmt : fineAmt,
+    label: 'Registration Locked',
+    badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    timeRemainingText: hasSuperFine ? 'Super fine period ended — locked' : 'Late fine period ended — locked',
+    diffMs: 0
+  };
+}
+
+
+/**
+ * Evaluates whether the screening link submission window is open, upcoming, or closed.
+ * Uses the dedicated `link_submission_deadline` field from event_deadline_settings.
+ * Falls back to fine_deadline → no_fine_deadline if link_submission_deadline is not set.
+ */
+export interface LinkSubmissionDeadlineEvaluation {
+  canSubmitLink: boolean;
+  label: string;
+  badgeClass: string;
+  timeRemainingText: string;
+  deadlineIso: string | null;
+  diffMs: number;
+}
+
+export function evaluateLinkSubmissionDeadline(
+  setting?: {
+    start_time?: string | null;
+    link_submission_deadline?: string | null;
+    fine_deadline?: string | null;
+    no_fine_deadline?: string | null;
+    is_active?: boolean;
+  } | null,
+  atTime: string | Date | number = Date.now()
+): LinkSubmissionDeadlineEvaluation {
+  const atMs =
+    typeof atTime === 'number'
+      ? atTime
+      : atTime instanceof Date
+        ? atTime.getTime()
+        : new Date(atTime).getTime();
+
+  if (!setting) {
+    return {
+      canSubmitLink: true,
+      label: 'Link Submission Open',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: 'Always Open (no deadline set)',
+      deadlineIso: null,
+      diffMs: 0,
+    };
+  }
+
+  // Disabled by admin
+  if (setting.is_active === false) {
+    return {
+      canSubmitLink: false,
+      label: 'Link Submission Disabled',
+      badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+      timeRemainingText: 'Disabled by fest admin',
+      deadlineIso: null,
+      diffMs: 0,
+    };
+  }
+
+  // Resolve the effective deadline: prefer dedicated field, fall back to fine/no_fine
+  const deadlineIso = setting.link_submission_deadline || setting.fine_deadline || setting.no_fine_deadline || null;
+  if (!deadlineIso) {
+    return {
+      canSubmitLink: true,
+      label: 'Link Submission Open',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: 'No deadline configured',
+      deadlineIso: null,
+      diffMs: 0,
+    };
+  }
+
+  const deadlineMs = new Date(deadlineIso).getTime();
+  if (Number.isNaN(deadlineMs)) {
+    return {
+      canSubmitLink: true,
+      label: 'Link Submission Open',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: 'Invalid deadline — treating as open',
+      deadlineIso,
+      diffMs: 0,
+    };
+  }
+
+  // Not yet started (before registration window opens)
+  const startMs = setting.start_time ? new Date(setting.start_time).getTime() : 0;
+  if (startMs > 0 && atMs < startMs) {
+    const diff = startMs - atMs;
+    return {
+      canSubmitLink: false,
+      label: 'Link Submission Upcoming',
+      badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+      timeRemainingText: `Opens in ${formatDurationCompact(diff)}`,
+      deadlineIso,
+      diffMs: diff,
+    };
+  }
+
+  // Still within the link submission window
+  if (atMs <= deadlineMs) {
+    const diff = deadlineMs - atMs;
+    return {
+      canSubmitLink: true,
+      label: 'Link Submission Open',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      timeRemainingText: `${formatDurationCompact(diff)} left to submit link`,
+      deadlineIso,
+      diffMs: diff,
+    };
+  }
+
+  // Past the deadline
+  return {
+    canSubmitLink: false,
+    label: 'Link Submission Closed',
+    badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    timeRemainingText: 'Link submission deadline has passed',
+    deadlineIso,
+    diffMs: 0,
+  };
+}

@@ -4,7 +4,7 @@ import { requireServerRole } from '@/lib/serverAuth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_ROLES = ['admin', 'stage_controller', 'convenor', 'result_entry'];
+const ALLOWED_ROLES = ['admin', 'stage_controller'];
 
 export async function POST(req: NextRequest) {
   const auth = await requireServerRole(ALLOWED_ROLES);

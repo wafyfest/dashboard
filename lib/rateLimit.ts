@@ -208,7 +208,8 @@ export function getClientIp(req: Request): string {
   if (xff) {
     const parts = xff.split(',').map(s => s.trim()).filter(Boolean);
     if (parts.length > 0) {
-      return parts[0];
+      // In reverse-proxy chains, the last proxy appends the peer IP
+      return parts[parts.length - 1];
     }
   }
 

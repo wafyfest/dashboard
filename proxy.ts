@@ -16,8 +16,11 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Only enforce authentication on protected dashboard routes.
-  // Public pages, SEO routes (robots, sitemap, manifest, og-image), and 404s pass through freely.
-  const isProtected = PROTECTED_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  // Public pages, landing page, student viewer pass through freely without DB overhead.
+  const isProtected = PROTECTED_PREFIXES.some(
+    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+
   if (!isProtected) {
     return NextResponse.next();
   }
@@ -33,6 +36,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Collect any cookies refreshed by Supabase so they are not dropped on redirect
+  const cookiesToSet: Array<{ name: string; value: string; options?: any }> = [];
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
@@ -40,23 +46,36 @@ export async function proxy(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+      setAll(newCookies) {
+        newCookies.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
-      }
-    }
+        newCookies.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+          cookiesToSet.push({ name, value, options });
+        });
+      },
+    },
   });
+
+  // Helper: create a redirect response that retains refreshed session cookies
+  const createRedirect = (targetPath: string, searchParams?: Record<string, string>) => {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = targetPath;
+    if (searchParams) {
+      Object.entries(searchParams).forEach(([k, v]) => redirectUrl.searchParams.set(k, v));
+    }
+    const redirectRes = NextResponse.redirect(redirectUrl);
+    cookiesToSet.forEach(({ name, value, options }) => {
+      redirectRes.cookies.set(name, value, options);
+    });
+    return redirectRes;
+  };
 
   // 2. Strict authentication via Supabase Auth
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/login';
-    return NextResponse.redirect(loginUrl);
+    return createRedirect('/login');
   }
 
   // 3. Retrieve user role from profiles table
@@ -66,17 +85,29 @@ export async function proxy(request: NextRequest) {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile || !profile.role) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/login';
-    loginUrl.searchParams.set('error', 'no_role_assigned');
-    return NextResponse.redirect(loginUrl);
+  let userRole = profile?.role as string | undefined;
+
+  // Fallback: match college coordinator by registered institutional email
+  if (!userRole && user.email) {
+    const { data: matchedCollege } = await supabase
+      .from('colleges')
+      .select('affl_no')
+      .eq('email', user.email.toLowerCase())
+      .maybeSingle();
+
+    if (matchedCollege?.affl_no) {
+      userRole = 'college';
+    }
   }
 
-  const userRole = profile.role as string;
+  if (!userRole) {
+    return createRedirect('/login', { error: 'no_role_assigned' });
+  }
 
-  // 4. Server-side role authorization check
-  const matchedRoute = Object.keys(ROUTE_ROLE_MAP).find(route => pathname.startsWith(route));
+  // 4. Server-side role authorization check with strict path boundaries
+  const matchedRoute = PROTECTED_PREFIXES.find(
+    prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 
   if (matchedRoute) {
     const allowedRoles = ROUTE_ROLE_MAP[matchedRoute];
@@ -85,7 +116,6 @@ export async function proxy(request: NextRequest) {
       const roleRouteMap: Record<string, string> = {
         college: '/college',
         admin: '/admin',
-        student: '/student',
         stage_controller: '/stage-controller',
         result_entry: '/result-entry',
         convenor: '/convenor',
@@ -93,9 +123,7 @@ export async function proxy(request: NextRequest) {
       const redirectPath = roleRouteMap[userRole] || '/login';
 
       if (redirectPath !== pathname) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = redirectPath;
-        return NextResponse.redirect(redirectUrl);
+        return createRedirect(redirectPath);
       }
     }
   }

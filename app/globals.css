@@ -58,6 +58,14 @@
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.625rem;
+
+  /* ─── Sliding Marquee Ticker ─── */
+  --animate-ticker: ticker 28s linear infinite;
+
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
 }

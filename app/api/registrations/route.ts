@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         );
       }
       const [eventRes, settingsRes, collegeRes, cellRes] = await Promise.all([
-        auth.db.from('events').select('item_id, item_code, reg_deadline, is_locked').eq('item_id', itemId).maybeSingle(),
+        auth.db.from('events').select('id, item_id, item_code, reg_deadline, is_locked, is_screening, is_submission, mode').eq('item_id', itemId).maybeSingle(),
         auth.db.from('fest_settings').select('reg_deadline').limit(1).maybeSingle(),
         auth.db.from('colleges').select('affl_no, manual_lock_override').eq('affl_no', collegeAfflNo).maybeSingle(),
         auth.db.from('entry_locks').select('is_open').eq('item_id', itemId).eq('college_affl_no', collegeAfflNo).maybeSingle(),
@@ -191,6 +191,33 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Keep prefest_registrations in sync for Screening and Submission events
+        if (
+          eventRes.data.is_screening ||
+          eventRes.data.is_submission ||
+          (eventRes.data as any).mode === 'screening' ||
+          (eventRes.data as any).mode === 'submission'
+        ) {
+          const eventType =
+            eventRes.data.is_screening || (eventRes.data as any).mode === 'screening'
+              ? 'SCREENING'
+              : 'SUBMISSION';
+          try {
+            await auth.db.from('prefest_registrations').upsert(
+              {
+                college_id: `col-${collegeAfflNo}`,
+                college_affl_no: collegeAfflNo,
+                event_id: (eventRes.data as any).id,
+                event_type: eventType,
+                registration_status: 'registered',
+              },
+              { onConflict: 'college_affl_no,event_id' }
+            );
+          } catch (pfErr) {
+            console.warn('Pre-fest registration sync notice:', pfErr);
+          }
+        }
+
         return NextResponse.json({
           success: true,
           rows: dbRows ?? [],
@@ -215,6 +242,9 @@ export async function POST(req: NextRequest) {
       const results = await Promise.all([
         auth.db.from('late_registrations').delete().match({ item_id: itemId, college_affl_no: collegeAfflNo }),
         auth.db.from('submission_entries').delete().match({ item_id: itemId, college_affl_no: collegeAfflNo }),
+        (eventRes.data.is_screening || eventRes.data.is_submission || (eventRes.data as any).mode === 'screening' || (eventRes.data as any).mode === 'submission')
+          ? auth.db.from('prefest_registrations').delete().match({ college_affl_no: collegeAfflNo, event_id: (eventRes.data as any).id })
+          : Promise.resolve({ error: null }),
       ]);
       const err = results.find(r => r.error)?.error;
       if (err) return NextResponse.json({ error: err.message }, { status: 500 });

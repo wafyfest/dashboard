@@ -34,7 +34,11 @@ import {
   isScreeningEvent,
   isNonTabulationEvent,
   getItemParticipantBounds,
-  requiresPreFestSubmission
+  requiresPreFestSubmission,
+  EventKind,
+  EventDeadlineSetting,
+  getEventKind,
+  DEFAULT_EVENT_DEADLINES
 } from '../types/fest';
 
 import {
@@ -45,7 +49,8 @@ import {
   registrationContainsStudent,
   calculateStudentEvents,
   checkStudentQuota,
-  isUuid
+  isUuid,
+  registerChestNoMapping
 } from '../utils/studentIdentity';
 
 // Mock data removed
@@ -53,9 +58,13 @@ import { supabase } from '../supabase/client';
 import {
   computeDeadlineSchedule,
   evaluateDeadlineTierAtTime,
+  evaluateEventDeadlineSetting,
+  evaluateLinkSubmissionDeadline,
+  EventDeadlineEvaluation,
   RegistrationDeadlineTier,
   SUPER_FINE_AMOUNT_RS,
   FINE_AMOUNT_RS,
+  formatIstDisplay,
 } from '../utils/istDate';
 
 const STORAGE_KEY_PREFIX = 'wafy_fest_db_';
@@ -91,7 +100,10 @@ class FestService {
     late_registrations: [],
     submissions: [],
     maxParticipation: [],
-    points_matrix: []
+    points_matrix: [],
+    preFestSettings: [],
+    preFestRegistrations: [],
+    preFestSubmissions: []
   };
 
   constructor() {
@@ -131,13 +143,39 @@ class FestService {
     return fallback;
   }
 
+  private readonly PERSISTED_STORAGE_KEYS = [
+    'colleges',
+    'festSettings',
+    'results',
+    'students',
+    'items',
+    'stages',
+    'schedules',
+    'points_matrix',
+    'chest_no',
+    'registrations',
+    'late_registrations',
+    'entryLocks',
+    'submissions',
+    'appeals',
+    'replacements',
+    'volunteers',
+    'announcements',
+    'code_letters',
+    'maxParticipation',
+    'preFestSettings',
+    'preFestRegistrations',
+    'preFestSubmissions'
+  ];
+
   private setStorage<T>(key: string, value: T): void {
     this.cache[key] = value;
+    if (key === 'chest_no' && Array.isArray(value)) {
+      registerChestNoMapping(value as any);
+    }
     if (this.isClient) {
       try {
-        // Cache core metadata in sessionStorage for instant reload without network delay
-        const cacheKeys = ['colleges', 'festSettings', 'results', 'students', 'items', 'stages', 'schedules', 'points_matrix'];
-        if (cacheKeys.includes(key) && value !== null && value !== undefined) {
+        if (this.PERSISTED_STORAGE_KEYS.includes(key) && value !== null && value !== undefined) {
           sessionStorage.setItem('arts_fest_' + key, JSON.stringify(value));
         }
       } catch (e) {
@@ -168,12 +206,14 @@ class FestService {
       late_registrations: [],
       submissions: [],
       maxParticipation: [],
-      points_matrix: []
+      points_matrix: [],
+      preFestSettings: [],
+      preFestRegistrations: [],
+      preFestSubmissions: []
     };
     if (this.isClient) {
       try {
-        const cacheKeys = ['colleges', 'festSettings', 'results', 'students', 'items', 'stages', 'schedules', 'points_matrix'];
-        for (const k of cacheKeys) {
+        for (const k of this.PERSISTED_STORAGE_KEYS) {
           sessionStorage.removeItem('arts_fest_' + k);
         }
       } catch (e) { }
@@ -190,7 +230,7 @@ class FestService {
   private scopeSyncTimes = new Map<string | number, number>();
   private authenticatedScopes = new Set<string | number>();
   private syncInFlight = new Map<string | number, Promise<boolean>>();
-  private readonly SYNC_TTL = 15 * 60 * 1000; // 15 minutes TTL for Free Plan bandwidth optimization
+  private readonly SYNC_TTL = 30 * 1000; // 30 seconds TTL for fast, responsive synchronization across dashboard
 
   public hasAuthenticatedSync(collegeAfflNo?: number): boolean {
     const scopeKey = collegeAfflNo ? Number(collegeAfflNo) : 'global';
@@ -240,6 +280,18 @@ class FestService {
         this.setStorage('festSettings', festData);
       }
 
+      // 1.1 Universal Event Deadlines & Fines Settings
+      try {
+        const { data: dlData, error: dlErr } = await client
+          .from('event_deadline_settings')
+          .select('*');
+        if (!dlErr && dlData && dlData.length > 0) {
+          this.setStorage('event_deadline_settings', dlData);
+        }
+      } catch (dlErr) {
+        // Fallback to defaults
+      }
+
       // 2. Colleges
       const { data: colData, error: colErr } = await client
         .from('colleges')
@@ -264,12 +316,36 @@ class FestService {
         this.setStorage('items', itemData);
       }
 
-      // 4. Students: Scoped fetch or Deterministic Paged Global fetch (authenticated staff/college only)
+      // 3.5. Chest Nos mapping table (fetch early so students & registrations immediately resolve numeric chest numbers)
       const { data: sessionData } = await client.auth.getSession();
       const hasAuthSession = Boolean(sessionData?.session);
 
       if (hasAuthSession) {
-        const SAFE_STUDENT_SELECT = 'id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at';
+        try {
+          let chestQuery = client.from('chest_no').select('*');
+          if (collegeAfflNo) {
+            chestQuery = chestQuery.eq('college_affl_no', collegeAfflNo);
+          }
+          const { data: chestData, error: chestErr } = await chestQuery;
+          if (!chestErr && chestData) {
+            const normalizedChest = this.normalizeChestRows(chestData);
+            if (collegeAfflNo) {
+              const numAffl = Number(collegeAfflNo);
+              const existingChest = this.getStorage<any[]>('chest_no', []);
+              const otherChest = existingChest.filter(c => Number(c.college_affl_no) !== numAffl);
+              this.setStorage('chest_no', [...otherChest, ...normalizedChest]);
+            } else {
+              this.setStorage('chest_no', normalizedChest);
+            }
+          }
+        } catch (err) {
+          console.warn('Notice: Supabase chest_no sync deferred');
+        }
+      }
+
+      // 4. Students: Scoped fetch or Deterministic Paged Global fetch (authenticated staff/college only)
+      if (hasAuthSession) {
+        const SAFE_STUDENT_SELECT = 'id, name, cic_no, college_affl_no, class, phase, phone, photo_url, created_at';
 
         if (collegeAfflNo) {
           const { data: studentData, error: stuErr } = await client
@@ -673,28 +749,48 @@ class FestService {
         console.warn('Notice: Supabase code_letters sync deferred');
       }
 
-      // 15. Chest Nos mapping table (authenticated only — anon SELECT is revoked via RLS)
-      if (hasAuthSession) {
-        try {
-          let chestQuery = client.from('chest_no').select('*');
-          if (collegeAfflNo) {
-            chestQuery = chestQuery.eq('college_affl_no', collegeAfflNo);
-          }
-          const { data: chestData, error: chestErr } = await chestQuery;
-          if (!chestErr && chestData) {
-            const normalizedChest = this.normalizeChestRows(chestData);
-            if (collegeAfflNo) {
-              const numAffl = Number(collegeAfflNo);
-              const existingChest = this.getStorage<any[]>('chest_no', []);
-              const otherChest = existingChest.filter(c => Number(c.college_affl_no) !== numAffl);
-              this.setStorage('chest_no', [...otherChest, ...normalizedChest]);
-            } else {
-              this.setStorage('chest_no', normalizedChest);
-            }
-          }
-        } catch (err) {
-          console.warn('Notice: Supabase chest_no sync deferred');
+      // 15. Pre-Fest Events: Settings, Registrations, Submissions
+      try {
+        const { data: seSettings, error: seSettingsErr } = await client
+          .from('prefest_registration_settings')
+          .select('*');
+        if (!seSettingsErr && seSettings) {
+          this.setStorage('preFestSettings', seSettings);
         }
+
+        let seRegQuery = client.from('prefest_registrations').select('*');
+        if (collegeAfflNo) {
+          seRegQuery = seRegQuery.eq('college_affl_no', collegeAfflNo);
+        }
+        const { data: seRegData, error: seRegErr } = await seRegQuery;
+        if (!seRegErr && seRegData) {
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existingRegs = this.getStorage<any[]>('preFestRegistrations', []);
+            const otherRegs = existingRegs.filter(r => Number(r.college_affl_no) !== numAffl);
+            this.setStorage('preFestRegistrations', [...otherRegs, ...seRegData]);
+          } else {
+            this.setStorage('preFestRegistrations', seRegData);
+          }
+        }
+
+        let seSubQuery = client.from('prefest_submissions').select('*');
+        if (collegeAfflNo) {
+          seSubQuery = seSubQuery.eq('college_affl_no', collegeAfflNo);
+        }
+        const { data: seSubData, error: seSubErr } = await seSubQuery;
+        if (!seSubErr && seSubData) {
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existingSubs = this.getStorage<any[]>('preFestSubmissions', []);
+            const otherSubs = existingSubs.filter(s => Number(s.college_affl_no) !== numAffl);
+            this.setStorage('preFestSubmissions', [...otherSubs, ...seSubData]);
+          } else {
+            this.setStorage('preFestSubmissions', seSubData);
+          }
+        }
+      } catch (err) {
+        console.warn('Notice: Supabase prefest_events sync deferred', err);
       }
 
       if (!hasError) {
@@ -707,6 +803,20 @@ class FestService {
     } catch (err) {
       console.warn('Notice: Supabase sync deferred:', err);
       return false;
+    }
+  }
+
+  // --- Multi-Tab & Multi-Window Broadcast Synchronization ---
+  public broadcastGlobalSync(entity: string, detail?: any): void {
+    if (typeof window !== 'undefined') {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_global_sync');
+          bc.postMessage({ type: 'DATA_MUTATED', entity, detail, timestamp: Date.now() });
+          setTimeout(() => bc.close(), 100);
+        }
+        window.dispatchEvent(new CustomEvent('wsf_global_sync', { detail: { entity, detail, timestamp: Date.now() } }));
+      } catch { }
     }
   }
 
@@ -733,6 +843,7 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'results' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_locks' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'late_registrations' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appeals' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'replacements' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fest_settings' }, triggerDebouncedSync)
@@ -741,15 +852,24 @@ class FestService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'colleges' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stages' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'max_participation' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'points_matrix' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_audit_logs' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'code_letters' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chest_no' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_deadline_settings' }, triggerDebouncedSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'submission_entries' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prefest_registration_settings' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prefest_registrations' }, triggerDebouncedSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prefest_submissions' }, triggerDebouncedSync)
       .on('broadcast', { event: 'volunteer_change' }, triggerDebouncedSync)
       .on('broadcast', { event: 'announcement_change' }, triggerDebouncedSync)
       .on('broadcast', { event: 'system_log_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'prefest_event_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'lock_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'registration_change' }, triggerDebouncedSync)
+      .on('broadcast', { event: 'result_change' }, triggerDebouncedSync)
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.info('⚡ Supabase Realtime channel connected: Live updates active across all tables including audit logs.');
@@ -808,6 +928,7 @@ class FestService {
     this.setStorage('festSettings', updated);
 
     // Broadcast update immediately to all other open tabs and components
+    this.broadcastGlobalSync('festSettings', { settings: updated });
     if (typeof window !== 'undefined') {
       try {
         if ('BroadcastChannel' in window) {
@@ -816,7 +937,7 @@ class FestService {
           setTimeout(() => bc.close(), 100);
         }
         window.dispatchEvent(new CustomEvent('wsf_settings_updated', { detail: updated }));
-      } catch {}
+      } catch { }
     }
 
     if (supabase) {
@@ -858,27 +979,41 @@ class FestService {
       };
     }
 
-    const regDeadlineIso = item.reg_deadline || settings.reg_deadline;
-    const tierInfo = evaluateDeadlineTierAtTime(regDeadlineIso, now);
+    // Universal event deadline & fine evaluation from event_deadline_settings table
+    const kind = getEventKind(item);
+    const deadlineSetting = this.getEventDeadlineSetting(kind);
+    const deadlineEval = evaluateEventDeadlineSetting(deadlineSetting, now);
 
-    // After Super Fine (+2h) ends, registration is completely locked for ALL colleges (no override bypass)
-    if (tierInfo.tier === 'closed') {
+    // 1. Not yet started
+    if (deadlineEval.tier === 'upcoming') {
+      return {
+        canRegister: false,
+        reason: `${deadlineSetting.display_name} registration opens at ${formatIstDisplay(deadlineSetting.start_time)}`,
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: 'closed',
+      };
+    }
+
+    // 2. After Super Fine ends, registration is completely locked for ALL colleges (no override bypass)
+    if (deadlineEval.tier === 'closed') {
       return {
         canRegister: false,
         isFinePeriod: false,
         isSuperFinePeriod: false,
         fineAmount: 0,
         tier: 'closed',
-        reason: 'Registration & Super Fine (2h) window ended — completely locked for all colleges',
+        reason: `${deadlineSetting.display_name} registration window has ended — completely locked for all colleges`,
       };
     }
 
-    const isFine = tierInfo.tier === 'fine';
-    const isSuperFine = tierInfo.tier === 'super_fine';
+    const isFine = deadlineEval.tier === 'fine';
+    const isSuperFine = deadlineEval.tier === 'super_fine';
     const fineReason = isSuperFine
-      ? `Super Fine Active (₹${SUPER_FINE_AMOUNT_RS})`
+      ? `Super Fine Active (₹${deadlineEval.fineAmount})`
       : isFine
-        ? `Late Fine Active (₹${FINE_AMOUNT_RS})`
+        ? `Late Fine Active (₹${deadlineEval.fineAmount})`
         : undefined;
 
     // Emergency college-level override bypasses event/matrix locks within active deadline window
@@ -887,8 +1022,8 @@ class FestService {
         canRegister: true,
         isFinePeriod: isFine,
         isSuperFinePeriod: isSuperFine,
-        fineAmount: tierInfo.fineAmount,
-        tier: tierInfo.tier,
+        fineAmount: deadlineEval.fineAmount as any,
+        tier: deadlineEval.tier,
         reason: fineReason
           ? `Admin Override Active (${fineReason})`
           : 'Admin Override Active',
@@ -904,15 +1039,15 @@ class FestService {
           isFinePeriod: false,
           isSuperFinePeriod: false,
           fineAmount: 0,
-          tier: tierInfo.tier,
+          tier: deadlineEval.tier,
         };
       }
       return {
         canRegister: true,
         isFinePeriod: isFine,
         isSuperFinePeriod: isSuperFine,
-        fineAmount: tierInfo.fineAmount,
-        tier: tierInfo.tier,
+        fineAmount: deadlineEval.fineAmount as any,
+        tier: deadlineEval.tier,
         reason: fineReason || 'Admin Matrix Permission Active',
       };
     }
@@ -925,7 +1060,7 @@ class FestService {
         isFinePeriod: false,
         isSuperFinePeriod: false,
         fineAmount: 0,
-        tier: tierInfo.tier,
+        tier: deadlineEval.tier,
       };
     }
 
@@ -933,8 +1068,8 @@ class FestService {
       canRegister: true,
       isFinePeriod: isFine,
       isSuperFinePeriod: isSuperFine,
-      fineAmount: tierInfo.fineAmount,
-      tier: tierInfo.tier,
+      fineAmount: deadlineEval.fineAmount as any,
+      tier: deadlineEval.tier,
       reason: fineReason,
     };
   }
@@ -1302,7 +1437,7 @@ class FestService {
           setTimeout(() => bc.close(), 100);
         }
         window.dispatchEvent(new CustomEvent('wsf_settings_updated'));
-      } catch {}
+      } catch { }
     }
     return { success: true, item: items[idx] };
   }
@@ -1349,7 +1484,7 @@ class FestService {
           setTimeout(() => bc.close(), 100);
         }
         window.dispatchEvent(new CustomEvent('wsf_settings_updated'));
-      } catch {}
+      } catch { }
     }
     return { success: true, count: itemIds.length };
   }
@@ -1415,6 +1550,7 @@ class FestService {
       locks.push(resultLock);
     }
     this.setStorage('entryLocks', locks);
+    this.broadcastGlobalSync('locks', { itemId, collegeAfflNo, isOpen });
 
     const client = supabase;
     if (client) {
@@ -1480,6 +1616,7 @@ class FestService {
     }
 
     this.setStorage('entryLocks', locks);
+    this.broadcastGlobalSync('locks', { itemId, isOpen });
 
     const client = supabase;
     if (client && dbRows.length > 0) {
@@ -1541,6 +1678,7 @@ class FestService {
 
     this.setStorage('items', items);
     this.setStorage('entryLocks', locks);
+    this.broadcastGlobalSync('locks', { isOpen, all: true });
 
     const client = supabase;
     if (client && bulkRows.length > 0) {
@@ -1604,7 +1742,9 @@ class FestService {
 
     if (!collegeAfflNoOrId) return enriched;
     const col = this.getCollege(collegeAfflNoOrId);
-    return col ? enriched.filter(s => s.college_affl_no === col.affl_no) : enriched;
+    const numAffl = !isNaN(Number(collegeAfflNoOrId)) ? Number(collegeAfflNoOrId) : undefined;
+    const targetAffl = col ? col.affl_no : (numAffl && numAffl > 0 ? numAffl : undefined);
+    return targetAffl ? enriched.filter(s => Number(s.college_affl_no) === targetAffl) : enriched;
   }
 
   public async fetchStudentsForCollege(afflNo: number): Promise<Student[]> {
@@ -1612,7 +1752,7 @@ class FestService {
       try {
         const { data, error } = await supabase
           .from('students')
-          .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
+          .select('id, name, cic_no, college_affl_no, class, phase, phone, photo_url, created_at')
           .eq('college_affl_no', afflNo)
           .order('name', { ascending: true });
         if (!error && data && data.length > 0) {
@@ -1804,7 +1944,7 @@ class FestService {
         phase: newStudent.phase || 'Senior',
         phone: newStudent.phone || null,
         photo_url: newStudent.photo_url || null,
-        password: (newStudent as any).password || 'welcome123'
+        password: (newStudent as any).password || (cicVal ? `${cicVal}@${affl}` : `wafy@${Date.now().toString().slice(-4)}`)
       };
       if (typeof cicVal === 'number' || (typeof cicVal === 'string' && /^\d+$/.test(cicVal))) {
         dbPayload.cic_no = Number(cicVal);
@@ -1826,7 +1966,8 @@ class FestService {
   public getRegistrations(collegeAfflNoOrId?: number | string): Registration[] {
     const allRegs = this.getStorage<Registration[]>('registrations', []);
     const col = collegeAfflNoOrId ? this.getCollege(collegeAfflNoOrId) : undefined;
-    const targetAffl = col ? col.affl_no : (typeof collegeAfflNoOrId === 'number' ? collegeAfflNoOrId : undefined);
+    const numAffl = collegeAfflNoOrId !== undefined && !isNaN(Number(collegeAfflNoOrId)) ? Number(collegeAfflNoOrId) : undefined;
+    const targetAffl = col ? col.affl_no : (numAffl && numAffl > 0 ? numAffl : undefined);
 
     const regs = targetAffl ? allRegs.filter(r => Number(r.college_affl_no) === targetAffl) : allRegs;
 
@@ -1974,11 +2115,14 @@ class FestService {
             chestNos,
           }
         );
+        if (!res || !res.success) {
+          return { success: false, error: res?.error || 'Registration failed on server' };
+        }
         const dbRows = res.rows || [];
 
         const regs = this.getStorage<Registration[]>('registrations', []);
         const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
-        const remaining = regs.filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+        const remaining = regs.filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
 
         const persistedChestNos: string[] =
           dbRows && dbRows.length > 0
@@ -2050,6 +2194,7 @@ class FestService {
           this.setStorage('late_registrations', existingLate);
         }
 
+        this.broadcastGlobalSync('registrations', { itemId: item.item_id, collegeAfflNo: college.affl_no });
         return { success: true };
       } catch (err: any) {
         console.error('Unexpected registration error:', err);
@@ -2144,6 +2289,7 @@ class FestService {
     this.setStorage('submissions', remainingSubs);
 
     await this.fetchChestNos();
+    this.broadcastGlobalSync('registrations', { itemId: item.item_id, collegeAfflNo: college.affl_no, action: 'unregister' });
 
     return { success: true };
   }
@@ -2204,6 +2350,7 @@ class FestService {
 
     this.setStorage('registrations', remaining);
     this.setStorage('registration_logs', logs);
+    this.broadcastGlobalSync('registrations', { action: 'clear_all' });
     return { success: true, count: clearedCount };
   }
 
@@ -2750,7 +2897,7 @@ class FestService {
           try {
             const { data: stuByCic } = await client
               .from('students')
-              .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
+              .select('id, name, cic_no, college_affl_no, class, phase, phone, photo_url, created_at')
               .in('cic_no', cicLookupKeys);
             if (stuByCic && stuByCic.length > 0) {
               fetchedStudents = [
@@ -2767,7 +2914,7 @@ class FestService {
           try {
             const { data: stuById } = await client
               .from('students')
-              .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
+              .select('id, name, cic_no, college_affl_no, class, phase, phone, photo_url, created_at')
               .in('id', uuidKeys);
             if (stuById && stuById.length > 0) {
               fetchedStudents = [
@@ -3406,6 +3553,7 @@ class FestService {
     const otherResults = existingResults.filter(r => Number(r.item_id) !== numItemId);
     const merged = [...otherResults, ...newResults];
     this.setStorage('results', merged);
+    this.broadcastGlobalSync('results', { itemId: numItemId });
 
     return { success: true };
   }
@@ -3435,6 +3583,7 @@ class FestService {
       }
     });
     this.setStorage('results', results);
+    this.broadcastGlobalSync('results', { itemId: numItemId, publish });
     return true;
   }
 
@@ -3557,6 +3706,7 @@ class FestService {
 
     appeals.push(newAppeal);
     this.setStorage('appeals', appeals);
+    this.broadcastGlobalSync('appeals', { appealId: newAppeal.id });
     return { success: true, appeal: newAppeal };
   }
 
@@ -3568,6 +3718,7 @@ class FestService {
       appeals[idx].status = status;
       appeals[idx].admin_remarks = remarks;
       this.setStorage('appeals', appeals);
+      this.broadcastGlobalSync('appeals', { appealId, status });
       if (supabase) {
         this.postServerApi('/api/submissions', {
           action: 'review_appeal',
@@ -3660,6 +3811,7 @@ class FestService {
     };
     list.unshift(fullRep);
     this.setStorage('replacements', list);
+    this.broadcastGlobalSync('replacements', { repId: fullRep.id });
     return { success: true, replacement: fullRep };
   }
 
@@ -3682,6 +3834,7 @@ class FestService {
         this.fetchRegistrationsForCollege(),
         this.fetchChestNos()
       ]);
+      this.broadcastGlobalSync('replacements', { repId, status });
       return { success: true };
     }
 
@@ -3691,6 +3844,7 @@ class FestService {
     if (idx >= 0) {
       list[idx].status = status;
       this.setStorage('replacements', list);
+      this.broadcastGlobalSync('replacements', { repId, status });
       return { success: true };
     }
     return { success: false, error: 'Replacement not found' };
@@ -3709,7 +3863,9 @@ class FestService {
 
     if (!collegeAfflNoOrId) return enriched;
     const col = this.getCollege(collegeAfflNoOrId);
-    return col ? enriched.filter(s => s.college_affl_no === col.affl_no) : enriched;
+    const numAffl = !isNaN(Number(collegeAfflNoOrId)) ? Number(collegeAfflNoOrId) : undefined;
+    const targetAffl = col ? col.affl_no : (numAffl && numAffl > 0 ? numAffl : undefined);
+    return targetAffl ? enriched.filter(s => Number(s.college_affl_no) === targetAffl) : enriched;
   }
 
   public async fetchSubmissionEntries(collegeAfflNo?: number): Promise<SubmissionEntry[]> {
@@ -3793,6 +3949,19 @@ class FestService {
     const item = this.getItems().find(i => Number(i.item_id) === numItemId);
     if (!item || !requiresPreFestSubmission(item)) {
       return { success: false, error: 'This event does not require a pre-fest submission link.' };
+    }
+
+    // ─── Link Submission Deadline Guard (for screening events) ───────────
+    const kind = getEventKind(item);
+    if (kind === 'screening') {
+      const dlSetting = this.getEventDeadlineSetting('screening');
+      const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
+      if (!linkEval.canSubmitLink) {
+        return {
+          success: false,
+          error: `Link submission is closed: ${linkEval.timeRemainingText}. The link submission deadline was ${dlSetting.link_submission_deadline ? formatIstDisplay(dlSetting.link_submission_deadline) : formatIstDisplay(dlSetting.fine_deadline)}.`,
+        };
+      }
     }
 
     const collegeRegs = this.getRegistrations(numAffl).filter(r => Number(r.item_id) === numItemId);
@@ -4501,6 +4670,305 @@ class FestService {
     this.notifyAnnouncementChange();
     return { success: true };
   }
+
+  // ==========================================================================
+  // Special Events System (Screening & Submission)
+  // ==========================================================================
+  // Pre-Fest Events System (Screening & Submission)
+  // ==========================================================================
+
+  public getPreFestSettings(): any[] {
+    return this.getStorage<any[]>('preFestSettings', []);
+  }
+
+  public getPreFestRegistrations(collegeAfflNo?: number): any[] {
+    const all = this.getStorage<any[]>('preFestRegistrations', []);
+    if (collegeAfflNo) {
+      const numAffl = Number(collegeAfflNo);
+      return all.filter(r => Number(r.college_affl_no) === numAffl);
+    }
+    return all;
+  }
+
+  public getPreFestSubmissions(collegeAfflNo?: number): any[] {
+    const all = this.getStorage<any[]>('preFestSubmissions', []);
+    if (collegeAfflNo) {
+      const numAffl = Number(collegeAfflNo);
+      return all.filter(s => Number(s.college_affl_no) === numAffl);
+    }
+    return all;
+  }
+
+  // Backward compatibility aliases
+  public getSpecialEventSettings(): any[] { return this.getPreFestSettings(); }
+  public getSpecialEventRegistrations(collegeAfflNo?: number): any[] { return this.getPreFestRegistrations(collegeAfflNo); }
+  public getSpecialEventSubmissions(collegeAfflNo?: number): any[] { return this.getPreFestSubmissions(collegeAfflNo); }
+
+  public async fetchPreFestEventsData(): Promise<{
+    settings: any[];
+    events: any[];
+    registrations: any[];
+    submissions: any[];
+    serverTime?: string;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch('/api/prefest-events');
+      const data = await res.json();
+      if (!res.ok) {
+        return { settings: [], events: [], registrations: [], submissions: [], error: data?.error || 'Failed to fetch' };
+      }
+      if (data.settings) {
+        this.setStorage('preFestSettings', data.settings);
+      }
+      if (data.registrations) {
+        this.setStorage('preFestRegistrations', data.registrations);
+      }
+      if (data.submissions) {
+        this.setStorage('preFestSubmissions', data.submissions);
+      }
+      return data;
+    } catch (err: any) {
+      return { settings: [], events: [], registrations: [], submissions: [], error: err?.message || 'Network error' };
+    }
+  }
+
+  public async fetchSpecialEventsData() { return this.fetchPreFestEventsData(); }
+
+  public async updatePreFestSettings(payload: {
+    event_type: 'SCREENING' | 'SUBMISSION';
+    registration_enabled: boolean;
+    registration_opens_at: string | null;
+    registration_closes_at: string | null;
+    fine_closes_at?: string | null;
+    fine_amount?: number | null;
+    youtube_submission_enabled: boolean;
+    youtube_submission_opens_at: string | null;
+    youtube_submission_closes_at: string | null;
+    disabled_event_ids: string[];
+  }): Promise<{ success: boolean; error?: string; settings?: any }> {
+    try {
+      // Synchronize in local storage cache for immediate client reflection
+      const currentList = this.getSpecialEventSettings();
+      const existingIdx = currentList.findIndex(s => s.event_type === payload.event_type);
+      const updatedSetting = {
+        id: existingIdx >= 0 ? currentList[existingIdx].id : `setting-${payload.event_type.toLowerCase()}`,
+        ...payload,
+        updated_at: new Date().toISOString()
+      };
+      if (existingIdx >= 0) {
+        currentList[existingIdx] = updatedSetting as any;
+      } else {
+        currentList.push(updatedSetting as any);
+      }
+      this.setStorage('prefest_registration_settings', currentList);
+
+      // If updating screening schedule, apply reg_deadline & fine_deadline across screening items
+      if (payload.event_type === 'SCREENING') {
+        const items = this.getItems();
+        let changed = false;
+        items.forEach(itm => {
+          if (isScreeningEvent(itm) || itm.is_screening || (itm.mode as string) === 'screening') {
+            if (payload.registration_closes_at) itm.reg_deadline = payload.registration_closes_at;
+            if (payload.fine_closes_at) itm.fine_deadline = payload.fine_closes_at;
+            changed = true;
+          }
+        });
+        if (changed) this.setStorage('items', items);
+      }
+
+      const res = await fetch('/api/prefest-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_settings', payload })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to update settings' };
+      }
+      return { success: true, settings: data.settings || updatedSetting };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error' };
+    }
+  }
+
+  public async updateSpecialEventSettings(payload: any) {
+    return this.updatePreFestSettings(payload);
+  }
+
+  public async togglePreFestEventDisabled(
+    eventType: 'SCREENING' | 'SUBMISSION',
+    eventId: string,
+    disabled: boolean
+  ): Promise<{ success: boolean; error?: string; settings?: any }> {
+    try {
+      const res = await fetch('/api/prefest-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_event_disabled', event_type: eventType, event_id: eventId, disabled })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to toggle event' };
+      }
+      return { success: true, settings: data.settings };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error' };
+    }
+  }
+
+  public async toggleSpecialEventDisabled(
+    eventType: 'SCREENING' | 'SUBMISSION',
+    eventId: string,
+    disabled: boolean
+  ): Promise<{ success: boolean; error?: string; settings?: any }> {
+    return this.togglePreFestEventDisabled(eventType, eventId, disabled);
+  }
+
+  // --- Universal Event Deadlines & Fines System ---
+  public getEventDeadlineSettings(): EventDeadlineSetting[] {
+    const list = this.getStorage<EventDeadlineSetting[]>('event_deadline_settings', []);
+    if (list && list.length > 0) return list;
+    return DEFAULT_EVENT_DEADLINES;
+  }
+
+  public getEventDeadlineSetting(kind: EventKind): EventDeadlineSetting {
+    const list = this.getEventDeadlineSettings();
+    const match = list.find(s => s.event_kind === kind);
+    if (match) return match;
+    const fallback = list.find(s => s.event_kind === 'general');
+    if (fallback) return fallback;
+    return DEFAULT_EVENT_DEADLINES.find(s => s.event_kind === kind) || DEFAULT_EVENT_DEADLINES[0];
+  }
+
+  public async updateEventDeadlineSetting(setting: Partial<EventDeadlineSetting>): Promise<{ success: boolean; error?: string; setting?: EventDeadlineSetting }> {
+    try {
+      // Optimistic cache update
+      const list = [...this.getEventDeadlineSettings()];
+      const idx = list.findIndex(s => s.event_kind === setting.event_kind);
+      const updated = {
+        ...(idx >= 0 ? list[idx] : {}),
+        ...setting,
+        updated_at: new Date().toISOString()
+      } as EventDeadlineSetting;
+      if (idx >= 0) list[idx] = updated;
+      else list.push(updated);
+      this.setStorage('event_deadline_settings', list);
+
+      // Also mirror to items / festSettings if needed
+      if (setting.event_kind === 'screening') {
+        const items = this.getItems();
+        let changed = false;
+        items.forEach(itm => {
+          if (isScreeningEvent(itm) || itm.is_screening || (itm.mode as string) === 'screening') {
+            if (setting.no_fine_deadline) itm.reg_deadline = setting.no_fine_deadline;
+            if (setting.fine_deadline) itm.fine_deadline = setting.fine_deadline;
+            changed = true;
+          }
+        });
+        if (changed) this.setStorage('items', items);
+      } else if (setting.event_kind === 'general' || setting.event_kind === 'onstage') {
+        const fs = this.getFestSettings();
+        if (setting.no_fine_deadline) fs.reg_deadline = setting.no_fine_deadline;
+        if (setting.fine_deadline) fs.fine_deadline = setting.fine_deadline;
+        this.setStorage('festSettings', fs);
+      }
+
+      const res = await fetch('/api/admin/event-deadlines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: setting })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to update deadline settings' };
+      }
+      return { success: true, setting: data.setting || updated };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating deadlines' };
+    }
+  }
+
+  public async registerPreFestEvent(
+    eventId: string,
+    collegeId?: string,
+    collegeAfflNo?: number
+  ): Promise<{ success: boolean; error?: string; registration?: any }> {
+    try {
+      const res = await fetch('/api/prefest-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register', event_id: eventId, college_id: collegeId, college_affl_no: collegeAfflNo })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to register' };
+      }
+      this.broadcastGlobalSync('prefest', { eventId, action: 'register' });
+      return { success: true, registration: data.registration };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error' };
+    }
+  }
+
+  public async registerSpecialEvent(
+    eventId: string,
+    collegeId?: string,
+    collegeAfflNo?: number
+  ) {
+    return this.registerPreFestEvent(eventId, collegeId, collegeAfflNo);
+  }
+
+  public async unregisterPreFestEvent(
+    registrationId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch('/api/prefest-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unregister', registration_id: registrationId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to unregister' };
+      }
+      this.broadcastGlobalSync('prefest', { registrationId, action: 'unregister' });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error' };
+    }
+  }
+
+  public async unregisterSpecialEvent(registrationId: string) {
+    return this.unregisterPreFestEvent(registrationId);
+  }
+
+  public async submitPreFestYouTube(
+    registrationId: string,
+    youtubeUrl: string
+  ): Promise<{ success: boolean; error?: string; message?: string; submission?: any }> {
+    try {
+      const res = await fetch('/api/prefest-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'submit_youtube', registration_id: registrationId, youtube_url: youtubeUrl })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data?.error || 'Failed to submit YouTube video link' };
+      }
+      this.broadcastGlobalSync('prefest', { registrationId, action: 'submit_youtube' });
+      return { success: true, message: data.message, submission: data.submission };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error' };
+    }
+  }
+
+  public async submitSpecialEventYouTube(registrationId: string, youtubeUrl: string) {
+    return this.submitPreFestYouTube(registrationId, youtubeUrl);
+  }
 }
 
 export const festService = new FestService();
+
+
