@@ -38,13 +38,14 @@ import {
   getItemParticipantBounds,
   formatParticipantQuotaLabel
 } from '@/lib/types/fest';
+import { formatIstDisplay, evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
 import { CollegeVolunteersTab } from '../college/tabs/CollegeVolunteersTab';
 
 export function CollegeView() {
-  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh } = useFest();
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, timeTick } = useFest();
   const [activeTab, setActiveTab] = useState<'students' | 'registration' | 'admit_cards' | 'schedules' | 'appeals' | 'replacements' | 'volunteers'>('registration');
 
   // Modal states
@@ -277,11 +278,12 @@ export function CollegeView() {
     alert('Participant replacement request submitted for Admin verification.');
   };
 
-  // Check deadline for college
-  const now = new Date();
-  const regDeadline = new Date(festSettings.reg_deadline);
-  const fineDeadline = new Date(festSettings.fine_deadline);
-  const isFineApplicable = now > regDeadline && now <= fineDeadline;
+  // Check deadline tier for college
+  const tierInfo = React.useMemo(
+    () => evaluateDeadlineTierAtTime(festSettings.reg_deadline, new Date()),
+    [festSettings.reg_deadline, timeTick]
+  );
+  const isFineApplicable = tierInfo.tier === 'fine' || tierInfo.tier === 'super_fine';
 
   return (
     <div className="space-y-6">
@@ -322,12 +324,29 @@ export function CollegeView() {
         </div>
       </div>
 
-      {/* Late fine notice if active */}
+      {/* Late fine / super fine notice if active */}
       {isFineApplicable && (
-        <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+        <div
+          className={`border rounded-xl p-3 text-xs flex items-center gap-2 ${tierInfo.tier === 'super_fine'
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
+              : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-300'
+            }`}
+        >
+          <AlertTriangle
+            className={`w-4 h-4 shrink-0 ${tierInfo.tier === 'super_fine' ? 'text-rose-600' : 'text-amber-600'}`}
+          />
           <span>
-            <strong>Fine Period Notice:</strong> The standard registration deadline has passed. New registrations are subject to late fee fines.
+            {tierInfo.tier === 'super_fine' ? (
+              <>
+                <strong>Super Fine Period Active (₹1,000):</strong> The 1-hour ₹500 fine window has ended. New registrations incur a <strong>₹1,000 super fine</strong> until{' '}
+                <strong className="font-mono">{tierInfo.schedule ? formatIstDisplay(tierInfo.schedule.superFineEndIso) : ''}</strong>, after which registration will be completely locked.
+              </>
+            ) : (
+              <>
+                <strong>Fine Period Active (₹500):</strong> The normal registration deadline has passed. Registrations up to{' '}
+                <strong className="font-mono">{tierInfo.schedule ? formatIstDisplay(tierInfo.schedule.fineEndIso) : ''}</strong> incur a <strong>₹500 fine</strong> (₹1,000 Super Fine after 1 hour).
+              </>
+            )}
           </span>
         </div>
       )}
@@ -351,8 +370,8 @@ export function CollegeView() {
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id as any)}
               className={`px-3.5 py-2 rounded-xl text-xs font-heading font-medium transition-all duration-200 whitespace-nowrap cursor-pointer flex items-center gap-2 ${isActive
-                  ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/20 scale-[1.02]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/20 scale-[1.02]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`}
             >
               <span>{tab.label}</span>
@@ -929,8 +948,8 @@ export function CollegeView() {
                         <label
                           key={s.id}
                           className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
-                              ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
-                              : 'hover:bg-[var(--bg-subtle)]/60 cursor-pointer'
+                            ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
+                            : 'hover:bg-[var(--bg-subtle)]/60 cursor-pointer'
                             }`}
                           title={!isCategoryMatch ? 'Category does not match event requirement' : (isQuotaComplete ? quotaCheck.reason : undefined)}
                         >

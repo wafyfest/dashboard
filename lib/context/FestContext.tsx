@@ -14,6 +14,7 @@ interface FestContextType {
   currentCollegeAfflNo: number;
   setCurrentCollegeAfflNo: (afflNo: number) => void;
   festSettings: FestSettings;
+  timeTick: number;
   refreshKey: number;
   triggerRefresh: () => void;
   isSupabaseConnected: boolean;
@@ -98,6 +99,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [festSettings, setFestSettings] = useState<FestSettings>(() => festService.getFestSettings());
+  const [timeTick, setTimeTick] = useState<number>(() => Date.now());
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
 
@@ -111,6 +113,75 @@ export function FestProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     currentCollegeAfflNoRef.current = currentCollegeAfflNo;
   }, [currentCollegeAfflNo]);
+
+  // 1. Live Heartbeat (every 10s): automatically updates countdowns, deadline tiers (Normal -> Fine -> Super Fine -> Locked) without page reload
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(Date.now());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 2. Cross-tab BroadcastChannel & Storage Event Listeners for Instant Multi-Window Synchronization
+  useEffect(() => {
+    const applyFreshSettings = () => {
+      const fresh = festService.getFestSettings();
+      setFestSettings(fresh);
+      setRefreshKey(prev => prev + 1);
+    };
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('wsf_settings_sync');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SETTINGS_UPDATED') {
+            applyFreshSettings();
+          }
+        };
+      } catch {}
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'festSettings' || e.key === 'fest_settings') {
+        applyFreshSettings();
+      }
+    };
+
+    const handleCustomEvent = () => {
+      applyFreshSettings();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorage);
+      window.addEventListener('wsf_settings_updated', handleCustomEvent);
+    }
+
+    return () => {
+      if (bc) bc.close();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorage);
+        window.removeEventListener('wsf_settings_updated', handleCustomEvent);
+      }
+    };
+  }, []);
+
+  // 3. Fallback background sync (every 15s) so that if Supabase Realtime WebSockets drop/reset (net::ERR_CONNECTION_RESET),
+  // settings and deadlines are guaranteed to stay up-to-date across all clients within 15 seconds
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      const scopedAffl = currentCollegeAfflNoRef.current || undefined;
+      festService.syncWithSupabase(scopedAffl, false).then(connected => {
+        if (connected) {
+          const fresh = festService.getFestSettings();
+          setFestSettings(fresh);
+          setRefreshKey(prev => prev + 1);
+        }
+      });
+    }, 15000);
+
+    return () => clearInterval(pollTimer);
+  }, []);
 
   const resolveUserAndSync = React.useCallback(async (
     supabaseClient: NonNullable<ReturnType<typeof createClient>>,
@@ -462,6 +533,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
         currentCollegeAfflNo,
         setCurrentCollegeAfflNo,
         festSettings,
+        timeTick,
         refreshKey,
         triggerRefresh,
         isSupabaseConnected,

@@ -28,6 +28,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { formatIstDisplay, getDeadlineStatus } from '@/lib/utils/istDate';
+import { useFest } from '@/lib/context/FestContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge, StageStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -198,7 +199,12 @@ export function CollegeDashboardTab({
   replacements = [],
   onNavigateTab,
 }: CollegeDashboardTabProps) {
-  const deadlineInfo = getDeadlineStatus(festSettings.reg_deadline, festSettings.fine_deadline);
+  const { timeTick } = useFest();
+  const deadlineInfo = useMemo(
+    () => getDeadlineStatus(festSettings.reg_deadline),
+    [festSettings.reg_deadline, timeTick]
+  );
+  const deadlineSchedule = deadlineInfo.schedule;
   const enrolledPct = totalEventsCount > 0
     ? Math.min(100, Math.round((registrationsCount / totalEventsCount) * 100))
     : 0;
@@ -284,13 +290,6 @@ export function CollegeDashboardTab({
       .sort(([keyA], [keyB]) => {
         const idxA = PHASE_ORDER.indexOf(keyA);
         const idxB = PHASE_ORDER.indexOf(keyB);
-        const deadlineStatusText =
-          deadlineInfo.status === 'closed'
-            ? 'Closed'
-            : deadlineInfo.status === 'fine'
-              ? 'With Fine'
-              : 'Open';
-
         return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
       })
       .map(([key, data]) => ({ key, ...data }));
@@ -384,10 +383,12 @@ export function CollegeDashboardTab({
 
   const deadlineStatusText =
     deadlineInfo.status === 'closed'
-      ? 'Closed'
-      : deadlineInfo.status === 'fine'
-        ? 'With Fine'
-        : 'Open';
+      ? 'Locked'
+      : deadlineInfo.status === 'super_fine'
+        ? 'Super Fine ₹1,000'
+        : deadlineInfo.status === 'fine'
+          ? 'Fine ₹500'
+          : 'Open';
 
   return (
     <div className="space-y-5">
@@ -400,9 +401,11 @@ export function CollegeDashboardTab({
                 <span
                   className={`w-2.5 h-2.5 rounded-full shrink-0 ring-4 ${deadlineInfo.status === 'closed'
                       ? 'bg-rose-500 ring-rose-500/20'
-                      : deadlineInfo.status === 'fine'
-                        ? 'bg-[var(--f-saffron)] ring-amber-500/20'
-                        : 'bg-emerald-500 ring-emerald-500/20'
+                      : deadlineInfo.status === 'super_fine'
+                        ? 'bg-orange-500 ring-orange-500/20'
+                        : deadlineInfo.status === 'fine'
+                          ? 'bg-[var(--f-saffron)] ring-amber-500/20'
+                          : 'bg-emerald-500 ring-emerald-500/20'
                     }`}
                 />
                 <strong className="font-heading font-bold text-[var(--text-primary)] whitespace-nowrap">
@@ -413,7 +416,7 @@ export function CollegeDashboardTab({
                 variant={
                   deadlineInfo.status === 'closed'
                     ? 'rose'
-                    : deadlineInfo.status === 'fine'
+                    : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
                       ? 'saffron'
                       : 'emerald'
                 }
@@ -427,31 +430,44 @@ export function CollegeDashboardTab({
 
             <div className="sm:hidden space-y-1 text-[11px] font-sans text-[var(--text-secondary)]">
               <div className="flex items-center justify-between gap-2">
-                <span>Regular</span>
+                <span>Normal</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
                   {formatIstDisplay(festSettings.reg_deadline)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span>Late Fine</span>
+                <span>Fine (₹500, +1h)</span>
                 <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {formatIstDisplay(festSettings.fine_deadline)}
+                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span>Super Fine (₹1,000, +2h Lock)</span>
+                <span className="font-mono text-rose-600 dark:text-rose-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
+                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
                 </span>
               </div>
             </div>
 
             <div className="hidden sm:flex flex-wrap items-center gap-x-1.5 font-sans text-[var(--text-secondary)] leading-relaxed">
               <span>
-                Regular Registration closes{' '}
+                Normal:{' '}
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
                   {formatIstDisplay(festSettings.reg_deadline)}
                 </span>
               </span>
               <span className="text-[var(--text-muted)]">•</span>
               <span>
-                Late Fine Period ends:{' '}
+                ₹500 Fine (+1h):{' '}
                 <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold whitespace-nowrap" suppressHydrationWarning>
-                  {formatIstDisplay(festSettings.fine_deadline)}
+                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
+                </span>
+              </span>
+              <span className="text-[var(--text-muted)]">•</span>
+              <span>
+                ₹1,000 Super Fine (+2h Lock):{' '}
+                <span className="font-mono text-rose-600 dark:text-rose-400 font-semibold whitespace-nowrap" suppressHydrationWarning>
+                  {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
                 </span>
               </span>
             </div>
@@ -461,7 +477,7 @@ export function CollegeDashboardTab({
             variant={
               deadlineInfo.status === 'closed'
                 ? 'rose'
-                : deadlineInfo.status === 'fine'
+                : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
                   ? 'saffron'
                   : 'emerald'
             }

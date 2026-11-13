@@ -43,7 +43,7 @@ import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
-import { formatIstDisplay } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
 
 interface EnrolledParticipantRow {
   id: string;
@@ -52,6 +52,8 @@ interface EnrolledParticipantRow {
   college?: College;
   codeLetter?: string | null;
   isLate: boolean;
+  fineTier?: 'fine' | 'super_fine' | 'override';
+  fineAmount?: 0 | 500 | 1000;
   registeredAt?: string;
 }
 
@@ -67,6 +69,7 @@ export function EventRegistrationsTab() {
   const [updatingScreeningKey, setUpdatingScreeningKey] = useState<string | null>(null);
 
   // Pre-index lookups
+  const itemMap = useMemo(() => new Map(items.map(i => [Number(i.item_id), i])), [items]);
   const collegeMap = useMemo(() => new Map(colleges.map(c => [Number(c.affl_no), c])), [colleges]);
   const studentMap = useMemo(() => {
     const map = new Map<string, Student>();
@@ -91,9 +94,30 @@ export function EventRegistrationsTab() {
         findStudentByIdentifier(students, r.chest_no, r.college_affl_no) ||
         (r.chest_no ? studentMap.get(r.chest_no.toLowerCase()) : undefined);
 
-      const isLate = lateRegistrations.some(
+      const lateRow = lateRegistrations.find(
         l => Number(l.item_id) === itmId && l.chest_no === r.chest_no
       );
+      const evt = itemMap.get(itmId);
+      const regDeadlineIso = evt?.reg_deadline || festSettings.reg_deadline;
+      const tierInfo = r.created_at ? evaluateDeadlineTierAtTime(regDeadlineIso, r.created_at) : null;
+      const isLate = Boolean(lateRow) || Boolean(tierInfo && tierInfo.tier !== 'open');
+      let fineTier: 'fine' | 'super_fine' | 'override' | undefined;
+      let fineAmount: 0 | 500 | 1000 | undefined;
+      if (isLate) {
+        if (lateRow?.fine_tier === 'super_fine' || Number(lateRow?.fine_amount) === 1000) {
+          fineTier = 'super_fine';
+          fineAmount = 1000;
+        } else if (lateRow?.fine_tier === 'fine' || Number(lateRow?.fine_amount) === 500) {
+          fineTier = 'fine';
+          fineAmount = 500;
+        } else if (tierInfo && (tierInfo.tier === 'super_fine' || tierInfo.tier === 'closed')) {
+          fineTier = 'super_fine';
+          fineAmount = 1000;
+        } else if (tierInfo && tierInfo.tier === 'fine') {
+          fineTier = 'fine';
+          fineAmount = 500;
+        }
+      }
 
       map.get(itmId)!.push({
         id: r.id || `${r.college_affl_no}-${r.item_id}-${r.chest_no}`,
@@ -102,11 +126,13 @@ export function EventRegistrationsTab() {
         college: col,
         codeLetter: r.code_letter,
         isLate,
+        fineTier,
+        fineAmount,
         registeredAt: r.created_at
       });
     });
     return map;
-  }, [registrations, collegeMap, students, studentMap, lateRegistrations]);
+  }, [registrations, collegeMap, itemMap, students, studentMap, lateRegistrations, festSettings.reg_deadline]);
 
   // Filters state
   const [eventSearchQuery, setEventSearchQuery] = useState('');
@@ -813,19 +839,40 @@ export function EventRegistrationsTab() {
                                       )}
                                     </TableCell>
 
-                                    {/* Entry Status */}
+                                    {/* Entry Status & Registration Time */}
                                     <TableCell className="py-2.5 align-middle text-center">
-                                      {p.isLate ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                          Late Entry
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                          On Time
-                                        </span>
-                                      )}
+                                      <div className="inline-flex flex-col items-center gap-0.5">
+                                        {p.isLate ? (
+                                          <span
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold border ${
+                                              p.fineTier === 'super_fine'
+                                                ? 'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                                                : 'border-amber-500/30 bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                                            }`}
+                                          >
+                                            <span
+                                              className={`w-1.5 h-1.5 rounded-full ${
+                                                p.fineTier === 'super_fine' ? 'bg-rose-500' : 'bg-amber-500'
+                                              }`}
+                                            />
+                                            {p.fineTier === 'super_fine'
+                                              ? 'Super Fine ₹1,000'
+                                              : p.fineTier === 'fine'
+                                                ? 'Fine ₹500'
+                                                : 'Late Entry'}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            On Time
+                                          </span>
+                                        )}
+                                        {p.registeredAt && (
+                                          <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                                            {formatIstDisplay(p.registeredAt)}
+                                          </span>
+                                        )}
+                                      </div>
                                     </TableCell>
 
                                     {/* Pre-Fest Submission / Video Link */}

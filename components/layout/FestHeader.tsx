@@ -10,6 +10,7 @@ import {
   Award
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
+import { formatIstDisplay, getDeadlineStatus } from '@/lib/utils/istDate';
 
 export function FestHeader() {
   const {
@@ -18,18 +19,17 @@ export function FestHeader() {
     setCurrentCollegeId,
     festSettings,
     theme,
-    toggleTheme
+    toggleTheme,
+    timeTick
   } = useFest();
 
   const colleges = festService.getColleges();
   const activeCollege = colleges.find(c => c.id === currentCollegeId) || colleges[0];
 
-  const now = new Date();
-  const regDeadline = new Date(festSettings.reg_deadline);
-  const fineDeadline = new Date(festSettings.fine_deadline);
-
-  const isBeforeRegDeadline = now <= regDeadline;
-  const isFinePeriod = !isBeforeRegDeadline && now <= fineDeadline;
+  const deadlineStatus = React.useMemo(
+    () => getDeadlineStatus(festSettings.reg_deadline),
+    [festSettings.reg_deadline, timeTick]
+  );
 
   return (
     <header className="sticky top-0 z-40 bg-[var(--bg-surface)]/95 backdrop-blur-md border-b border-[var(--border-subtle)] transition-colors font-heading shadow-xs">
@@ -43,27 +43,32 @@ export function FestHeader() {
           <span className="text-[var(--border-medium)] hidden sm:inline">|</span>
           <div className="hidden md:flex items-center gap-2 text-[var(--text-muted)]">
             <Calendar className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
-            <span>
-              Reg Deadline: {new Date(festSettings.reg_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <span suppressHydrationWarning>
+              Reg Deadline: {formatIstDisplay(festSettings.reg_deadline)}
             </span>
           </div>
         </div>
 
         {/* Status Pill & Actions */}
         <div className="flex items-center gap-2">
-          {isBeforeRegDeadline ? (
+          {deadlineStatus.status === 'open' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-medium font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
               Registration Open
             </span>
-          ) : isFinePeriod ? (
+          ) : deadlineStatus.status === 'fine' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-medium font-mono">
               <AlertTriangle className="w-3 h-3 text-amber-500" />
-              Late Reg (Fine Applicable)
+              Fine Active (₹500)
+            </span>
+          ) : deadlineStatus.status === 'super_fine' ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/30 text-[11px] font-medium font-mono">
+              <AlertTriangle className="w-3 h-3 text-orange-500" />
+              Super Fine (₹1,000)
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-[11px] font-medium font-mono">
-              Registrations Closed
+              Registrations Locked
             </span>
           )}
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { getClientIp, rateLimit, rateLimitHeaders } from '@/lib/rateLimit';
+import { getClientIp, rateLimitAsync, rateLimitHeaders } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,9 +17,9 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 // POST /api/auth/login
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  // 1. Rate limit check — keyed by IP
+  // 1. Rate limit check — keyed by IP (Postgres-backed when configured)
   const ip = getClientIp(req);
-  const rl = rateLimit({ key: `login:${ip}`, limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_MS });
+  const rl = await rateLimitAsync({ key: `login:${ip}`, limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_MS });
 
   if (!rl.allowed) {
     const retryMins = Math.ceil(rl.retryAfterMs / 60_000);

@@ -21,7 +21,8 @@ import {
   parseIstInputToIso,
   formatIstDisplay,
   addHoursToIstInput,
-  getDeadlineStatus
+  getDeadlineStatus,
+  computeDeadlineSchedule
 } from '@/lib/utils/istDate';
 import {
   Calendar,
@@ -114,10 +115,6 @@ export function SettingsTab() {
   });
   const [isSavingBulk, setIsSavingBulk] = useState(false);
 
-  // Danger Zone Confirmation Modal
-  const [dangerModalOpen, setDangerModalOpen] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-
   // Server-Side Chest Number Allocation (101+)
   const [isAllocatingChests, setIsAllocatingChests] = useState(false);
   const [confirmRenumberOpen, setConfirmRenumberOpen] = useState(false);
@@ -203,40 +200,39 @@ export function SettingsTab() {
     let customCount = 0;
     let openCount = 0;
     let fineCount = 0;
+    let superFineCount = 0;
     let closedCount = 0;
 
-    const now = Date.now();
-
     items.forEach(i => {
-      if (i.reg_deadline || i.fine_deadline) customCount++;
+      if (i.reg_deadline) customCount++;
 
-      const reg = i.reg_deadline ? new Date(i.reg_deadline).getTime() : new Date(festSettings.reg_deadline).getTime();
-      const fine = i.fine_deadline ? new Date(i.fine_deadline).getTime() : new Date(festSettings.fine_deadline).getTime();
-
-      if (now <= reg) openCount++;
-      else if (now <= fine) fineCount++;
+      const effectiveReg = i.reg_deadline || festSettings.reg_deadline;
+      const st = getDeadlineStatus(effectiveReg);
+      if (st.status === 'open') openCount++;
+      else if (st.status === 'fine') fineCount++;
+      else if (st.status === 'super_fine') superFineCount++;
       else closedCount++;
     });
 
-    return { total, customCount, openCount, fineCount, closedCount };
+    return { total, customCount, openCount, fineCount, superFineCount, closedCount };
   }, [items, festSettings]);
+
+  const globalSchedule = useMemo(() => {
+    const regIso = parseIstInputToIso(globalForm.reg_deadline_ist);
+    return computeDeadlineSchedule(regIso);
+  }, [globalForm.reg_deadline_ist]);
 
   // Global Deadline Validation
   const globalValidation = useMemo(() => {
-    if (!globalForm.reg_deadline_ist || !globalForm.fine_deadline_ist) {
-      return { isValid: false, error: 'Both regular and fine deadlines are required' };
+    if (!globalForm.reg_deadline_ist) {
+      return { isValid: false, error: 'Normal registration deadline is required' };
     }
     const regIso = parseIstInputToIso(globalForm.reg_deadline_ist);
-    const fineIso = parseIstInputToIso(globalForm.fine_deadline_ist);
-
-    if (new Date(fineIso).getTime() < new Date(regIso).getTime()) {
-      return {
-        isValid: false,
-        error: 'Fine period deadline cannot be earlier than regular registration deadline'
-      };
+    if (!regIso) {
+      return { isValid: false, error: 'Please enter a valid IST registration deadline' };
     }
     return { isValid: true, error: null };
-  }, [globalForm.reg_deadline_ist, globalForm.fine_deadline_ist]);
+  }, [globalForm.reg_deadline_ist]);
 
   // Save Global Settings
   const handleSaveGlobalSettings = async (e: React.FormEvent) => {
@@ -248,12 +244,12 @@ export function SettingsTab() {
 
     try {
       const regIso = parseIstInputToIso(globalForm.reg_deadline_ist);
-      const fineIso = parseIstInputToIso(globalForm.fine_deadline_ist);
+      const schedule = computeDeadlineSchedule(regIso);
 
       await festService.updateFestSettings({
         fest_name: globalForm.fest_name.trim(),
-        reg_deadline: regIso,
-        fine_deadline: fineIso,
+        reg_deadline: schedule ? schedule.regDeadlineIso : regIso,
+        fine_deadline: schedule ? schedule.superFineEndIso : regIso,
         rulebook_url: globalForm.rulebook_url.trim() || null
       });
 
@@ -261,7 +257,7 @@ export function SettingsTab() {
       setGlobalFormDirty(false);
       setToast({
         type: 'success',
-        message: 'Global fest deadlines and configuration successfully saved in IST!'
+        message: 'Global deadline saved in IST! Fine (₹500 / +1h) & Super Fine (₹1,000 / +2h) windows updated automatically.'
       });
       setTimeout(() => setToast(null), 5000);
     } catch (err: any) {
@@ -277,10 +273,12 @@ export function SettingsTab() {
 
   // Open Extension Modal for Single Event
   const handleOpenExtensionModal = (item: Item) => {
+    const effectiveReg = item.reg_deadline || festSettings.reg_deadline;
+    const schedule = computeDeadlineSchedule(effectiveReg);
     setEditingItem(item);
     setEventExtensionForm({
-      reg_deadline_ist: formatToIstInput(item.reg_deadline || festSettings.reg_deadline),
-      fine_deadline_ist: formatToIstInput(item.fine_deadline || festSettings.fine_deadline)
+      reg_deadline_ist: formatToIstInput(effectiveReg),
+      fine_deadline_ist: formatToIstInput(schedule?.superFineEndIso || effectiveReg)
     });
     setExtensionModalOpen(true);
   };
@@ -294,11 +292,13 @@ export function SettingsTab() {
       const regIso = eventExtensionForm.reg_deadline_ist
         ? parseIstInputToIso(eventExtensionForm.reg_deadline_ist)
         : null;
-      const fineIso = eventExtensionForm.fine_deadline_ist
-        ? parseIstInputToIso(eventExtensionForm.fine_deadline_ist)
-        : null;
+      const schedule = regIso ? computeDeadlineSchedule(regIso) : null;
 
-      const res = await festService.updateItemDeadlines(editingItem.item_id, regIso, fineIso);
+      const res = await festService.updateItemDeadlines(
+        editingItem.item_id,
+        schedule ? schedule.regDeadlineIso : regIso,
+        schedule ? schedule.superFineEndIso : null
+      );
 
       if (!res.success) {
         throw new Error(res.error || 'Failed to update event deadline');
@@ -308,7 +308,7 @@ export function SettingsTab() {
       setExtensionModalOpen(false);
       setToast({
         type: 'success',
-        message: `Custom registration deadline extended for ${editingItem.item_code} (${editingItem.name_eng}) in IST.`
+        message: `Custom deadline updated for ${editingItem.item_code} (${editingItem.name_eng}) in IST (+1h Fine ₹500, +2h Super Fine ₹1,000).`
       });
       setTimeout(() => setToast(null), 4000);
     } catch (err: any) {
@@ -341,9 +341,13 @@ export function SettingsTab() {
 
     try {
       const regIso = bulkForm.reg_deadline_ist ? parseIstInputToIso(bulkForm.reg_deadline_ist) : null;
-      const fineIso = bulkForm.fine_deadline_ist ? parseIstInputToIso(bulkForm.fine_deadline_ist) : null;
+      const schedule = regIso ? computeDeadlineSchedule(regIso) : null;
 
-      const res = await festService.batchUpdateItemDeadlines(selectedItemIds, regIso, fineIso);
+      const res = await festService.batchUpdateItemDeadlines(
+        selectedItemIds,
+        schedule ? schedule.regDeadlineIso : regIso,
+        schedule ? schedule.superFineEndIso : null
+      );
 
       if (!res.success) throw new Error(res.error);
 
@@ -514,15 +518,15 @@ export function SettingsTab() {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center gap-1.5">
                     <Calendar className="w-4 h-4 text-[var(--f-saffron)]" />
-                    Registration Deadline (Without Fine)
+                    Normal Registration Deadline (No Fine)
                   </label>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--f-saffron-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold border border-amber-500/20">
-                    Normal Entry
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                    ₹0 Normal Entry
                   </span>
                 </div>
 
                 <p className="text-[11px] text-[var(--text-muted)] font-sans">
-                  Institutions can freely submit participant rosters without penalty until this cutoff date & time.
+                  Colleges register freely without fine up to this IST date & time. Fine (+1h) and Super Fine (+2h) windows follow automatically.
                 </p>
 
                 <div className="space-y-1.5">
@@ -532,7 +536,13 @@ export function SettingsTab() {
                       type="datetime-local"
                       value={globalForm.reg_deadline_ist}
                       onChange={e => {
-                        setGlobalForm({ ...globalForm, reg_deadline_ist: e.target.value });
+                        const val = e.target.value;
+                        const nextFine = addHoursToIstInput(val, 2);
+                        setGlobalForm({
+                          ...globalForm,
+                          reg_deadline_ist: val,
+                          fine_deadline_ist: nextFine
+                        });
                         setGlobalFormDirty(true);
                       }}
                       className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
@@ -569,63 +579,55 @@ export function SettingsTab() {
                 </div>
               </div>
 
-              {/* Fine Period Deadline (With Fine) */}
-              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-amber-500/30 hover:border-amber-500/50 transition-all space-y-3">
+              {/* Automatic Fine & Super Fine Enforcement Schedule */}
+              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-amber-500/30 space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-amber-500" />
-                    Late Registration Deadline (With Fine)
-                  </label>
+                  <span className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    Auto Fine & Lockout Schedule
+                  </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold border border-amber-500/30">
-                    Fine Window
+                    Fixed +1h / +2h Rule
                   </span>
                 </div>
 
-                <p className="text-[11px] text-[var(--text-muted)] font-sans">
-                  Late entries are allowed with fine penalty between regular cutoff and this final cutoff.
-                </p>
-
-                <div className="space-y-1.5">
-                  <div className="relative">
-                    <input
-                      id="global-fine-deadline-input"
-                      type="datetime-local"
-                      value={globalForm.fine_deadline_ist}
-                      onChange={e => {
-                        setGlobalForm({ ...globalForm, fine_deadline_ist: e.target.value });
-                        setGlobalFormDirty(true);
-                      }}
-                      className="w-full px-3 py-2 text-xs bg-[var(--bg-elevated)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
-                      required
-                    />
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-heading font-bold text-amber-800 dark:text-amber-300">
+                        Fine Period — ₹500
+                      </div>
+                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                        0 to +1 hour from normal deadline
+                      </div>
+                    </div>
+                    <div className="text-right font-mono text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                      Ends {globalSchedule ? formatIstDisplay(globalSchedule.fineEndIso) : '—'}
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-[var(--text-secondary)] font-mono pt-1">
-                    <span>Configured:</span>
-                    <span className="font-semibold text-[var(--text-primary)]">
-                      {formatIstDisplay(parseIstInputToIso(globalForm.fine_deadline_ist))}
+                  <div className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/25 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-heading font-bold text-orange-800 dark:text-orange-300">
+                        Super Fine Period — ₹1,000
+                      </div>
+                      <div className="text-[10.5px] text-[var(--text-muted)]">
+                        +1 to +2 hours from normal deadline
+                      </div>
+                    </div>
+                    <div className="text-right font-mono text-[11px] font-semibold text-orange-800 dark:text-orange-300">
+                      Ends {globalSchedule ? formatIstDisplay(globalSchedule.superFineEndIso) : '—'}
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="font-heading font-bold text-rose-700 dark:text-rose-300">
+                      Complete Lockout (All Colleges)
+                    </span>
+                    <span className="font-mono font-semibold text-rose-700 dark:text-rose-300">
+                      After {globalSchedule ? formatIstDisplay(globalSchedule.superFineEndIso) : '—'}
                     </span>
                   </div>
-                </div>
-
-                {/* Quick Presets */}
-                <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)] font-medium mr-1 font-sans">Quick Extend:</span>
-                  {[
-                    { label: '+6 Hours', hours: 6 },
-                    { label: '+12 Hours', hours: 12 },
-                    { label: '+24h (1 Day)', hours: 24 },
-                    { label: '+48h (2 Days)', hours: 48 }
-                  ].map(preset => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => applyGlobalQuickPreset('fine', preset.hours)}
-                      className="px-2 py-1 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] text-[var(--text-secondary)] font-medium transition-colors cursor-pointer"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
                 </div>
               </div>
             </div>
@@ -771,10 +773,13 @@ export function SettingsTab() {
                 Open: <strong>{metrics.openCount}</strong>
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-700 dark:text-amber-400 font-mono">
-                In Fine Window: <strong>{metrics.fineCount}</strong>
+                Fine (₹500): <strong>{metrics.fineCount}</strong>
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/25 text-[11px] font-medium text-orange-700 dark:text-orange-400 font-mono">
+                Super Fine (₹1,000): <strong>{metrics.superFineCount}</strong>
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[11px] font-medium text-rose-700 dark:text-rose-400 font-mono">
-                Closed: <strong>{metrics.closedCount}</strong>
+                Locked: <strong>{metrics.closedCount}</strong>
               </span>
             </div>
           </div>
@@ -894,8 +899,8 @@ export function SettingsTab() {
                   </TableHead>
                   <TableHead className="text-xs font-heading font-bold">Event Code & Name</TableHead>
                   <TableHead className="text-xs font-heading font-bold">Phase & Mode</TableHead>
-                  <TableHead className="text-xs font-heading font-bold">Registration Deadline (No Fine)</TableHead>
-                  <TableHead className="text-xs font-heading font-bold">Late Deadline (With Fine)</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Normal Deadline (No Fine)</TableHead>
+                  <TableHead className="text-xs font-heading font-bold">Fine (+1h · ₹500) & Super Fine (+2h · ₹1,000)</TableHead>
                   <TableHead className="text-xs font-heading font-bold">Live Status</TableHead>
                   <TableHead className="text-xs font-heading font-bold text-right">Actions</TableHead>
                 </TableRow>
@@ -910,10 +915,10 @@ export function SettingsTab() {
                   </TableRow>
                 ) : (
                   filteredItems.map(item => {
-                    const isCustom = Boolean(item.reg_deadline || item.fine_deadline);
+                    const isCustom = Boolean(item.reg_deadline);
                     const effectiveReg = item.reg_deadline || festSettings.reg_deadline;
-                    const effectiveFine = item.fine_deadline || festSettings.fine_deadline;
-                    const deadlineStatus = getDeadlineStatus(effectiveReg, effectiveFine);
+                    const schedule = computeDeadlineSchedule(effectiveReg);
+                    const deadlineStatus = getDeadlineStatus(effectiveReg);
                     const isSelected = selectedItemIds.includes(item.item_id);
 
                     return (
@@ -983,18 +988,14 @@ export function SettingsTab() {
                           </div>
                         </TableCell>
 
-                        {/* Fine Deadline */}
+                        {/* Auto Fine (+1h) & Super Fine (+2h) */}
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-mono text-xs text-[var(--text-primary)] font-medium tabular-nums">
-                              {formatIstDisplay(effectiveFine)}
+                          <div className="flex flex-col gap-0.5 font-mono text-[11px]">
+                            <span className="text-amber-700 dark:text-amber-300 font-medium tabular-nums">
+                              ₹500 Fine → {schedule ? formatIstDisplay(schedule.fineEndIso) : '—'}
                             </span>
-                            <span className="text-[10px] text-[var(--text-muted)] font-sans">
-                              {item.fine_deadline ? (
-                                <span className="text-amber-600 dark:text-amber-400 font-medium">⚡ Custom Extended</span>
-                              ) : (
-                                <span>Default Global</span>
-                              )}
+                            <span className="text-orange-700 dark:text-orange-300 font-medium tabular-nums">
+                              ₹1,000 Super → {schedule ? formatIstDisplay(schedule.superFineEndIso) : '—'}
                             </span>
                           </div>
                         </TableCell>
@@ -1009,7 +1010,9 @@ export function SettingsTab() {
                                   ? 'bg-emerald-500'
                                   : deadlineStatus.status === 'fine'
                                     ? 'bg-amber-500'
-                                    : 'bg-rose-500'
+                                    : deadlineStatus.status === 'super_fine'
+                                      ? 'bg-orange-500'
+                                      : 'bg-rose-500'
                                 }`}
                             />
                             {deadlineStatus.label}
@@ -1150,42 +1153,6 @@ export function SettingsTab() {
       </Card>
 
       {/* ========================================================
-          4. DANGER ZONE / CACHE MANAGEMENT
-      ======================================================== */}
-      <Card className="border-rose-500/20 bg-rose-500/5">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="destructive" size="sm">
-              <AlertTriangle className="w-3 h-3 mr-1" /> System Reset & Danger Zone
-            </Badge>
-          </div>
-          <CardTitle className="text-rose-700 dark:text-rose-400 mt-1">System Reset & Cache Management</CardTitle>
-          <CardDescription className="text-xs">
-            Administrative controls to reset cached fest records and re-fetch clean database state.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-            <div>
-              <h4 className="text-sm font-bold text-[var(--text-primary)]">Reset Local Database to Defaults</h4>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Clears browser caches and re-initializes colleges, events, and empty registration rosters.
-              </p>
-            </div>
-            <Button
-              id="reset-system-state-button"
-              variant="outline"
-              size="sm"
-              className="text-rose-600 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 cursor-pointer"
-              onClick={() => setDangerModalOpen(true)}
-            >
-              Reset System State
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ========================================================
           MODAL: SINGLE EVENT EXTENSION
       ======================================================== */}
       <Modal
@@ -1201,27 +1168,38 @@ export function SettingsTab() {
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                 Current Global Default (For Reference):
               </span>
-              <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-                <div>
-                  <span className="text-[var(--text-muted)] block text-[10px]">Global Normal:</span>
-                  <span className="font-semibold text-[var(--text-primary)]">
-                    {formatIstDisplay(festSettings.reg_deadline)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted)] block text-[10px]">Global Late (Fine):</span>
-                  <span className="font-semibold text-[var(--text-primary)]">
-                    {formatIstDisplay(festSettings.fine_deadline)}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const gSched = computeDeadlineSchedule(festSettings.reg_deadline);
+                return (
+                  <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                    <div>
+                      <span className="text-[var(--text-muted)] block text-[10px]">Normal Cutoff:</span>
+                      <span className="font-semibold text-[var(--text-primary)]">
+                        {formatIstDisplay(festSettings.reg_deadline)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--text-muted)] block text-[10px]">Fine (₹500, +1h):</span>
+                      <span className="font-semibold text-amber-700 dark:text-amber-300">
+                        {gSched ? formatIstDisplay(gSched.fineEndIso) : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[var(--text-muted)] block text-[10px]">Super Fine (₹1,000, +2h):</span>
+                      <span className="font-semibold text-orange-700 dark:text-orange-300">
+                        {gSched ? formatIstDisplay(gSched.superFineEndIso) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="space-y-3">
               {/* Event Normal Deadline Input */}
               <div>
                 <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
-                  <span>Extended Registration Deadline (Without Fine)</span>
+                  <span>Extended Normal Deadline (No Fine)</span>
                   <span className="text-[10px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono">IST</span>
                 </label>
                 <input
@@ -1253,40 +1231,26 @@ export function SettingsTab() {
                 </div>
               </div>
 
-              {/* Event Fine Deadline Input */}
-              <div>
-                <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1 flex items-center justify-between">
-                  <span>Extended Late Registration Deadline (With Fine)</span>
-                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">IST</span>
-                </label>
-                <input
-                  id="event-fine-deadline-modal-input"
-                  type="datetime-local"
-                  value={eventExtensionForm.fine_deadline_ist}
-                  onChange={e =>
-                    setEventExtensionForm({ ...eventExtensionForm, fine_deadline_ist: e.target.value })
-                  }
-                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
-                />
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-[10px] text-[var(--text-muted)] font-sans">Presets:</span>
-                  {[
-                    { label: '+12h', hours: 12 },
-                    { label: '+24h (1 Day)', hours: 24 },
-                    { label: '+48h (2 Days)', hours: 48 },
-                    { label: '+72h (3 Days)', hours: 72 }
-                  ].map(p => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => applyEventQuickPreset('fine', p.hours)}
-                      className="px-2 py-0.5 text-[10px] rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--f-saffron-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] border border-[var(--border-subtle)] cursor-pointer"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Calculated +1h Fine & +2h Super Fine Preview */}
+              {(() => {
+                const evSched = computeDeadlineSchedule(parseIstInputToIso(eventExtensionForm.reg_deadline_ist));
+                if (!evSched) return null;
+                return (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-1.5 text-[11px] font-mono">
+                    <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
+                      <span>Fine Period (₹500, +1h):</span>
+                      <span className="font-bold">Until {formatIstDisplay(evSched.fineEndIso)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-orange-800 dark:text-orange-300">
+                      <span>Super Fine (₹1,000, +2h):</span>
+                      <span className="font-bold">Until {formatIstDisplay(evSched.superFineEndIso)}</span>
+                    </div>
+                    <div className="text-[10px] font-sans text-rose-700 dark:text-rose-300 pt-1 border-t border-amber-500/20">
+                      Registration locks completely for all colleges after {formatIstDisplay(evSched.superFineEndIso)}.
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-[var(--border-subtle)]">
@@ -1347,7 +1311,7 @@ export function SettingsTab() {
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1">
-                Extended Regular Deadline (Without Fine) - IST
+                Extended Normal Deadline (No Fine) - IST
               </label>
               <input
                 id="bulk-reg-deadline-input"
@@ -1358,18 +1322,22 @@ export function SettingsTab() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-heading font-semibold text-[var(--text-primary)] mb-1">
-                Extended Fine Period Deadline (With Fine) - IST
-              </label>
-              <input
-                id="bulk-fine-deadline-input"
-                type="datetime-local"
-                value={bulkForm.fine_deadline_ist}
-                onChange={e => setBulkForm({ ...bulkForm, fine_deadline_ist: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
-              />
-            </div>
+            {(() => {
+              const bSched = computeDeadlineSchedule(parseIstInputToIso(bulkForm.reg_deadline_ist));
+              if (!bSched) return null;
+              return (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-1 text-[11px] font-mono">
+                  <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
+                    <span>Fine Period (₹500, +1h):</span>
+                    <span className="font-bold">Until {formatIstDisplay(bSched.fineEndIso)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-orange-800 dark:text-orange-300">
+                    <span>Super Fine (₹1,000, +2h Lock):</span>
+                    <span className="font-bold">Until {formatIstDisplay(bSched.superFineEndIso)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-[var(--border-subtle)]">
@@ -1424,55 +1392,6 @@ export function SettingsTab() {
               className="font-heading font-bold"
             >
               {isAllocatingChests ? 'Renumbering...' : 'Yes, Renumber from 101'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ========================================================
-          MODAL: DANGER ZONE RESET CONFIRMATION
-      ======================================================== */}
-      <Modal
-        isOpen={dangerModalOpen}
-        onClose={() => setDangerModalOpen(false)}
-        title="Reset Local Database State?"
-        description="This will clear browser cache and re-initialize from Supabase."
-        maxWidth="md"
-      >
-        <div className="space-y-4 font-sans text-xs">
-          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300">
-            <p className="font-semibold flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
-              Caution: Local Cache Reset
-            </p>
-            <p className="text-[11px] mt-1">
-              This action clears all cached local records (fest settings, colleges, items, entry locks) and triggers a fresh synchronization with Supabase.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => setDangerModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              id="confirm-reset-system-btn"
-              variant="destructive"
-              size="sm"
-              disabled={isResetting}
-              onClick={async () => {
-                setIsResetting(true);
-                await festService.clearCacheAndRefetch();
-                triggerRefresh();
-                setIsResetting(false);
-                setDangerModalOpen(false);
-                setToast({
-                  type: 'info',
-                  message: 'Fest cache reset to clean database state.'
-                });
-                setTimeout(() => setToast(null), 4000);
-              }}
-            >
-              {isResetting ? 'Resetting...' : 'Confirm Reset'}
             </Button>
           </div>
         </div>

@@ -50,6 +50,13 @@ import {
 
 // Mock data removed
 import { supabase } from '../supabase/client';
+import {
+  computeDeadlineSchedule,
+  evaluateDeadlineTierAtTime,
+  RegistrationDeadlineTier,
+  SUPER_FINE_AMOUNT_RS,
+  FINE_AMOUNT_RS,
+} from '../utils/istDate';
 
 const STORAGE_KEY_PREFIX = 'wafy_fest_db_';
 
@@ -57,6 +64,9 @@ export interface RegistrationStatus {
   canRegister: boolean;
   reason?: string;
   isFinePeriod: boolean;
+  isSuperFinePeriod: boolean;
+  fineAmount: 0 | 500 | 1000;
+  tier: RegistrationDeadlineTier;
 }
 
 class FestService {
@@ -259,10 +269,12 @@ class FestService {
       const hasAuthSession = Boolean(sessionData?.session);
 
       if (hasAuthSession) {
+        const SAFE_STUDENT_SELECT = 'id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at';
+
         if (collegeAfflNo) {
           const { data: studentData, error: stuErr } = await client
             .from('students')
-            .select('*')
+            .select(SAFE_STUDENT_SELECT)
             .eq('college_affl_no', collegeAfflNo)
             .order('id', { ascending: true })
             .limit(1000);
@@ -285,7 +297,7 @@ class FestService {
           while (hasMore) {
             const { data, error } = await client
               .from('students')
-              .select('*')
+              .select(SAFE_STUDENT_SELECT)
               .order('id', { ascending: true })
               .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -755,24 +767,64 @@ class FestService {
 
   // --- Fest Settings ---
   public getFestSettings(): FestSettings {
+    const defaultRegMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const defaultRegIso = new Date(defaultRegMs).toISOString();
     const defaultSettings: FestSettings = {
       id: 1,
       fest_name: 'WAFY ARTS FEST',
-      reg_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      fine_deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+      reg_deadline: defaultRegIso,
+      fine_deadline: computeDeadlineSchedule(defaultRegIso)!.superFineEndIso
     };
     return this.getStorage('festSettings', defaultSettings);
   }
 
+  private async postServerApi<T = { success: boolean; error?: string }>(
+    url: string,
+    payload: Record<string, unknown>
+  ): Promise<T> {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `Request to ${url} failed with status ${res.status}`);
+    }
+    return data as T;
+  }
+
   public async updateFestSettings(settings: Partial<FestSettings>): Promise<FestSettings> {
     const current = this.getFestSettings();
-    const updated = { ...current, ...settings };
+    const merged = { ...current, ...settings };
+    if (merged.reg_deadline) {
+      const schedule = computeDeadlineSchedule(merged.reg_deadline);
+      if (schedule) {
+        merged.reg_deadline = schedule.regDeadlineIso;
+        merged.fine_deadline = schedule.superFineEndIso;
+      }
+    }
+    const updated = merged;
     this.setStorage('festSettings', updated);
+
+    // Broadcast update immediately to all other open tabs and components
+    if (typeof window !== 'undefined') {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_settings_sync');
+          bc.postMessage({ type: 'SETTINGS_UPDATED', settings: updated });
+          setTimeout(() => bc.close(), 100);
+        }
+        window.dispatchEvent(new CustomEvent('wsf_settings_updated', { detail: updated }));
+      } catch {}
+    }
+
     if (supabase) {
-      const { error } = await supabase.from('fest_settings').upsert(updated);
-      if (error) {
-        console.error('Failed to update fest settings in Supabase:', error.message);
-        throw error;
+      try {
+        await this.postServerApi('/api/admin/settings', { settings: updated });
+      } catch (err: any) {
+        console.error('Failed to update fest settings in Supabase:', err?.message || err);
+        throw err;
       }
     }
     return updated;
@@ -785,46 +837,106 @@ class FestService {
     cell: EntryLock | undefined,
     now: Date
   ): RegistrationStatus {
-    if (!item) return { canRegister: false, reason: 'Event not found', isFinePeriod: false };
-    if (!college) return { canRegister: false, reason: 'College not found', isFinePeriod: false };
+    if (!item) {
+      return {
+        canRegister: false,
+        reason: 'Event not found',
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: 'closed',
+      };
+    }
+    if (!college) {
+      return {
+        canRegister: false,
+        reason: 'College not found',
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: 'closed',
+      };
+    }
 
-    // Emergency college-level override takes precedence
+    const regDeadlineIso = item.reg_deadline || settings.reg_deadline;
+    const tierInfo = evaluateDeadlineTierAtTime(regDeadlineIso, now);
+
+    // After Super Fine (+2h) ends, registration is completely locked for ALL colleges (no override bypass)
+    if (tierInfo.tier === 'closed') {
+      return {
+        canRegister: false,
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: 'closed',
+        reason: 'Registration & Super Fine (2h) window ended — completely locked for all colleges',
+      };
+    }
+
+    const isFine = tierInfo.tier === 'fine';
+    const isSuperFine = tierInfo.tier === 'super_fine';
+    const fineReason = isSuperFine
+      ? `Super Fine Active (₹${SUPER_FINE_AMOUNT_RS})`
+      : isFine
+        ? `Late Fine Active (₹${FINE_AMOUNT_RS})`
+        : undefined;
+
+    // Emergency college-level override bypasses event/matrix locks within active deadline window
     if (college.manual_lock_override) {
-      const regDeadline = item.reg_deadline ? new Date(item.reg_deadline) : new Date(settings.reg_deadline);
-      const isPastReg = now > regDeadline;
       return {
         canRegister: true,
-        isFinePeriod: isPastReg,
-        reason: isPastReg ? 'Admin Override Active (Late Fine Applies)' : 'Admin Override Active'
+        isFinePeriod: isFine,
+        isSuperFinePeriod: isSuperFine,
+        fineAmount: tierInfo.fineAmount,
+        tier: tierInfo.tier,
+        reason: fineReason
+          ? `Admin Override Active (${fineReason})`
+          : 'Admin Override Active',
       };
     }
 
     // 2. Specific 2D Matrix cell configuration for this college & item takes precedence over generic item lock
     if (cell !== undefined) {
       if (!cell.is_open) {
-        return { canRegister: false, reason: 'Registration closed by fest admin for this event', isFinePeriod: false };
+        return {
+          canRegister: false,
+          reason: 'Registration closed by fest admin for this event',
+          isFinePeriod: false,
+          isSuperFinePeriod: false,
+          fineAmount: 0,
+          tier: tierInfo.tier,
+        };
       }
-      // If cell is explicitly marked open by admin, permit registration (even past normal deadline or if event was globally locked)
-      return { canRegister: true, isFinePeriod: false, reason: 'Admin Matrix Permission Active' };
+      return {
+        canRegister: true,
+        isFinePeriod: isFine,
+        isSuperFinePeriod: isSuperFine,
+        fineAmount: tierInfo.fineAmount,
+        tier: tierInfo.tier,
+        reason: fineReason || 'Admin Matrix Permission Active',
+      };
     }
 
     // 3. Fallback to event-level lock when no specific college override exists
     if (item.is_locked) {
-      return { canRegister: false, reason: 'Event is locked by fest admin', isFinePeriod: false };
+      return {
+        canRegister: false,
+        reason: 'Event is locked by fest admin',
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: tierInfo.tier,
+      };
     }
 
-    const regDeadline = item.reg_deadline ? new Date(item.reg_deadline) : new Date(settings.reg_deadline);
-    const fineDeadline = item.fine_deadline ? new Date(item.fine_deadline) : new Date(settings.fine_deadline);
-
-    if (now <= regDeadline) {
-      return { canRegister: true, isFinePeriod: false };
-    }
-
-    if (now <= fineDeadline) {
-      return { canRegister: true, isFinePeriod: true, reason: 'Late Registration Fine Applicable' };
-    }
-
-    return { canRegister: false, reason: 'Registration deadline has passed', isFinePeriod: false };
+    return {
+      canRegister: true,
+      isFinePeriod: isFine,
+      isSuperFinePeriod: isSuperFine,
+      fineAmount: tierInfo.fineAmount,
+      tier: tierInfo.tier,
+      reason: fineReason,
+    };
   }
 
   // Bulk availability calculator for an array of items (O(1) matrix lookup per item)
@@ -912,7 +1024,11 @@ class FestService {
       colleges[idx] = { ...colleges[idx], ...updates };
       this.setStorage('colleges', colleges);
       if (supabase) {
-        supabase.from('colleges').update(updates).eq('affl_no', college.affl_no).then();
+        this.postServerApi('/api/admin/manage', {
+          action: 'update_college',
+          afflNo: college.affl_no,
+          updates,
+        }).catch(err => console.warn('updateCollege error:', err));
       }
       return colleges[idx];
     }
@@ -956,7 +1072,10 @@ class FestService {
     this.setStorage('colleges', updated);
 
     if (supabase) {
-      await supabase.from('colleges').update({ manual_lock_override: false }).in('affl_no', targetAffls);
+      await this.postServerApi('/api/admin/locks', {
+        action: 'revoke_all_college_overrides',
+        afflNos: targetAffls,
+      });
     }
     return targetAffls.length;
   }
@@ -1040,21 +1159,20 @@ class FestService {
         };
 
         if (supabase) {
-          const { data, error } = await supabase
-            .from('events')
-            .update(dbPayload)
-            .eq('item_id', item.item_id)
-            .select()
-            .single();
-
-          if (error) {
-            console.error('Failed to update item in database:', error.message);
-            return { success: false, error: error.message };
-          }
-          if (data) {
-            items[idx] = this.normalizeItemRecord({ ...items[idx], ...data });
-            this.setStorage('items', items);
-            return { success: true, item: items[idx] };
+          try {
+            const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/admin/manage', {
+              action: 'save_item',
+              itemId: item.item_id,
+              payload: dbPayload,
+            });
+            if (res.data) {
+              items[idx] = this.normalizeItemRecord({ ...items[idx], ...res.data });
+              this.setStorage('items', items);
+              return { success: true, item: items[idx] };
+            }
+          } catch (err: any) {
+            console.error('Failed to update item in database:', err.message);
+            return { success: false, error: err.message };
           }
         }
         items[idx] = this.normalizeItemRecord({ ...items[idx], ...dbPayload });
@@ -1086,25 +1204,23 @@ class FestService {
     };
 
     if (supabase) {
-      const { data, error } = await supabase
-        .from('events')
-        .insert(dbPayload)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Failed to create item in database:', error.message);
-        return { success: false, error: error.message };
-      }
-
-      if (data) {
-        const fullItem = this.normalizeItemRecord({
-          ...data,
-          id: data.id || `itm-${data.item_id}`
+      try {
+        const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/admin/manage', {
+          action: 'save_item',
+          payload: dbPayload,
         });
-        items.push(fullItem);
-        this.setStorage('items', items);
-        return { success: true, item: fullItem };
+        if (res.data) {
+          const fullItem = this.normalizeItemRecord({
+            ...res.data,
+            id: res.data.id || `itm-${res.data.item_id}`
+          });
+          items.push(fullItem);
+          this.setStorage('items', items);
+          return { success: true, item: fullItem };
+        }
+      } catch (err: any) {
+        console.error('Failed to create item in database:', err.message);
+        return { success: false, error: err.message };
       }
     }
 
@@ -1136,7 +1252,7 @@ class FestService {
   public async updateItemDeadlines(
     itemId: number,
     regDeadline: string | null,
-    fineDeadline: string | null
+    fineDeadline: string | null = null
   ): Promise<{ success: boolean; item?: Item; error?: string }> {
     const items = this.getStorage<Item[]>('items', []);
     const idx = items.findIndex(i => i.item_id === itemId);
@@ -1144,73 +1260,97 @@ class FestService {
       return { success: false, error: 'Event not found' };
     }
 
+    const schedule = regDeadline ? computeDeadlineSchedule(regDeadline) : null;
+    const normalizedReg = schedule ? schedule.regDeadlineIso : regDeadline;
+    const normalizedFine = schedule ? schedule.superFineEndIso : fineDeadline;
+
     if (supabase) {
-      const { data, error } = await supabase
-        .from('events')
-        .update({
-          reg_deadline: regDeadline,
-          fine_deadline: fineDeadline
-        })
-        .eq('item_id', itemId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Failed to update event deadline in Supabase:', error.message);
-        return { success: false, error: error.message };
-      }
-
-      if (data) {
-        items[idx] = {
-          ...items[idx],
-          reg_deadline: data.reg_deadline,
-          fine_deadline: data.fine_deadline
-        };
-        this.setStorage('items', items);
-        return { success: true, item: items[idx] };
+      try {
+        const res = await this.postServerApi<{ success: boolean; data?: any[] }>('/api/admin/manage', {
+          action: 'update_item_deadlines',
+          itemIds: [itemId],
+          regDeadline: normalizedReg,
+          fineDeadline: normalizedFine,
+        });
+        const updatedRow = res.data?.[0];
+        if (updatedRow) {
+          items[idx] = {
+            ...items[idx],
+            reg_deadline: updatedRow.reg_deadline,
+            fine_deadline: updatedRow.fine_deadline
+          };
+          this.setStorage('items', items);
+          return { success: true, item: items[idx] };
+        }
+      } catch (err: any) {
+        console.error('Failed to update event deadline in Supabase:', err.message);
+        return { success: false, error: err.message };
       }
     }
 
     items[idx] = {
       ...items[idx],
-      reg_deadline: regDeadline,
-      fine_deadline: fineDeadline
+      reg_deadline: normalizedReg,
+      fine_deadline: normalizedFine
     };
     this.setStorage('items', items);
+    if (typeof window !== 'undefined') {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_settings_sync');
+          bc.postMessage({ type: 'SETTINGS_UPDATED' });
+          setTimeout(() => bc.close(), 100);
+        }
+        window.dispatchEvent(new CustomEvent('wsf_settings_updated'));
+      } catch {}
+    }
     return { success: true, item: items[idx] };
   }
 
   public async batchUpdateItemDeadlines(
     itemIds: number[],
     regDeadline: string | null,
-    fineDeadline: string | null
+    fineDeadline: string | null = null
   ): Promise<{ success: boolean; count: number; error?: string }> {
     if (itemIds.length === 0) return { success: true, count: 0 };
     const items = this.getStorage<Item[]>('items', []);
 
-    if (supabase) {
-      const { error } = await supabase
-        .from('events')
-        .update({
-          reg_deadline: regDeadline,
-          fine_deadline: fineDeadline
-        })
-        .in('item_id', itemIds);
+    const schedule = regDeadline ? computeDeadlineSchedule(regDeadline) : null;
+    const normalizedReg = schedule ? schedule.regDeadlineIso : regDeadline;
+    const normalizedFine = schedule ? schedule.superFineEndIso : fineDeadline;
 
-      if (error) {
-        console.error('Failed to batch update event deadlines in Supabase:', error.message);
-        return { success: false, count: 0, error: error.message };
+    if (supabase) {
+      try {
+        await this.postServerApi('/api/admin/manage', {
+          action: 'update_item_deadlines',
+          itemIds,
+          regDeadline: normalizedReg,
+          fineDeadline: normalizedFine,
+        });
+      } catch (err: any) {
+        console.error('Failed to batch update event deadlines in Supabase:', err.message);
+        return { success: false, count: 0, error: err.message };
       }
     }
 
     itemIds.forEach(id => {
       const idx = items.findIndex(i => i.item_id === id);
       if (idx >= 0) {
-        items[idx].reg_deadline = regDeadline;
-        items[idx].fine_deadline = fineDeadline;
+        items[idx].reg_deadline = normalizedReg;
+        items[idx].fine_deadline = normalizedFine;
       }
     });
     this.setStorage('items', items);
+    if (typeof window !== 'undefined') {
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('wsf_settings_sync');
+          bc.postMessage({ type: 'SETTINGS_UPDATED' });
+          setTimeout(() => bc.close(), 100);
+        }
+        window.dispatchEvent(new CustomEvent('wsf_settings_updated'));
+      } catch {}
+    }
     return { success: true, count: itemIds.length };
   }
 
@@ -1279,12 +1419,12 @@ class FestService {
     const client = supabase;
     if (client) {
       try {
-        await client.from('entry_locks').upsert({
-          item_id: itemId,
-          college_affl_no: collegeAfflNo,
-          is_open: isOpen,
-          updated_at: now
-        }, { onConflict: 'item_id,college_affl_no' });
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_cell',
+          itemId,
+          collegeAfflNo,
+          isOpen,
+        });
       } catch (err) {
         console.warn('Supabase entry_locks upsert error:', err);
       }
@@ -1344,10 +1484,12 @@ class FestService {
     const client = supabase;
     if (client && dbRows.length > 0) {
       try {
-        await Promise.all([
-          client.from('entry_locks').upsert(dbRows, { onConflict: 'item_id,college_affl_no' }),
-          client.from('events').update({ is_locked: !isOpen }).eq('item_id', itemId)
-        ]);
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_row',
+          itemId,
+          isOpen,
+          rows: dbRows,
+        });
       } catch (err) {
         console.warn('Supabase entry_locks/events row upsert notice:', err);
       }
@@ -1403,10 +1545,11 @@ class FestService {
     const client = supabase;
     if (client && bulkRows.length > 0) {
       try {
-        await Promise.all([
-          client.from('entry_locks').upsert(bulkRows, { onConflict: 'item_id,college_affl_no' }),
-          client.from('events').update({ is_locked: !isOpen }).gte('item_id', 0)
-        ]);
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_all',
+          isOpen,
+          rows: bulkRows,
+        });
       } catch (err) {
         console.warn('Supabase bulk entry_locks upsert notice:', err);
       }
@@ -1469,7 +1612,7 @@ class FestService {
       try {
         const { data, error } = await supabase
           .from('students')
-          .select('*')
+          .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
           .eq('college_affl_no', afflNo)
           .order('name', { ascending: true });
         if (!error && data && data.length > 0) {
@@ -1567,8 +1710,10 @@ class FestService {
 
       if (supabase) {
         try {
-          await supabase.from('late_registrations').delete().eq('college_affl_no', numAffl);
-          await supabase.from('colleges').update({ fine_status: false }).eq('affl_no', numAffl);
+          await this.postServerApi('/api/admin/manage', {
+            action: 'clear_late_registrations',
+            collegeAfflNo: numAffl,
+          });
         } catch (err) {
           console.warn('Supabase clearLateRegistrations notice:', err);
         }
@@ -1587,8 +1732,9 @@ class FestService {
 
       if (supabase) {
         try {
-          await supabase.from('late_registrations').delete().gte('college_affl_no', 0);
-          await supabase.from('colleges').update({ fine_status: false }).gte('affl_no', 0);
+          await this.postServerApi('/api/admin/manage', {
+            action: 'clear_late_registrations',
+          });
         } catch (err) {
           console.warn('Supabase clearLateRegistrations notice:', err);
         }
@@ -1620,7 +1766,10 @@ class FestService {
         students[idx] = { ...students[idx], ...student } as Student;
         this.setStorage('students', students);
         if (supabase) {
-          supabase.from('students').upsert(students[idx]).then();
+          this.postServerApi('/api/students', {
+            action: 'upsert',
+            student: students[idx],
+          }).catch(err => console.warn('saveStudent upsert error:', err));
         }
         return students[idx];
       }
@@ -1660,7 +1809,10 @@ class FestService {
       if (typeof cicVal === 'number' || (typeof cicVal === 'string' && /^\d+$/.test(cicVal))) {
         dbPayload.cic_no = Number(cicVal);
       }
-      supabase.from('students').insert(dbPayload).then();
+      this.postServerApi('/api/students', {
+        action: 'insert',
+        student: dbPayload,
+      }).catch(err => console.warn('saveStudent insert error:', err));
     }
     return newStudent;
   }
@@ -1813,19 +1965,16 @@ class FestService {
 
     if (supabase) {
       try {
-        const { data: dbRows, error: rpcError } = await supabase.rpc('register_college_for_item_tx', {
-          p_item_id: item.item_id,
-          p_college_affl_no: college.affl_no,
-          p_chest_nos: chestNos
-        });
-
-        if (rpcError) {
-          console.error('❌ Supabase register_college_for_item_tx error:', rpcError);
-          return {
-            success: false,
-            error: `Database Transaction Error (${rpcError.code || 'FAIL'}): ${rpcError.message}`
-          };
-        }
+        const res = await this.postServerApi<{ success: boolean; rows?: any[]; error?: string }>(
+          '/api/registrations',
+          {
+            action: 'register',
+            itemId: item.item_id,
+            collegeAfflNo: college.affl_no,
+            chestNos,
+          }
+        );
+        const dbRows = res.rows || [];
 
         const regs = this.getStorage<Registration[]>('registrations', []);
         const logs = this.getStorage<RegistrationLog[]>('registration_logs', []);
@@ -1856,9 +2005,11 @@ class FestService {
         // Refresh server-assigned numeric chest_no rows created by trigger
         await this.fetchChestNos();
 
-        // Reflect server-applied late fine in local college cache and update late_registrations table
-        const check = this.isRegistrationOpen(college.affl_no, item.item_id);
-        const isLate = check.isFinePeriod || Boolean(check.reason?.toLowerCase().includes('late'));
+        // Reflect server-applied late fine or super fine in local college cache and late_registrations store
+        const effectiveRegIso = item.reg_deadline || this.getFestSettings().reg_deadline;
+        const regTimestampIso = dbRows?.[0]?.created_at || new Date().toISOString();
+        const tierInfo = evaluateDeadlineTierAtTime(effectiveRegIso, regTimestampIso);
+        const isLate = tierInfo.tier !== 'open';
 
         if (isLate) {
           const colList = this.getStorage<College[]>('colleges', []);
@@ -1868,10 +2019,14 @@ class FestService {
             this.setStorage('colleges', colList);
           }
 
-          // Populate late_registrations store
-          const lateReason = check.isFinePeriod
-            ? 'Registered In Late Fine Window'
-            : (check.reason || 'Late Registration');
+          const fineTier = tierInfo.tier === 'fine' ? 'fine' : 'super_fine';
+          const fineAmount = tierInfo.fineAmount;
+          const lateReason =
+            fineTier === 'fine'
+              ? 'Fine Period (₹500) — within 1 hr of deadline'
+              : tierInfo.tier === 'super_fine'
+                ? 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline'
+                : 'Admin Entry Past Super Fine Cutoff (₹1,000)';
 
           const lateRows: LateRegistration[] = persistedChestNos.map(cNo => ({
             id: `late-${Date.now()}-${cNo}`,
@@ -1879,14 +2034,20 @@ class FestService {
             college_affl_no: college.affl_no,
             chest_no: cNo,
             late_reason: lateReason,
-            effective_deadline: item.reg_deadline || this.getFestSettings().reg_deadline,
-            registered_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
+            fine_tier: fineTier,
+            fine_amount: fineAmount,
+            effective_deadline: effectiveRegIso,
+            registered_at: regTimestampIso,
+            created_at: regTimestampIso
           }));
 
           const existingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
             .filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
           this.setStorage('late_registrations', [...existingLate, ...lateRows]);
+        } else {
+          const existingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
+            .filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+          this.setStorage('late_registrations', existingLate);
         }
 
         return { success: true };
@@ -1899,6 +2060,7 @@ class FestService {
     // Fallback if supabase client not connected
     const regs = this.getStorage<Registration[]>('registrations', []);
     const remaining = regs.filter(r => !(r.item_id === item.item_id && r.college_affl_no === college.affl_no));
+    const fallbackNowIso = new Date().toISOString();
     chestNos.forEach(cNo => {
       remaining.push({
         id: `reg-${Date.now()}-${cNo}`,
@@ -1906,20 +2068,27 @@ class FestService {
         college_affl_no: college.affl_no,
         college_id: `col-${college.affl_no}`,
         chest_no: cNo,
-        created_at: new Date().toISOString()
+        created_at: fallbackNowIso
       });
     });
     this.setStorage('registrations', remaining);
     this.pruneSubmissionsForRoster(item.item_id, college.affl_no, chestNos, item.point_type === 'group' || item.item_type === 'Group');
 
-    // Also populate late_registrations in fallback if applicable
-    const checkFallback = this.isRegistrationOpen(college.affl_no, item.item_id);
-    if (checkFallback.isFinePeriod || college.fine_status || college.manual_lock_override) {
-      const lateReason = checkFallback.isFinePeriod
-        ? 'Registered In Late Fine Window'
-        : college.fine_status
-          ? 'Late Fine Flagged on Institution'
-          : 'Admin Lock Override Entry';
+    const effectiveRegIsoFallback = item.reg_deadline || this.getFestSettings().reg_deadline;
+    const tierFallback = evaluateDeadlineTierAtTime(effectiveRegIsoFallback, fallbackNowIso);
+    if (tierFallback.tier !== 'open' || college.fine_status || college.manual_lock_override) {
+      const fineTier = tierFallback.tier === 'fine' ? 'fine' : tierFallback.tier === 'super_fine' || tierFallback.tier === 'closed' ? 'super_fine' : 'override';
+      const fineAmount = tierFallback.tier === 'open' ? 0 : tierFallback.fineAmount;
+      const lateReason =
+        tierFallback.tier === 'fine'
+          ? 'Fine Period (₹500) — within 1 hr of deadline'
+          : tierFallback.tier === 'super_fine'
+            ? 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline'
+            : tierFallback.tier === 'closed'
+              ? 'Admin Entry Past Super Fine Cutoff (₹1,000)'
+              : college.fine_status
+                ? 'Late Fine Flagged on Institution'
+                : 'Admin Lock Override Entry';
 
       const lateRows: LateRegistration[] = chestNos.map(cNo => ({
         id: `late-${Date.now()}-${cNo}`,
@@ -1927,9 +2096,11 @@ class FestService {
         college_affl_no: college.affl_no,
         chest_no: cNo,
         late_reason: lateReason,
-        effective_deadline: item.reg_deadline || this.getFestSettings().reg_deadline,
-        registered_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
+        fine_tier: fineTier,
+        fine_amount: fineAmount,
+        effective_deadline: effectiveRegIsoFallback,
+        registered_at: fallbackNowIso,
+        created_at: fallbackNowIso
       }));
 
       const existingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
@@ -1950,19 +2121,11 @@ class FestService {
 
     if (supabase) {
       try {
-        const { error: rpcError } = await supabase.rpc('register_college_for_item_tx', {
-          p_item_id: item.item_id,
-          p_college_affl_no: college.affl_no,
-          p_chest_nos: []
+        await this.postServerApi('/api/registrations', {
+          action: 'unregister',
+          itemId: item.item_id,
+          collegeAfflNo: college.affl_no,
         });
-
-        if (rpcError) {
-          console.error('❌ Supabase unregister error:', rpcError);
-          return {
-            success: false,
-            error: `Database Transaction Error: ${rpcError.message}`
-          };
-        }
       } catch (err: any) {
         console.error('Unexpected unregister error:', err);
         return { success: false, error: err.message || 'Unexpected unregister error' };
@@ -1972,11 +2135,6 @@ class FestService {
     const regs = this.getStorage<Registration[]>('registrations', []);
     const remaining = regs.filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
     this.setStorage('registrations', remaining);
-
-    if (supabase) {
-      supabase.from('late_registrations').delete().match({ item_id: item.item_id, college_affl_no: college.affl_no }).then();
-      supabase.from('submission_entries').delete().match({ item_id: item.item_id, college_affl_no: college.affl_no }).then();
-    }
     const remainingLate = this.getStorage<LateRegistration[]>('late_registrations', [])
       .filter(r => !(Number(r.item_id) === Number(item.item_id) && Number(r.college_affl_no) === Number(college.affl_no)));
     this.setStorage('late_registrations', remainingLate);
@@ -2013,9 +2171,10 @@ class FestService {
       });
       remaining = regs.filter(r => r.college_affl_no !== affl);
       if (supabase) {
-        supabase.from('registrations').delete().eq('college_affl_no', affl).then();
-        supabase.from('late_registrations').delete().eq('college_affl_no', affl).then();
-        supabase.from('submission_entries').delete().eq('college_affl_no', affl).then();
+        this.postServerApi('/api/registrations', {
+          action: 'clear_all',
+          collegeAfflNo: affl,
+        }).catch(err => console.warn('clearAllRegistrations error:', err));
       }
       const lateList = this.getStorage<LateRegistration[]>('late_registrations', []);
       this.setStorage('late_registrations', lateList.filter(l => l.college_affl_no !== affl));
@@ -2035,9 +2194,9 @@ class FestService {
       });
       remaining = [];
       if (supabase) {
-        supabase.from('registrations').delete().gte('college_affl_no', 0).then();
-        supabase.from('late_registrations').delete().gte('college_affl_no', 0).then();
-        supabase.from('submission_entries').delete().gte('college_affl_no', 0).then();
+        this.postServerApi('/api/registrations', {
+          action: 'clear_all',
+        }).catch(err => console.warn('clearAllRegistrations error:', err));
       }
       this.setStorage('late_registrations', []);
       this.setStorage('submissions', []);
@@ -2142,23 +2301,23 @@ class FestService {
 
     if (supabase) {
       try {
-        const { error } = await supabase.from('system_audit_logs').insert([{
-          action_type: newLog.action_type,
-          category: newLog.category,
-          severity: newLog.severity,
-          actor_role: newLog.actor_role,
-          actor_name: newLog.actor_name,
-          college_affl_no: newLog.college_affl_no,
-          item_id: newLog.item_id,
-          target_id: newLog.target_id,
-          description: newLog.description,
-          details: newLog.details
-        }]);
-        if (error) {
-          console.warn('System audit log remote insert notice:', error.message);
-        }
-      } catch (err) {
-        console.warn('Failed to insert system audit log to Supabase:', err);
+        await this.postServerApi('/api/admin/manage', {
+          action: 'log_audit',
+          log: {
+            action_type: newLog.action_type,
+            category: newLog.category,
+            severity: newLog.severity,
+            actor_role: newLog.actor_role,
+            actor_name: newLog.actor_name,
+            college_affl_no: newLog.college_affl_no,
+            item_id: newLog.item_id,
+            target_id: newLog.target_id,
+            description: newLog.description,
+            details: newLog.details
+          },
+        });
+      } catch (err: any) {
+        console.warn('Supabase logAudit notice:', err.message);
       }
     }
     return { success: true };
@@ -2193,8 +2352,17 @@ class FestService {
             r.code_letter = letter;
           }
         });
+        this.setStorage('registrations', regs);
+
+        if (supabase) {
+          this.postServerApi('/api/code-letters', {
+            action: 'assign_legacy',
+            itemId: target.item_id,
+            collegeAfflNo: target.college_affl_no,
+            codeLetter: letter,
+          }).catch(err => console.warn('assignCodeLetter regId error:', err));
+        }
       }
-      this.setStorage('registrations', regs);
       return;
     }
 
@@ -2212,7 +2380,12 @@ class FestService {
       this.setStorage('registrations', regs);
 
       if (supabase) {
-        supabase.from('registrations').update({ code_letter: letter }).match({ item_id: itm.item_id, college_affl_no: col.affl_no }).then();
+        this.postServerApi('/api/code-letters', {
+          action: 'assign_legacy',
+          itemId: itm.item_id,
+          collegeAfflNo: col.affl_no,
+          codeLetter: letter,
+        }).catch(err => console.warn('assignCodeLetter legacy error:', err));
       }
     }
   }
@@ -2281,7 +2454,11 @@ class FestService {
       this.setStorage('schedules', schedules);
       if (supabase) {
         try {
-          await supabase.from('schedules').update({ status }).eq('item_id', schedules[idx].item_id);
+          await this.postServerApi('/api/admin/manage', {
+            action: 'update_schedule_status',
+            itemId: schedules[idx].item_id,
+            status,
+          });
         } catch (err: any) {
           console.warn('Supabase updateScheduleStatus notice:', err.message);
         }
@@ -2334,33 +2511,16 @@ class FestService {
 
     if (supabase) {
       try {
-        const { data: existingRows } = await supabase
-          .from('schedules')
-          .select('id')
-          .eq('item_id', numItemId);
-
-        if (existingRows && existingRows.length > 0) {
-          await supabase
-            .from('schedules')
-            .update({
-              stage_number: numStage,
-              starting: data.starting,
-              ending: data.ending || null,
-              status: statusVal,
-              updated_at: nowIso
-            })
-            .eq('item_id', numItemId);
-        } else {
-          await supabase
-            .from('schedules')
-            .insert({
-              item_id: numItemId,
-              stage_number: numStage,
-              starting: data.starting,
-              ending: data.ending || null,
-              status: statusVal
-            });
-        }
+        await this.postServerApi('/api/admin/manage', {
+          action: 'save_schedule',
+          itemId: numItemId,
+          payload: {
+            stage_number: numStage,
+            starting: data.starting,
+            ending: data.ending || null,
+            status: statusVal,
+          },
+        });
       } catch (err: any) {
         console.warn('Supabase saveSchedule notice:', err.message);
       }
@@ -2425,21 +2585,24 @@ class FestService {
       return { success: false, error: 'Supabase connection is required for server-side chest number allocation.' };
     }
     try {
-      const { data, error } = await supabase.rpc('allocate_numeric_chest_numbers', {
-        p_only_registered: onlyRegistered,
-        p_reset: reset,
+      const res = await this.postServerApi<{
+        success: boolean;
+        totalAssigned?: number;
+        newlyAssigned?: number;
+        minChestNo?: number | null;
+        maxChestNo?: number | null;
+      }>('/api/students', {
+        action: 'allocate_chest_numbers',
+        onlyRegistered,
+        reset,
       });
-      if (error) {
-        return { success: false, error: error.message || 'Chest number allocation RPC failed.' };
-      }
       await this.fetchChestNos();
-      const row = Array.isArray(data) ? data[0] : data;
       return {
         success: true,
-        totalAssigned: Number(row?.total_assigned ?? 0),
-        newlyAssigned: Number(row?.newly_assigned ?? 0),
-        minChestNo: row?.min_chest_no != null ? Number(row.min_chest_no) : null,
-        maxChestNo: row?.max_chest_no != null ? Number(row.max_chest_no) : null,
+        totalAssigned: Number(res.totalAssigned ?? 0),
+        newlyAssigned: Number(res.newlyAssigned ?? 0),
+        minChestNo: res.minChestNo ?? null,
+        maxChestNo: res.maxChestNo ?? null,
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Unexpected error allocating chest numbers.' };
@@ -2587,7 +2750,7 @@ class FestService {
           try {
             const { data: stuByCic } = await client
               .from('students')
-              .select('*')
+              .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
               .in('cic_no', cicLookupKeys);
             if (stuByCic && stuByCic.length > 0) {
               fetchedStudents = [
@@ -2604,7 +2767,7 @@ class FestService {
           try {
             const { data: stuById } = await client
               .from('students')
-              .select('*')
+              .select('id, name, admission_no, cic_no, college_affl_no, class, phase, chest_no, phone, photo_url, created_at')
               .in('id', uuidKeys);
             if (stuById && stuById.length > 0) {
               fetchedStudents = [
@@ -2783,28 +2946,16 @@ class FestService {
     remainingCodeLetters.push(newEntry);
     this.setStorage('code_letters', remainingCodeLetters);
 
-    // 3. Persist to Supabase if connected
+    // 3. Persist to Supabase via server API if connected
     if (supabase) {
       try {
-        // Delete previous code_letter for this student/item if any
-        await supabase
-          .from('code_letters')
-          .delete()
-          .match({ item_id: numItemId, chest_no: cleanChestNo });
-
-        // Insert new code letter
-        await supabase.from('code_letters').insert({
-          item_id: numItemId,
-          college_affl_no: numAffl,
-          chest_no: cleanChestNo,
-          code_letter: randomLetter
+        await this.postServerApi('/api/code-letters', {
+          action: 'assign',
+          itemId: numItemId,
+          collegeAfflNo: numAffl,
+          chestNo: cleanChestNo,
+          codeLetter: randomLetter,
         });
-
-        // Update registrations table for fast foreign-key join lookups
-        await supabase
-          .from('registrations')
-          .update({ code_letter: randomLetter })
-          .match({ item_id: numItemId, chest_no: cleanChestNo });
       } catch (err: any) {
         console.warn('Supabase code_letters persistence notice:', err.message);
       }
@@ -2865,16 +3016,11 @@ class FestService {
 
     if (supabase) {
       try {
-        await supabase.from('code_letters').delete().eq('item_id', numItemId);
-        await supabase.from('code_letters').insert(codeLetterInserts);
-
-        // Batch update registrations table
-        for (const ins of codeLetterInserts) {
-          await supabase
-            .from('registrations')
-            .update({ code_letter: ins.code_letter })
-            .match({ item_id: numItemId, chest_no: ins.chest_no });
-        }
+        await this.postServerApi('/api/code-letters', {
+          action: 'randomize_all',
+          itemId: numItemId,
+          entries: codeLetterInserts,
+        });
       } catch (err: any) {
         console.warn('Supabase randomizeAllCodeLetters persistence notice:', err.message);
       }
@@ -2905,14 +3051,11 @@ class FestService {
 
     if (supabase) {
       try {
-        await supabase
-          .from('code_letters')
-          .delete()
-          .match({ item_id: numItemId, chest_no: cleanChestNo });
-        await supabase
-          .from('registrations')
-          .update({ code_letter: null })
-          .match({ item_id: numItemId, chest_no: cleanChestNo });
+        await this.postServerApi('/api/code-letters', {
+          action: 'remove',
+          itemId: numItemId,
+          chestNo: cleanChestNo,
+        });
       } catch (err: any) {
         console.warn('Supabase removeCodeLetter notice:', err.message);
       }
@@ -3231,19 +3374,9 @@ class FestService {
       });
     }
 
-    // 2. Persist to Supabase with proper AWAIT and CLEAN DELETION
+    // 2. Persist to Supabase via server API
     if (supabase) {
       try {
-        // Delete previous entries for this item to avoid duplicates
-        const { error: delErr } = await supabase
-          .from('results')
-          .delete()
-          .eq('item_id', numItemId);
-
-        if (delErr) {
-          console.warn('Supabase delete old results notice:', delErr.message);
-        }
-
         const dbPayloads = newResults.map(r => ({
           item_id: numItemId,
           code_letter: r.code_letter,
@@ -3257,15 +3390,14 @@ class FestService {
           best_in_fest: r.best_in_fest || false
         }));
 
-        if (dbPayloads.length > 0) {
-          const { error: insErr } = await supabase.from('results').insert(dbPayloads);
-          if (insErr) {
-            console.error('Supabase insert results error:', insErr.message);
-            return { success: false, error: insErr.message };
-          }
-        }
+        await this.postServerApi('/api/results', {
+          action: 'submit',
+          itemId: numItemId,
+          results: dbPayloads,
+        });
       } catch (err: any) {
         console.error('Supabase results sync error:', err.message);
+        return { success: false, error: err.message };
       }
     }
 
@@ -3286,14 +3418,11 @@ class FestService {
 
     if (supabase) {
       try {
-        const { error } = await supabase
-          .from('results')
-          .update({ published: publish })
-          .eq('item_id', numItemId);
-
-        if (error) {
-          console.error('Database publishResult error:', error.message);
-        }
+        await this.postServerApi('/api/results', {
+          action: 'publish',
+          itemId: numItemId,
+          publish,
+        });
       } catch (err: any) {
         console.warn('Supabase publishResult notice:', err.message);
       }
@@ -3417,11 +3546,10 @@ class FestService {
 
     if (supabase) {
       try {
-        const { error } = await supabase.from('appeals').insert(dbPayload);
-        if (error) {
-          console.error('Database submitAppeal error:', error.message);
-          return { success: false, error: `Failed to submit appeal: ${error.message}` };
-        }
+        await this.postServerApi('/api/submissions', {
+          action: 'submit_appeal',
+          payload: dbPayload,
+        });
       } catch (err: any) {
         return { success: false, error: err.message || 'Network error submitting appeal' };
       }
@@ -3441,7 +3569,12 @@ class FestService {
       appeals[idx].admin_remarks = remarks;
       this.setStorage('appeals', appeals);
       if (supabase) {
-        supabase.from('appeals').update({ current_status: status, admin_remarks: remarks }).eq('id', appealId).then();
+        this.postServerApi('/api/submissions', {
+          action: 'review_appeal',
+          appealId,
+          status,
+          remarks,
+        }).catch(err => console.warn('reviewAppeal error:', err));
       }
     }
   }
@@ -3501,21 +3634,22 @@ class FestService {
     const origUuid = orig?.id && isUuid(orig.id) ? orig.id : (isUuid(origStudentId) ? origStudentId : null);
     const repUuid = rep?.id && isUuid(rep.id) ? rep.id : (isUuid(newStudentId) ? newStudentId : null);
 
-    const { data, error } = await supabase
-      .from('replacements')
-      .insert({
-        registration_id: isUuid(targetRegId) ? targetRegId : null,
-        original_student_id: origUuid,
-        replacement_student_id: repUuid,
-        reason,
-        status: 'Pending'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('❌ Supabase submitReplacement error:', error.message);
-      return { success: false, error: error.message };
+    let data: any;
+    try {
+      const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/submissions', {
+        action: 'submit_replacement',
+        payload: {
+          registration_id: isUuid(targetRegId) ? targetRegId : null,
+          original_student_id: origUuid,
+          replacement_student_id: repUuid,
+          reason,
+          status: 'Pending'
+        },
+      });
+      data = res.data;
+    } catch (err: any) {
+      console.error('❌ Supabase submitReplacement error:', err.message);
+      return { success: false, error: err.message };
     }
 
     const fullRep: Replacement = {
@@ -3531,14 +3665,15 @@ class FestService {
 
   public async reviewReplacement(repId: string, status: AppealStatus): Promise<{ success: boolean; error?: string }> {
     if (supabase) {
-      const { data, error } = await supabase.rpc('review_replacement_tx', {
-        p_replacement_id: repId,
-        p_status: status
-      });
-
-      if (error) {
-        console.error('❌ Supabase review_replacement_tx error:', error.message);
-        return { success: false, error: error.message };
+      try {
+        await this.postServerApi('/api/submissions', {
+          action: 'review_replacement',
+          repId,
+          status,
+        });
+      } catch (err: any) {
+        console.error('❌ Supabase review_replacement_tx error:', err.message);
+        return { success: false, error: err.message };
       }
 
       // Re-fetch chest numbers, registrations & replacements to sync live state
@@ -3698,7 +3833,7 @@ class FestService {
     const isGroupEvent = item.point_type === 'group' || item.item_type === 'Group';
     const settings = this.getFestSettings();
     const regDeadline = item.reg_deadline || settings.reg_deadline;
-    const fineDeadline = item.fine_deadline || settings.fine_deadline;
+    const fineDeadline = computeDeadlineSchedule(regDeadline)?.superFineEndIso || item.fine_deadline || settings.fine_deadline;
     const nowMs = Date.now();
     let status: SubmissionStatus = 'on_time';
     if (fineDeadline && nowMs > new Date(fineDeadline).getTime()) {
@@ -3711,82 +3846,19 @@ class FestService {
 
     if (supabase) {
       try {
-        let { data, error } = await supabase
-          .from('submission_entries')
-          .upsert(
-            {
-              college_affl_no: numAffl,
-              chest_no: dbChestNo,
-              item_id: numItemId,
-              status,
-              file_url: trimmedUrl,
-              submitted_at: nowIso
-            },
-            { onConflict: 'item_id,chest_no' }
-          )
-          .select()
-          .single();
-
-        // Fallback if unique index idx_submission_entries_item_chest_unique (migration 20261111050000)
-        // has not been pushed to Supabase yet (Postgres 42P10)
-        if (error && (error.code === '42P10' || /no unique or exclusion constraint/i.test(error.message))) {
-          const { data: existingRow, error: lookupErr } = await supabase
-            .from('submission_entries')
-            .select('id')
-            .eq('item_id', numItemId)
-            .eq('chest_no', dbChestNo)
-            .maybeSingle();
-
-          if (lookupErr) {
-            error = lookupErr;
-            data = null;
-          } else if (existingRow?.id) {
-            const updateRes = await supabase
-              .from('submission_entries')
-              .update({
-                college_affl_no: numAffl,
-                status,
-                file_url: trimmedUrl,
-                submitted_at: nowIso
-              })
-              .eq('id', existingRow.id)
-              .select()
-              .single();
-            data = updateRes.data;
-            error = updateRes.error;
-          } else {
-            const insertRes = await supabase
-              .from('submission_entries')
-              .insert({
-                college_affl_no: numAffl,
-                chest_no: dbChestNo,
-                item_id: numItemId,
-                status,
-                file_url: trimmedUrl,
-                submitted_at: nowIso
-              })
-              .select()
-              .single();
-            data = insertRes.data;
-            error = insertRes.error;
-          }
-        }
-
-        if (error) {
-          console.error('Failed to save submission link:', error.message);
-          return { success: false, error: error.message };
-        }
+        const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/submissions', {
+          action: 'upsert_entry_link',
+          collegeAfflNo: numAffl,
+          itemId: numItemId,
+          chestNo: dbChestNo,
+          status,
+          fileUrl: trimmedUrl,
+          nowIso,
+          isGroupEvent,
+        });
+        const data = res.data;
 
         if (data) {
-          if (isGroupEvent) {
-            // Keep at most one active submission link per college team for group events
-            await supabase
-              .from('submission_entries')
-              .delete()
-              .eq('item_id', numItemId)
-              .eq('college_affl_no', numAffl)
-              .neq('chest_no', data.chest_no);
-          }
 
           const entry: SubmissionEntry = {
             id: data.id,
@@ -3860,23 +3932,13 @@ class FestService {
 
     if (supabase) {
       try {
-        const updatePayload: Record<string, any> = {
-          screening_status: params.status,
-          screening_updated_at: nowIso
-        };
-        if (remarks !== undefined) {
-          updatePayload.screening_remarks = remarks;
-        }
-
-        const { error } = await supabase
-          .from('registrations')
-          .update(updatePayload)
-          .in('id', ids);
-
-        if (error) {
-          console.error('Failed to update screening status:', error.message);
-          return { success: false, error: error.message };
-        }
+        await this.postServerApi('/api/registrations', {
+          action: 'update_screening',
+          ids,
+          status: params.status,
+          remarks,
+          nowIso,
+        });
       } catch (err: any) {
         return { success: false, error: err?.message || 'Database error updating screening status' };
       }
@@ -4166,16 +4228,12 @@ class FestService {
         };
 
         if (payload.student_id) {
-          const { data: dbData, error } = await supabase
-            .from('volunteers')
-            .insert(payload)
-            .select()
-            .single();
-
-          if (!error && dbData) {
-            newVol.id = dbData.id;
-          } else if (error) {
-            console.warn('Supabase volunteer insert notice (cached fallback used):', error.message);
+          const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/volunteers', {
+            action: 'register',
+            payload,
+          });
+          if (res.data) {
+            newVol.id = res.data.id;
           }
         }
       } catch (err) {
@@ -4222,17 +4280,18 @@ class FestService {
 
     if (supabase && isUuid(volunteerId)) {
       try {
-        await supabase
-          .from('volunteers')
-          .update({
+        await this.postServerApi('/api/volunteers', {
+          action: 'update',
+          volunteerId,
+          updates: {
             duty_preference: updatedVol.duty_preference,
             phone: updatedVol.phone,
             tshirt_size: updatedVol.tshirt_size,
             status: updatedVol.status,
             notes: updatedVol.notes,
             updated_at: updatedVol.updated_at
-          })
-          .eq('id', volunteerId);
+          },
+        });
       } catch (err) {
         console.warn('Supabase volunteer update notice:', err);
       }
@@ -4255,7 +4314,10 @@ class FestService {
     if (supabase) {
       try {
         if (isUuid(volunteerIdOrStudentId)) {
-          await supabase.from('volunteers').delete().or(`id.eq.${volunteerIdOrStudentId},student_id.eq.${volunteerIdOrStudentId}`);
+          await this.postServerApi('/api/volunteers', {
+            action: 'delete',
+            idOrStudentId: volunteerIdOrStudentId,
+          });
         }
       } catch (err) {
         console.warn('Supabase volunteer delete notice:', err);
@@ -4389,14 +4451,13 @@ class FestService {
           expires_at: newNotice.expires_at
         };
 
-        const { data: dbData, error } = await supabase
-          .from('announcements')
-          .insert(payload)
-          .select()
-          .single();
+        const res = await this.postServerApi<{ success: boolean; data?: any }>('/api/admin/manage', {
+          action: 'create_announcement',
+          payload,
+        });
 
-        if (!error && dbData) {
-          newNotice.id = dbData.id;
+        if (res.data) {
+          newNotice.id = res.data.id;
         }
       } catch (err) {
         console.warn('Supabase create announcement notice:', err);
@@ -4428,7 +4489,10 @@ class FestService {
 
     if (supabase && isUuid(id)) {
       try {
-        await supabase.from('announcements').delete().eq('id', id);
+        await this.postServerApi('/api/admin/manage', {
+          action: 'delete_announcement',
+          id,
+        });
       } catch (err) {
         console.warn('Supabase announcement delete notice:', err);
       }

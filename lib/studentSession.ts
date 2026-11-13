@@ -13,12 +13,14 @@ export interface StudentTokenPayload {
 }
 
 function getSigningSecret(): string {
-  return (
-    process.env.STUDENT_SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    'wsf-student-session-fallback-secret'
-  );
+  const secret = process.env.STUDENT_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[studentSession] Critical: STUDENT_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY must be set.');
+    }
+    return 'wsf-student-session-local-dev-secret';
+  }
+  return secret;
 }
 
 /**

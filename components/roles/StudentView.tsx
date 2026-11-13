@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { Button } from '../ui/button';
@@ -126,8 +125,7 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     }
   }, []);
 
-  const router = useRouter();
-  const { currentCollegeAfflNo, currentRole, refreshKey, signOut } = useFest();
+  const { currentCollegeAfflNo, currentRole, refreshKey } = useFest();
 
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
@@ -360,11 +358,6 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
     }
   };
 
-  const handleStudentSignOut = async () => {
-    await signOut();
-    router.push('/student-login');
-  };
-
   const myTotalPoints = useMemo(
     () => myResults.reduce((sum, r) => sum + (Number(r.points) || 0), 0),
     [myResults]
@@ -473,12 +466,6 @@ export function StudentView({ activeTab: controlledTab, onTabChange }: StudentVi
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share</span>
                   </Button>
-                  <button
-                    onClick={handleStudentSignOut}
-                    className="text-xs font-heading font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                  >
-                    Sign Out
-                  </button>
                 </>
               ) : (
                 <Link href="/student-login">

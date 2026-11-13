@@ -8,11 +8,12 @@ VALUES (
   1,
   'WSF Arts Fest 2025',
   now() + interval '5 days',
-  now() + interval '8 days',
+  now() + interval '5 days 2 hours',
   'https://example.com/wsf_arts_manual.pdf'
 ) ON CONFLICT (id) DO UPDATE SET
   fest_name = EXCLUDED.fest_name,
-  reg_deadline = EXCLUDED.reg_deadline;
+  reg_deadline = EXCLUDED.reg_deadline,
+  fine_deadline = EXCLUDED.fine_deadline;
 
 -- 2. Max Participation Quotas
 INSERT INTO max_participation (phase, off_max, on_max, total_max, group_max) VALUES

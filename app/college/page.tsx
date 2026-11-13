@@ -9,6 +9,7 @@ import {
   Calendar,
   Contact,
   ShieldAlert,
+  AlertTriangle,
   Trash2,
   UserPlus,
   HeartHandshake,
@@ -48,7 +49,7 @@ import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplace
 import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
 
 export default function CollegePortalPage() {
-  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth } = useFest();
+  const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth, timeTick } = useFest();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -175,7 +176,9 @@ export default function CollegePortalPage() {
       currentCollegeAfflNo,
       currentCollegeId,
       filteredItems,
-      refreshKey
+      festSettings,
+      refreshKey,
+      timeTick
     ]
   );
 
@@ -606,6 +609,10 @@ export default function CollegePortalPage() {
             const isAlreadyRegistered = registrations.some(
               r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id)
             );
+            const modalLockCheck = festService.isRegistrationOpen(
+              currentCollegeAfflNo || currentCollegeId,
+              selectedItemForReg.item_id || selectedItemForReg.id
+            );
 
             return (
               <form onSubmit={handleConfirmRegistration} className="space-y-4">
@@ -624,6 +631,23 @@ export default function CollegePortalPage() {
                     />
                   </div>
                 </div>
+
+                {(modalLockCheck.isFinePeriod || modalLockCheck.isSuperFinePeriod) && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-sans ${
+                      modalLockCheck.isSuperFinePeriod
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>
+                      {modalLockCheck.isSuperFinePeriod
+                        ? 'Super Fine Period Active: Saving this registration incurs a ₹1,000 Super Fine (1–2h past deadline).'
+                        : 'Fine Period Active: Saving this registration incurs a ₹500 Fine (within 1h past deadline).'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Participant Search and Phase Filter */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">

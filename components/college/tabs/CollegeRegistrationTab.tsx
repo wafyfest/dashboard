@@ -18,7 +18,9 @@ import {
 } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck, Link2, ExternalLink } from 'lucide-react';
+import { useFest } from '@/lib/context/FestContext';
+import { getDeadlineStatus, formatIstDisplay } from '@/lib/utils/istDate';
+import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck, Link2, ExternalLink, AlertTriangle, Clock } from 'lucide-react';
 
 interface CollegeRegistrationTabProps {
   filteredItems: Item[];
@@ -53,6 +55,13 @@ export function CollegeRegistrationTab({
   allItemsCount,
   registrationStatusByItem
 }: CollegeRegistrationTabProps) {
+  const { festSettings, timeTick } = useFest();
+  const deadlineInfo = React.useMemo(
+    () => getDeadlineStatus(festSettings.reg_deadline),
+    [festSettings.reg_deadline, timeTick]
+  );
+  const deadlineSchedule = deadlineInfo.schedule;
+
   const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage' | 'submission' | 'screening'>('All');
   const [linkTarget, setLinkTarget] = React.useState<SubmissionLinkTarget | null>(null);
 
@@ -166,6 +175,36 @@ export function CollegeRegistrationTab({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Registration Deadline Alert Banner */}
+        {deadlineInfo.status === 'fine' && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="flex-1 font-sans">
+              <strong className="font-heading font-bold">Fine Period Active (₹500):</strong> The normal deadline has passed. New registrations incur a <strong>₹500 fine</strong> until{' '}
+              <strong className="font-mono">{deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}</strong>. After that, a <strong>₹1,000 Super Fine</strong> applies for 1 hour.
+            </div>
+          </div>
+        )}
+
+        {deadlineInfo.status === 'super_fine' && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-900 dark:text-rose-200">
+            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <div className="flex-1 font-sans">
+              <strong className="font-heading font-bold">Super Fine Period Active (₹1,000):</strong> The 1-hour ₹500 fine window has ended. Registrations now incur a <strong>₹1,000 Super Fine</strong> until{' '}
+              <strong className="font-mono">{deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}</strong>, after which registration will be <strong>completely locked for all colleges</strong>!
+            </div>
+          </div>
+        )}
+
+        {deadlineInfo.status === 'closed' && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-900 dark:text-rose-200">
+            <Lock className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <div className="flex-1 font-sans">
+              <strong className="font-heading font-bold">Registrations Locked:</strong> The deadline and 2-hour Super Fine grace window have ended. Registration is completely closed for all colleges.
+            </div>
+          </div>
+        )}
+
         {pendingPreFestCount > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs">
             <div className="flex items-start sm:items-center gap-2 text-indigo-900 dark:text-indigo-200">
@@ -294,7 +333,7 @@ export function CollegeRegistrationTab({
                           variant={isLocked ? 'secondary' : 'saffron'}
                           disabled={isLocked}
                           className="h-8 w-8 p-0 rounded-lg transition-colors"
-                          title={!isLocked ? 'Register Entry' : lockCheck.reason || 'Registration Locked'}
+                          title={!isLocked ? (lockCheck.reason || 'Register Entry') : lockCheck.reason || 'Registration Locked'}
                           onClick={() => !isLocked && onOpenRegistrationModal(item)}
                         >
                           {isLocked ? (
@@ -305,6 +344,19 @@ export function CollegeRegistrationTab({
                         </Button>
                       )}
                     </div>
+                    {!isLocked && (lockCheck.isSuperFinePeriod || lockCheck.isFinePeriod) && (
+                      <div className="mt-1">
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold font-mono border ${
+                            lockCheck.isSuperFinePeriod
+                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                              : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30'
+                          }`}
+                        >
+                          {lockCheck.isSuperFinePeriod ? 'Super Fine ₹1,000' : 'Fine ₹500'}
+                        </span>
+                      </div>
+                    )}
                     {isRegistered && requiresPreFestSubmission(item) && (() => {
                       const primaryStu = reg.participants?.[0] || reg.student;
                       const resolvedChest = primaryStu ? getCanonicalChestNo(primaryStu) : '';

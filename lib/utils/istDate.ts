@@ -109,60 +109,180 @@ export function addHoursToIstInput(inputVal: string, hours: number): string {
   return formatToIstInput(nextDate.toISOString());
 }
 
+export const FINE_WINDOW_HOURS = 1;
+export const SUPER_FINE_WINDOW_HOURS = 2;
+export const FINE_WINDOW_MS = FINE_WINDOW_HOURS * 60 * 60 * 1000;
+export const SUPER_FINE_WINDOW_MS = SUPER_FINE_WINDOW_HOURS * 60 * 60 * 1000;
+export const FINE_AMOUNT_RS = 500;
+export const SUPER_FINE_AMOUNT_RS = 1000;
+
+export type RegistrationDeadlineTier = 'open' | 'fine' | 'super_fine' | 'closed';
+
+export interface DeadlineSchedule {
+  regDeadlineIso: string;
+  fineEndIso: string;
+  superFineEndIso: string;
+  regEndMs: number;
+  fineEndMs: number;
+  superFineEndMs: number;
+}
+
+/**
+ * Computes the fixed 1h Fine (₹500) and 2h Super Fine (₹1,000) cutoffs from a normal deadline.
+ */
+export function computeDeadlineSchedule(regDeadlineIso?: string | null): DeadlineSchedule | null {
+  if (!regDeadlineIso) return null;
+  const regEndMs = new Date(regDeadlineIso).getTime();
+  if (Number.isNaN(regEndMs)) return null;
+  const fineEndMs = regEndMs + FINE_WINDOW_MS;
+  const superFineEndMs = regEndMs + SUPER_FINE_WINDOW_MS;
+  return {
+    regDeadlineIso: new Date(regEndMs).toISOString(),
+    fineEndIso: new Date(fineEndMs).toISOString(),
+    superFineEndIso: new Date(superFineEndMs).toISOString(),
+    regEndMs,
+    fineEndMs,
+    superFineEndMs,
+  };
+}
+
+/**
+ * Evaluates which deadline tier & fine amount applies at a given timestamp.
+ * - <= normal deadline: 'open' (₹0)
+ * - +0h to +1h: 'fine' (₹500)
+ * - +1h to +2h: 'super_fine' (₹1,000)
+ * - > +2h: 'closed' (locked for all colleges)
+ */
+export function evaluateDeadlineTierAtTime(
+  regDeadlineIso?: string | null,
+  atTime: string | Date | number = Date.now()
+): {
+  tier: RegistrationDeadlineTier;
+  fineAmount: 0 | 500 | 1000;
+  label: string;
+  schedule: DeadlineSchedule | null;
+  elapsedMs: number;
+} {
+  const schedule = computeDeadlineSchedule(regDeadlineIso);
+  const atMs =
+    typeof atTime === 'number'
+      ? atTime
+      : atTime instanceof Date
+        ? atTime.getTime()
+        : new Date(atTime).getTime();
+
+  if (!schedule || Number.isNaN(atMs)) {
+    return { tier: 'open', fineAmount: 0, label: 'On Time', schedule, elapsedMs: 0 };
+  }
+
+  const elapsedMs = Math.max(0, atMs - schedule.regEndMs);
+
+  if (atMs <= schedule.regEndMs) {
+    return { tier: 'open', fineAmount: 0, label: 'On Time', schedule, elapsedMs: 0 };
+  }
+  if (atMs <= schedule.fineEndMs) {
+    return { tier: 'fine', fineAmount: FINE_AMOUNT_RS, label: 'Fine (₹500)', schedule, elapsedMs };
+  }
+  if (atMs <= schedule.superFineEndMs) {
+    return {
+      tier: 'super_fine',
+      fineAmount: SUPER_FINE_AMOUNT_RS,
+      label: 'Super Fine (₹1,000)',
+      schedule,
+      elapsedMs,
+    };
+  }
+  return {
+    tier: 'closed',
+    fineAmount: SUPER_FINE_AMOUNT_RS,
+    label: 'Super Fine Ended (Locked)',
+    schedule,
+    elapsedMs,
+  };
+}
+
+/**
+ * Formats a delay/remaining millisecond duration in human-readable form (d / h / m).
+ */
+export function formatDurationCompact(ms: number): string {
+  const safeMs = Math.max(0, ms);
+  const totalMinutes = Math.floor(safeMs / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const mins = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${Math.max(1, mins)}m`;
+}
+
 /**
  * Computes live registration deadline status in relation to current time in IST.
  */
 export function getDeadlineStatus(
   regDeadlineIso?: string | null,
-  fineDeadlineIso?: string | null
+  _ignoredFineDeadlineIso?: string | null
 ): {
-  status: 'open' | 'fine' | 'closed';
+  status: RegistrationDeadlineTier;
+  fineAmount: 0 | 500 | 1000;
   label: string;
   badgeClass: string;
   timeRemainingText: string;
   isCustom: boolean;
+  schedule: DeadlineSchedule | null;
 } {
   const now = Date.now();
-  const regTime = regDeadlineIso ? new Date(regDeadlineIso).getTime() : 0;
-  const fineTime = fineDeadlineIso ? new Date(fineDeadlineIso).getTime() : 0;
+  const evaluated = evaluateDeadlineTierAtTime(regDeadlineIso, now);
+  const schedule = evaluated.schedule;
 
-  if (regTime && now <= regTime) {
-    const diff = regTime - now;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-    const remHours = hours % 24;
-    const timeText = days > 0 ? `${days}d ${remHours}h left (No Fine)` : `${hours}h left (No Fine)`;
+  if (!schedule || evaluated.tier === 'open') {
+    const diff = schedule ? schedule.regEndMs - now : 0;
+    const timeText = schedule ? `${formatDurationCompact(diff)} left (No Fine)` : 'Open (No Fine)';
 
     return {
       status: 'open',
+      fineAmount: 0,
       label: 'Open (No Fine)',
       badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
       timeRemainingText: timeText,
-      isCustom: false
+      isCustom: false,
+      schedule,
     };
   }
 
-  if (fineTime && now <= fineTime) {
-    const diff = fineTime - now;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-    const remHours = hours % 24;
-    const timeText = days > 0 ? `${days}d ${remHours}h left (With Fine)` : `${hours}h left (With Fine)`;
-
+  if (evaluated.tier === 'fine') {
+    const diff = schedule.fineEndMs - now;
     return {
       status: 'fine',
-      label: 'Fine Period Active',
+      fineAmount: FINE_AMOUNT_RS,
+      label: 'Fine Period (₹500)',
       badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-      timeRemainingText: timeText,
-      isCustom: false
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹500 Fine)`,
+      isCustom: false,
+      schedule,
+    };
+  }
+
+  if (evaluated.tier === 'super_fine') {
+    const diff = schedule.superFineEndMs - now;
+    return {
+      status: 'super_fine',
+      fineAmount: SUPER_FINE_AMOUNT_RS,
+      label: 'Super Fine (₹1,000)',
+      badgeClass: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/25',
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹1,000 Super Fine)`,
+      isCustom: false,
+      schedule,
     };
   }
 
   return {
     status: 'closed',
-    label: 'Registration Closed',
+    fineAmount: 0,
+    label: 'Registration Locked',
     badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
-    timeRemainingText: 'Deadline has passed',
-    isCustom: false
+    timeRemainingText: 'Super fine period ended — locked',
+    isCustom: false,
+    schedule,
   };
 }

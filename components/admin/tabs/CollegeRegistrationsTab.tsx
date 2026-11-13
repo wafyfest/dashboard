@@ -56,7 +56,7 @@ import {
   registrationContainsStudent,
   calculateStudentEvents
 } from '@/lib/utils/studentIdentity';
-import { formatIstDisplay } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateDeadlineTierAtTime, formatDurationCompact } from '@/lib/utils/istDate';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 
 export interface LateRegistrationEntry {
@@ -70,7 +70,10 @@ export interface LateRegistrationEntry {
   effectiveFineDeadline?: Date;
   reason: string;
   delayText: string;
+  fineTier: 'fine' | 'super_fine' | 'override';
+  fineAmount: 0 | 500 | 1000;
   isFinePeriod: boolean;
+  isSuperFinePeriod: boolean;
   fineStatus: boolean;
 }
 
@@ -191,6 +194,7 @@ export function CollegeRegistrationsTab({
   const [lateScope, setLateScope] = useState<'current' | 'all'>('current');
   const [lateSearchQuery, setLateSearchQuery] = useState('');
   const [lateFineFilter, setLateFineFilter] = useState<'all' | 'fine' | 'waived'>('all');
+  const [lateTierFilter, setLateTierFilter] = useState<'all' | 'fine' | 'super_fine'>('all');
   const [lateCategoryFilter, setLateCategoryFilter] = useState('All');
 
   // Modals State
@@ -222,54 +226,72 @@ export function CollegeRegistrationsTab({
       findStudentByIdentifier(collegeStudents, r.chest_no) ||
       findStudentByIdentifier(studentList, r.chest_no);
 
-    const regDeadlineIso = item.reg_deadline || festSettings.reg_deadline;
-    const fineDeadlineIso = item.fine_deadline || festSettings.fine_deadline;
-    const effectiveRegDeadline = regDeadlineIso ? new Date(regDeadlineIso) : undefined;
-    const effectiveFineDeadline = fineDeadlineIso ? new Date(fineDeadlineIso) : undefined;
-
-    const log = registrationLogs.find(
-      l =>
-        Number(l.item_id) === Number(r.item_id) &&
-        Number(l.college_affl_no) === Number(r.college_affl_no) &&
-        l.chest_no === r.chest_no &&
-        l.process === 'ADD'
-    );
-    const timeStr = r.created_at || log?.timestamp;
-    const regTime = timeStr ? new Date(timeStr) : undefined;
-
     const tableRow = lateRegistrationsFromTable.find(
       l => Number(l.item_id) === Number(r.item_id) && l.chest_no === r.chest_no
     );
 
-    const isAfterRegDeadline = Boolean(
-      regTime && effectiveRegDeadline && regTime.getTime() > effectiveRegDeadline.getTime()
-    );
-    const isAfterFineDeadline = Boolean(
-      regTime && effectiveFineDeadline && regTime.getTime() > effectiveFineDeadline.getTime()
-    );
+    const logMatch = !r.created_at
+      ? registrationLogs.find(
+          log =>
+            log.process === 'ADD' &&
+            Number(log.item_id) === Number(r.item_id) &&
+            Number(log.college_affl_no) === Number(r.college_affl_no) &&
+            log.chest_no === r.chest_no
+        )
+      : undefined;
+
+    const rawTimestamp = r.created_at || logMatch?.timestamp || tableRow?.created_at;
+    const regTime = rawTimestamp ? new Date(rawTimestamp) : undefined;
+    const validRegTime = regTime && !Number.isNaN(regTime.getTime()) ? regTime : undefined;
+
+    const regDeadlineIso = item.reg_deadline || festSettings.reg_deadline;
+    const tierAtReg = validRegTime ? evaluateDeadlineTierAtTime(regDeadlineIso, validRegTime) : null;
+    const effectiveRegDeadline = tierAtReg?.schedule ? new Date(tierAtReg.schedule.regEndMs) : (regDeadlineIso ? new Date(regDeadlineIso) : undefined);
+    const effectiveFineDeadline = tierAtReg?.schedule ? new Date(tierAtReg.schedule.superFineEndMs) : undefined;
+
+    const isAfterRegDeadline = Boolean(tierAtReg && tierAtReg.tier !== 'open');
 
     // Precise Criteria:
     // 1. Explicitly recorded in public.late_registrations table, OR
-    // 2. Its own registration timestamp (r.created_at or log timestamp) was strictly after the event/fest registration deadline
+    // 2. Its own registration timestamp (r.created_at or log timestamp) was strictly after the event/fest normal registration deadline
     const isLate = Boolean(tableRow) || isAfterRegDeadline;
 
     if (!isLate) return null;
 
+    let fineTier: 'fine' | 'super_fine' | 'override' = 'fine';
+    let fineAmount: 0 | 500 | 1000 = 500;
     let reason = tableRow?.late_reason || 'Late Registration';
     let delayText = 'Late Submission';
 
+    if (tableRow?.fine_tier === 'super_fine' || Number(tableRow?.fine_amount) === 1000) {
+      fineTier = 'super_fine';
+      fineAmount = 1000;
+    } else if (tableRow?.fine_tier === 'fine' || Number(tableRow?.fine_amount) === 500) {
+      fineTier = 'fine';
+      fineAmount = 500;
+    } else if (tierAtReg && (tierAtReg.tier === 'super_fine' || tierAtReg.tier === 'closed')) {
+      fineTier = 'super_fine';
+      fineAmount = 1000;
+    } else if (tierAtReg && tierAtReg.tier === 'fine') {
+      fineTier = 'fine';
+      fineAmount = 500;
+    } else if (college.manual_lock_override && !isAfterRegDeadline) {
+      fineTier = 'override';
+      fineAmount = 0;
+    }
+
+    if (tierAtReg && isAfterRegDeadline) {
+      delayText = `+${formatDurationCompact(tierAtReg.elapsedMs)} late`;
+    }
+
     if (tableRow?.late_reason) {
       reason = tableRow.late_reason;
-    } else if (isAfterFineDeadline) {
-      reason = 'Registered Past Final Deadline (Admin Override)';
-      const diffMs = regTime!.getTime() - effectiveFineDeadline!.getTime();
-      const diffHours = Math.max(1, Math.round(diffMs / (1000 * 60 * 60)));
-      delayText = diffHours >= 24 ? `+${Math.floor(diffHours / 24)}d ${diffHours % 24}h past deadline` : `+${diffHours}h past deadline`;
-    } else if (isAfterRegDeadline) {
-      reason = 'Registered In Late Fine Window';
-      const diffMs = regTime!.getTime() - effectiveRegDeadline!.getTime();
-      const diffHours = Math.max(1, Math.round(diffMs / (1000 * 60 * 60)));
-      delayText = diffHours >= 24 ? `+${Math.floor(diffHours / 24)}d ${diffHours % 24}h late` : `+${diffHours}h late`;
+    } else if (tierAtReg?.tier === 'fine') {
+      reason = 'Fine Period (₹500) — within 1 hr of deadline';
+    } else if (tierAtReg?.tier === 'super_fine') {
+      reason = 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline';
+    } else if (tierAtReg?.tier === 'closed') {
+      reason = 'Admin Entry Past Super Fine Cutoff (₹1,000)';
     } else if (college.fine_status) {
       reason = 'Late Fine Flagged on Institution';
       delayText = 'Fine Status Active';
@@ -284,12 +306,15 @@ export function CollegeRegistrationsTab({
       item,
       student,
       college,
-      regTime,
+      regTime: validRegTime,
       effectiveRegDeadline,
       effectiveFineDeadline,
       reason,
       delayText,
-      isFinePeriod: isAfterRegDeadline && !isAfterFineDeadline,
+      fineTier,
+      fineAmount,
+      isFinePeriod: fineTier === 'fine',
+      isSuperFinePeriod: fineTier === 'super_fine',
       fineStatus: Boolean(college.fine_status)
     };
   };
@@ -311,6 +336,17 @@ export function CollegeRegistrationsTab({
 
   const activeCollegeLateItemIds = useMemo(() => {
     return new Set(activeCollegeLateEntries.map(e => Number(e.item.item_id)));
+  }, [activeCollegeLateEntries]);
+
+  const activeCollegeLateByItemMap = useMemo(() => {
+    const map = new Map<number, LateRegistrationEntry>();
+    activeCollegeLateEntries.forEach(entry => {
+      const existing = map.get(Number(entry.item.item_id));
+      if (!existing || entry.fineAmount > existing.fineAmount) {
+        map.set(Number(entry.item.item_id), entry);
+      }
+    });
+    return map;
   }, [activeCollegeLateEntries]);
 
   // Filter Events for the Single Unified Table
@@ -913,9 +949,27 @@ export function CollegeRegistrationsTab({
                                     <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                     <span>Enrolled ({registeredChestNos.length})</span>
                                   </span>
-                                  {activeCollegeLateItemIds.has(Number(item.item_id)) && (
-                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                      <Clock className="w-2.5 h-2.5 mr-0.5" /> Late Entry
+                                  {(() => {
+                                    const lateInfo = activeCollegeLateByItemMap.get(Number(item.item_id));
+                                    if (lateInfo) {
+                                      return (
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${
+                                            lateInfo.fineTier === 'super_fine'
+                                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                          }`}
+                                        >
+                                          <Clock className="w-2.5 h-2.5 mr-0.5" />
+                                          {lateInfo.fineTier === 'super_fine' ? 'Super Fine ₹1,000' : 'Fine ₹500'}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                  {itemRegs[0]?.created_at && (
+                                    <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                                      {formatIstDisplay(itemRegs[0].created_at)}
                                     </span>
                                   )}
                                 </div>
@@ -1339,11 +1393,17 @@ export function CollegeRegistrationsTab({
             (lateFineFilter === 'fine' && entry.fineStatus) ||
             (lateFineFilter === 'waived' && !entry.fineStatus);
 
-          return matchesSearch && matchesCategory && matchesFine;
+          const matchesTier =
+            lateTierFilter === 'all' || entry.fineTier === lateTierFilter;
+
+          return matchesSearch && matchesCategory && matchesFine && matchesTier;
         });
 
         const uniqueStudentsCount = new Set(filteredLateEntries.map(e => e.student?.chest_no || e.registration.chest_no)).size;
         const uniqueItemsCount = new Set(filteredLateEntries.map(e => e.item.item_id)).size;
+        const fineTierCount = sourceEntries.filter(e => e.fineTier === 'fine').length;
+        const superFineTierCount = sourceEntries.filter(e => e.fineTier === 'super_fine').length;
+        const totalFineAmountRs = filteredLateEntries.reduce((sum, e) => sum + e.fineAmount, 0);
         const fineFlaggedEntriesCount = sourceEntries.filter(e => e.fineStatus).length;
         const fineWaivedEntriesCount = sourceEntries.filter(e => !e.fineStatus).length;
 
@@ -1365,12 +1425,15 @@ export function CollegeRegistrationsTab({
             'Event Type',
             'Registration Time (IST)',
             'Effective Deadline (IST)',
+            'Fine Tier',
+            'Fine Amount (INR)',
             'Late Reason',
             'Delay',
             'Fine Status'
           ];
 
           const rows = filteredLateEntries.map((entry, idx) => {
+            const tierLabel = entry.fineTier === 'super_fine' ? 'Super Fine' : entry.fineTier === 'fine' ? 'Fine' : 'Override';
             return [
               idx + 1,
               entry.college.affl_no,
@@ -1385,6 +1448,8 @@ export function CollegeRegistrationsTab({
               entry.item.item_type || 'Single',
               entry.regTime ? `"${formatIstDisplay(entry.regTime)}"` : '"N/A"',
               entry.effectiveRegDeadline ? `"${formatIstDisplay(entry.effectiveRegDeadline)}"` : '"N/A"',
+              tierLabel,
+              entry.fineAmount,
               `"${entry.reason.replace(/"/g, '""')}"`,
               `"${entry.delayText.replace(/"/g, '""')}"`,
               entry.fineStatus ? 'Fine Flagged' : 'Fine Waived'
@@ -1485,25 +1550,19 @@ export function CollegeRegistrationsTab({
 
                 <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-                    Unique Students
+                    Fine (₹500) / Super Fine (₹1,000)
                   </span>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-black text-[var(--text-primary)] font-mono">
-                      {uniqueStudentsCount}
+                  <div className="flex items-baseline gap-2 mt-1 font-mono">
+                    <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                      {fineTierCount} × ₹500
                     </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">participants</span>
+                    <span className="text-[var(--text-muted)]">/</span>
+                    <span className="text-sm font-black text-rose-600 dark:text-rose-400">
+                      {superFineTierCount} × ₹1,000
+                    </span>
                   </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-                  <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-                    Impacted Events
-                  </span>
-                  <div className="flex items-baseline gap-1.5 mt-1">
-                    <span className="text-lg font-black text-[var(--text-primary)] font-mono">
-                      {uniqueItemsCount}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">events</span>
+                  <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
+                    Filtered Total: ₹{totalFineAmountRs.toLocaleString('en-IN')} ({uniqueStudentsCount} students, {uniqueItemsCount} events)
                   </div>
                 </div>
 
@@ -1563,6 +1622,28 @@ export function CollegeRegistrationsTab({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
+                    {(['all', 'fine', 'super_fine'] as const).map(tier => (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => setLateTierFilter(tier)}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${lateTierFilter === tier
+                            ? tier === 'super_fine'
+                              ? 'bg-rose-500 text-white shadow-xs'
+                              : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          }`}
+                      >
+                        {tier === 'all'
+                          ? `All Tiers (${sourceEntries.length})`
+                          : tier === 'fine'
+                            ? `Fine ₹500 (${fineTierCount})`
+                            : `Super Fine ₹1,000 (${superFineTierCount})`}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-0.5 rounded-xl border border-[var(--border-subtle)] text-xs">
                     {(['all', 'fine', 'waived'] as const).map(fStatus => (
                       <button
@@ -1762,13 +1843,23 @@ export function CollegeRegistrationsTab({
                               </div>
                             </TableCell>
 
-                            {/* Late Reason & Fine Status */}
+                            {/* Late Reason, Tier Badge & Fine Status */}
                             <TableCell className="py-2.5 align-middle">
                               <div className="space-y-1">
-                                <div className="text-[11px] font-medium text-[var(--text-secondary)] leading-tight">
-                                  {entry.reason}
-                                </div>
-                                <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {entry.fineTier === 'super_fine' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                      Super Fine • ₹1,000
+                                    </span>
+                                  ) : entry.fineTier === 'fine' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                                      Fine • ₹500
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                                      Override • ₹0
+                                    </span>
+                                  )}
                                   {entry.fineStatus ? (
                                     <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
                                       Fine Flagged
@@ -1778,6 +1869,9 @@ export function CollegeRegistrationsTab({
                                       Fine Waived
                                     </span>
                                   )}
+                                </div>
+                                <div className="text-[11px] font-medium text-[var(--text-secondary)] leading-tight">
+                                  {entry.reason}
                                 </div>
                               </div>
                             </TableCell>

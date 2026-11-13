@@ -378,12 +378,16 @@ export interface Registration {
   participants?: Student[]; // group aggregated list helper
 }
 
+export type FineTier = 'fine' | 'super_fine' | 'override';
+
 export interface LateRegistration {
   id: string;
   item_id: number;
   college_affl_no: number;
   chest_no: string;
   late_reason: string;
+  fine_tier?: FineTier | null;
+  fine_amount?: number | null;
   effective_deadline?: string | null;
   registered_at?: string;
   created_at?: string;
