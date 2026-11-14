@@ -111,7 +111,10 @@ export default function StudentLoginPage() {
   return (
     <div className="relative min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] font-sans flex flex-col justify-center items-center p-4 sm:p-6 transition-colors overflow-hidden selection:bg-amber-500 selection:text-black">
       {/* ── Background Islamic Khatam 8-Point Star Tile Pattern ── */}
-      <TilePattern id="tiles-student-login" className="text-[var(--text-primary)] opacity-[0.035] dark:opacity-[0.05]" />
+      <TilePattern
+        id="tiles-student-login"
+        className="text-[var(--text-primary)] opacity-[0.035] dark:opacity-[0.05]"
+      />
 
       {/* ── Atmospheric Ambient Lighting Glows ── */}
       <div
@@ -129,7 +132,12 @@ export default function StudentLoginPage() {
           href="/"
           className="inline-flex items-center gap-2 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
         >
-          <span className="transition-transform duration-150 group-hover:-translate-x-0.5" aria-hidden="true">←</span>
+          <span
+            className="transition-transform duration-150 group-hover:-translate-x-0.5"
+            aria-hidden="true"
+          >
+            ←
+          </span>
           <span>Back to Fest Home</span>
         </Link>
 
@@ -139,16 +147,25 @@ export default function StudentLoginPage() {
             className="inline-flex items-center gap-1.5 text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
           >
             <span>College/Official Login</span>
-            <span className="transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true">→</span>
+            <span
+              className="transition-transform duration-150 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              →
+            </span>
           </Link>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 transition-all duration-150 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            title={
+              theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
+            }
+            aria-label={
+              theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
+            }
           >
             <div className="w-4 h-4 flex items-center justify-center transition-transform duration-500 group-hover:rotate-45">
-              {theme === 'dark' ? (
+              {theme === "dark" ? (
                 <Sun className="w-4 h-4 text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
               ) : (
                 <Moon className="w-4 h-4 text-[var(--text-secondary)]" />
@@ -191,9 +208,16 @@ export default function StudentLoginPage() {
 
         {/* Fest Name with Outfit Typography */}
         <div className="flex items-center justify-center gap-2 mb-1">
-          <span className="font-heading font-extrabold text-lg sm:text-xl text-[var(--text-primary)] tracking-tight">WAFY</span>
-          <span className="inline-block w-2 h-2 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] animate-pulse" aria-hidden="true" />
-          <span className="font-heading font-extrabold text-lg sm:text-xl text-[var(--f-saffron-text)]">FEST</span>
+          <span className="font-heading font-extrabold text-lg sm:text-xl text-[var(--text-primary)] tracking-tight">
+            WAFY
+          </span>
+          <span
+            className="inline-block w-2 h-2 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] animate-pulse"
+            aria-hidden="true"
+          />
+          <span className="font-heading font-extrabold text-lg sm:text-xl text-[var(--f-saffron-text)]">
+            FEST
+          </span>
           <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-[var(--f-saffron-text)] border border-amber-500/30 font-semibold tracking-wider ml-1">
             14th Ed.
           </span>
@@ -250,7 +274,10 @@ export default function StudentLoginPage() {
         {/* Student Login Form */}
         <form onSubmit={handleStudentLogin} className="space-y-4">
           <div>
-            <label htmlFor="student-cic-input" className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1.5">
+            <label
+              htmlFor="student-cic-input"
+              className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1.5"
+            >
               Student CIC Number
             </label>
             <div className="relative">
@@ -259,7 +286,7 @@ export default function StudentLoginPage() {
                 id="student-cic-input"
                 type="text"
                 value={cicNo}
-                onChange={e => setCicNo(e.target.value)}
+                onChange={(e) => setCicNo(e.target.value)}
                 placeholder="e.g. 22801 or 18050"
                 autoComplete="username"
                 className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[var(--bg-surface)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:border-[var(--f-saffron)] focus-visible:ring-2 focus-visible:ring-amber-500/30 font-mono tracking-wide placeholder:text-[var(--text-muted)] [box-shadow:var(--glass-highlight)] transition-all duration-150"
@@ -268,20 +295,24 @@ export default function StudentLoginPage() {
               />
             </div>
             <p className="text-[11px] text-[var(--text-muted)] mt-1.5 leading-normal">
-              Your unique Council for Islamic Coordination (CIC) student enrollment number.
+              Your unique Coordination of Islamic Colleges (CIC) student
+              enrollment number.
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="student-password-input" className="block text-xs font-heading font-semibold text-[var(--text-secondary)]">
+              <label
+                htmlFor="student-password-input"
+                className="block text-xs font-heading font-semibold text-[var(--text-secondary)]"
+              >
                 Student Password
               </label>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="text-[11px] text-[var(--text-muted)] hover:text-[var(--f-saffron-text)] transition-colors cursor-pointer flex items-center gap-1"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
                   <>
@@ -300,9 +331,9 @@ export default function StudentLoginPage() {
               <KeyRound className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-muted)] pointer-events-none" />
               <input
                 id="student-password-input"
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your student portal password"
                 autoComplete="current-password"
                 className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[var(--bg-surface)] border border-[var(--border-medium)] hover:border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:border-[var(--f-saffron)] focus-visible:ring-2 focus-visible:ring-amber-500/30 font-mono placeholder:text-[var(--text-muted)] [box-shadow:var(--glass-highlight)] transition-all duration-150"
@@ -316,7 +347,11 @@ export default function StudentLoginPage() {
           <div className="rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 text-xs text-[var(--text-secondary)] flex items-start gap-2.5 backdrop-blur-sm [box-shadow:var(--glass-highlight)]">
             <Info className="w-4 h-4 text-[var(--f-saffron-text)] shrink-0 mt-0.5" />
             <span className="leading-relaxed">
-              <strong className="text-[var(--text-primary)]">Need login assistance?</strong> Use your unique CIC student enrollment number and password provided by your institution.
+              <strong className="text-[var(--text-primary)]">
+                Need login assistance?
+              </strong>{" "}
+              Use your unique CIC student enrollment number and password
+              provided by your institution.
             </span>
           </div>
 
@@ -357,11 +392,15 @@ export default function StudentLoginPage() {
       <footer className="mt-6 text-center text-xs text-[var(--text-muted)] relative z-10 flex flex-col items-center gap-1">
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_6px_var(--f-saffron)]" />
-          <span className="font-heading font-semibold text-[var(--text-secondary)]">{festSettings.fest_name}</span>
+          <span className="font-heading font-semibold text-[var(--text-secondary)]">
+            {festSettings.fest_name}
+          </span>
           <span className="text-[var(--text-muted)]">•</span>
           <span>Wafy Students Federation (WSF)</span>
         </div>
-        <p className="text-[10px] text-[var(--text-muted)]">Coordination of Islamic Colleges (CIC)</p>
+        <p className="text-[10px] text-[var(--text-muted)]">
+          Coordination of Islamic Colleges (CIC)
+        </p>
       </footer>
     </div>
   );
