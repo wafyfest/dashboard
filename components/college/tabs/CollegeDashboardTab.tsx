@@ -22,7 +22,6 @@ import {
   MessageSquare,
   BookOpen,
   AlertTriangle,
-  LockOpen,
   Link2,
   ArrowRight,
   Building2,
@@ -31,7 +30,8 @@ import {
   X,
   Lock
 } from 'lucide-react';
-import { formatIstDisplay, getDeadlineStatus } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
+import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge, StageStatusBadge } from '@/components/ui/badge';
@@ -203,12 +203,15 @@ export function CollegeDashboardTab({
   replacements = [],
   onNavigateTab,
 }: CollegeDashboardTabProps) {
-  const { timeTick } = useFest();
-  const deadlineInfo = useMemo(
-    () => getDeadlineStatus(festSettings.reg_deadline),
-    [festSettings.reg_deadline, timeTick]
+  const { timeTick, refreshKey } = useFest();
+  const deadlineSetting = useMemo(
+    () => festService.getEventDeadlineSetting('general'),
+    [refreshKey]
   );
-  const deadlineSchedule = deadlineInfo.schedule;
+  const deadlineInfo = useMemo(
+    () => evaluateEventDeadlineSetting(deadlineSetting, new Date()),
+    [deadlineSetting, timeTick]
+  );
   const enrolledPct = totalEventsCount > 0
     ? Math.min(100, Math.round((registrationsCount / totalEventsCount) * 100))
     : 0;
@@ -386,104 +389,21 @@ export function CollegeDashboardTab({
   }, [eligibleItems, registrations, students, categoryCards, submissions, schedules, appeals, replacements]);
 
   const deadlineStatusText =
-    deadlineInfo.status === 'closed'
-      ? 'Locked'
-      : deadlineInfo.status === 'super_fine'
-        ? 'With Super Fine'
-        : deadlineInfo.status === 'fine'
-          ? 'With Fine'
-          : 'Open';
+    deadlineSetting?.is_active === false
+      ? 'Disabled'
+      : deadlineInfo.tier === 'closed'
+        ? 'Locked'
+        : deadlineInfo.tier === 'super_fine'
+          ? 'With Super Fine'
+          : deadlineInfo.tier === 'fine'
+            ? 'With Fine'
+            : deadlineInfo.tier === 'upcoming'
+              ? 'Upcoming'
+              : 'Open';
 
   return (
     <div className="space-y-4">
-      {/* 1. SLIDING TICKER NOTIFICATION (TOP ABOVE COLLEGE DETAILS) */}
-      <div className="relative overflow-hidden text-xs py-1 px-1 group">
-        <div className="flex items-center gap-3">
-          {/* Status Pill Badge (Pinned on Left) */}
-          <div className="flex items-center gap-2 shrink-0 z-10 pr-2 border-r border-[var(--border-subtle)]">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ring-4 ${deadlineInfo.status === 'closed'
-                ? 'bg-rose-500 ring-rose-500/20'
-                : deadlineInfo.status === 'super_fine'
-                  ? 'bg-orange-500 ring-orange-500/20'
-                  : deadlineInfo.status === 'fine'
-                    ? 'bg-[var(--f-saffron)] ring-amber-500/20'
-                    : 'bg-emerald-500 ring-emerald-500/20'
-                }`}
-            />
-            <span className="font-heading font-bold text-[var(--text-primary)] tracking-tight whitespace-nowrap">
-              Key Deadlines:
-            </span>
-            <Badge
-              variant={
-                deadlineInfo.status === 'closed'
-                  ? 'rose'
-                  : deadlineInfo.status === 'fine' || deadlineInfo.status === 'super_fine'
-                    ? 'saffron'
-                    : 'emerald'
-              }
-              size="sm"
-              className="font-mono uppercase font-semibold text-[10px] px-1.5 py-0.5 shrink-0"
-            >
-              {deadlineStatusText}
-            </Badge>
-          </div>
-
-          {/* Continuous Smooth Horizontal Sliding Track */}
-          <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-20px),transparent)]">
-            <div className="flex w-max items-center gap-8 animate-[ticker_28s_linear_infinite] hover:[animation-play-state:paused] cursor-default">
-              {/* Primary Content Set */}
-              <div className="flex items-center gap-4 text-[var(--text-secondary)] whitespace-nowrap">
-                <span>
-                  Normal:{' '}
-                  <strong className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {formatIstDisplay(festSettings.reg_deadline)}
-                  </strong>
-                </span>
-                <span className="text-[var(--text-muted)]">•</span>
-                <span>
-                  Fine:{' '}
-                  <strong className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold">
-                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
-                  </strong>
-                </span>
-                <span className="text-[var(--text-muted)]">•</span>
-                <span>
-                  With Super Fine:{' '}
-                  <strong className="font-mono text-rose-600 dark:text-rose-400 font-semibold">
-                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
-                  </strong>
-                </span>
-              </div>
-
-              {/* Duplicate Content Set for Seamless Infinite Loop */}
-              <div className="flex items-center gap-4 text-[var(--text-secondary)] whitespace-nowrap">
-                <span className="text-[var(--text-muted)]">•</span>
-                <span>
-                  Normal:{' '}
-                  <strong className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {formatIstDisplay(festSettings.reg_deadline)}
-                  </strong>
-                </span>
-                <span className="text-[var(--text-muted)]">•</span>
-                <span>
-                  With Fine:{' '}
-                  <strong className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold">
-                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}
-                  </strong>
-                </span>
-                <span className="text-[var(--text-muted)]">•</span>
-                <span>
-                  Super Fine:{' '}
-                  <strong className="font-mono text-rose-600 dark:text-rose-400 font-semibold">
-                    {deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 1. SLIDING TICKER NOTIFICATION (TOP ABOVE COLLEGE DETAILS) - Hidden for now */}
 
       {/* 2. INSTITUTION DETAILS */}
       <Card>
@@ -598,43 +518,29 @@ export function CollegeDashboardTab({
       </Card>
 
       {/* 2. ACTIONABLE STATUS NOTICES */}
-      {(college?.fine_status || college?.manual_lock_override || pendingSubmissionsCount > 0) && (
+      {pendingSubmissionsCount > 0 && (
         <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-          {college?.fine_status && (
-            <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-amber-500/35 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200 flex-1 sm:min-w-[240px]">
-              <AlertTriangle className="w-4 h-4 text-[var(--f-saffron)] shrink-0" />
-              <span>Late fine applies to registrations recorded in the late window.</span>
+          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-indigo-500/35 bg-indigo-500/10 text-xs text-indigo-900 dark:text-indigo-200 flex-1 sm:min-w-[280px]">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span>
+                <strong className="font-semibold tabular-nums">{pendingSubmissionsCount}</strong>{' '}
+                {pendingSubmissionsCount === 1 ? 'pre-fest event needs a link.' : 'pre-fest events need links.'}
+              </span>
             </div>
-          )}
-          {college?.manual_lock_override && (
-            <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-xs text-emerald-900 dark:text-emerald-200 flex-1 sm:min-w-[240px]">
-              <LockOpen className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>Admin registration lock override is enabled.</span>
-            </div>
-          )}
-          {pendingSubmissionsCount > 0 && (
-            <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-indigo-500/35 bg-indigo-500/10 text-xs text-indigo-900 dark:text-indigo-200 flex-1 sm:min-w-[280px]">
-              <div className="flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-indigo-500 shrink-0" />
-                <span>
-                  <strong className="font-semibold tabular-nums">{pendingSubmissionsCount}</strong>{' '}
-                  {pendingSubmissionsCount === 1 ? 'pre-fest event needs a link.' : 'pre-fest events need links.'}
-                </span>
-              </div>
-              {onNavigateTab && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => onNavigateTab('registration')}
-                  className="border-indigo-500/40 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-500/15 shrink-0 font-heading font-semibold"
-                >
-                  Submit
-                  <ArrowRight className="w-3 h-3 ml-1" />
-                </Button>
-              )}
-            </div>
-          )}
+            {onNavigateTab && (
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => onNavigateTab('registration')}
+                className="border-indigo-500/40 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-500/15 shrink-0 font-heading font-semibold"
+              >
+                Submit
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

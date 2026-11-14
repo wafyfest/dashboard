@@ -14,6 +14,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = body?.action as string;
 
+    // Enforce global volunteer registration lock for college coordinators
+    if (auth.role === 'college') {
+      const { data: festSettings } = await auth.db
+        .from('fest_settings')
+        .select('volunteer_reg_locked')
+        .eq('id', 1)
+        .maybeSingle();
+
+      if (festSettings?.volunteer_reg_locked) {
+        return NextResponse.json(
+          { error: 'Volunteer registration is currently locked for all colleges by fest administration.' },
+          { status: 403 }
+        );
+      }
+    }
+
     if (action === 'register') {
       const payload = body?.payload;
       if (!payload || typeof payload !== 'object') {

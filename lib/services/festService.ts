@@ -56,8 +56,6 @@ import {
 // Mock data removed
 import { supabase } from '../supabase/client';
 import {
-  computeDeadlineSchedule,
-  evaluateDeadlineTierAtTime,
   evaluateEventDeadlineSetting,
   evaluateLinkSubmissionDeadline,
   EventDeadlineEvaluation,
@@ -74,8 +72,9 @@ export interface RegistrationStatus {
   reason?: string;
   isFinePeriod: boolean;
   isSuperFinePeriod: boolean;
-  fineAmount: 0 | 500 | 1000;
+  fineAmount: number;
   tier: RegistrationDeadlineTier;
+  lockType?: 'open' | 'deadline_expired' | 'admin_locked' | 'admin_clearance' | 'upcoming';
 }
 
 class FestService {
@@ -426,7 +425,12 @@ class FestService {
         console.warn('Supabase sync error (registrations):', regErr.message);
         hasError = true;
       } else if (regData) {
-        const normalizedData = regData.map((r: Record<string, any>) => ({ ...r, college_affl_no: Number(r.college_affl_no), item_id: Number(r.item_id) }));
+        const normalizedData = regData.map((r: Record<string, any>) => ({
+          ...r,
+          college_affl_no: Number(r.college_affl_no),
+          item_id: Number(r.item_id),
+          cic_no: r.cic_no ? Number(r.cic_no) : undefined,
+        }));
         if (collegeAfflNo) {
           const numAffl = Number(collegeAfflNo);
           const existing = this.getStorage<Registration[]>('registrations', []);
@@ -450,7 +454,8 @@ class FestService {
           const normalizedLate = lateData.map((r: Record<string, any>) => ({
             ...r,
             college_affl_no: Number(r.college_affl_no),
-            item_id: Number(r.item_id)
+            item_id: Number(r.item_id),
+            cic_no: r.cic_no ? Number(r.cic_no) : undefined,
           }));
           if (collegeAfflNo) {
             const numAffl = Number(collegeAfflNo);
@@ -891,11 +896,20 @@ class FestService {
     const defaultRegIso = new Date(defaultRegMs).toISOString();
     const defaultSettings: FestSettings = {
       id: 1,
-      fest_name: 'WAFY ARTS FEST',
+      fest_name: '14TH WAFY ARTS FEST',
       reg_deadline: defaultRegIso,
-      fine_deadline: computeDeadlineSchedule(defaultRegIso)!.superFineEndIso
+      fine_deadline: defaultRegIso,
+      volunteer_reg_locked: false
     };
     return this.getStorage('festSettings', defaultSettings);
+  }
+
+  public isVolunteerRegistrationLocked(): boolean {
+    return Boolean(this.getFestSettings().volunteer_reg_locked);
+  }
+
+  public async setVolunteerRegistrationLocked(locked: boolean): Promise<FestSettings> {
+    return this.updateFestSettings({ volunteer_reg_locked: locked });
   }
 
   private async postServerApi<T = { success: boolean; error?: string }>(
@@ -917,12 +931,8 @@ class FestService {
   public async updateFestSettings(settings: Partial<FestSettings>): Promise<FestSettings> {
     const current = this.getFestSettings();
     const merged = { ...current, ...settings };
-    if (merged.reg_deadline) {
-      const schedule = computeDeadlineSchedule(merged.reg_deadline);
-      if (schedule) {
-        merged.reg_deadline = schedule.regDeadlineIso;
-        merged.fine_deadline = schedule.superFineEndIso;
-      }
+    if (merged.reg_deadline && !merged.fine_deadline) {
+      merged.fine_deadline = merged.reg_deadline;
     }
     const updated = merged;
     this.setStorage('festSettings', updated);
@@ -979,16 +989,13 @@ class FestService {
       };
     }
 
-    // Universal event deadline & fine evaluation from event_deadline_settings table
-    const kind = getEventKind(item);
-    const deadlineSetting = this.getEventDeadlineSetting(kind);
-    const deadlineEval = evaluateEventDeadlineSetting(deadlineSetting, now);
-
-    // 1. Not yet started
-    if (deadlineEval.tier === 'upcoming') {
+    // 1. College-level Lock (College Controls):
+    // When an admin locks a college, registration is strictly locked across all events.
+    if (!college.manual_lock_override) {
       return {
         canRegister: false,
-        reason: `${deadlineSetting.display_name} registration opens at ${formatIstDisplay(deadlineSetting.start_time)}`,
+        lockType: 'admin_locked',
+        reason: 'Registration Locked by Administration',
         isFinePeriod: false,
         isSuperFinePeriod: false,
         fineAmount: 0,
@@ -996,81 +1003,70 @@ class FestService {
       };
     }
 
-    // 2. After Super Fine ends, registration is completely locked for ALL colleges (no override bypass)
-    if (deadlineEval.tier === 'closed') {
+    // 2. Event/Matrix lock check (for Unlocked colleges)
+    const isCellExplicitlyClosed = cell !== undefined && cell.is_open === false;
+    const isItemLocked = Boolean(item.is_locked);
+
+    if (isCellExplicitlyClosed || isItemLocked) {
       return {
         canRegister: false,
+        lockType: 'admin_locked',
+        reason: 'Event Locked',
         isFinePeriod: false,
         isSuperFinePeriod: false,
         fineAmount: 0,
         tier: 'closed',
-        reason: `${deadlineSetting.display_name} registration window has ended — completely locked for all colleges`,
+      };
+    }
+
+    // 3. If unlocked, evaluate late fine tiers from event deadline settings
+    const kind = getEventKind(item);
+    const deadlineSetting = this.getEventDeadlineSetting(kind);
+    const deadlineEval = evaluateEventDeadlineSetting(deadlineSetting, now);
+
+    // If deadline evaluation says registration cannot proceed (disabled by admin, upcoming, or deadline ended)
+    if (!deadlineEval.canRegister) {
+      const isExplicitlyDisabled = deadlineSetting?.is_active === false;
+      const isUpcoming = deadlineEval.tier === 'upcoming';
+      const kindLabel = kind === 'onstage'
+        ? 'On-Stage'
+        : kind === 'offstage'
+          ? 'Off-Stage'
+          : kind === 'screening'
+            ? 'Screening'
+            : kind === 'submission'
+              ? 'Submission'
+              : 'General';
+
+      return {
+        canRegister: false,
+        lockType: isExplicitlyDisabled ? 'admin_locked' : (isUpcoming ? 'upcoming' : 'deadline_expired'),
+        reason: isExplicitlyDisabled
+          ? `${kindLabel} Registrations Disabled`
+          : (deadlineEval.label || 'Registration Locked'),
+        isFinePeriod: false,
+        isSuperFinePeriod: false,
+        fineAmount: 0,
+        tier: 'closed',
       };
     }
 
     const isFine = deadlineEval.tier === 'fine';
     const isSuperFine = deadlineEval.tier === 'super_fine';
-    const fineReason = isSuperFine
-      ? `Super Fine Active (₹${deadlineEval.fineAmount})`
-      : isFine
-        ? `Late Fine Active (₹${deadlineEval.fineAmount})`
-        : undefined;
-
-    // Emergency college-level override bypasses event/matrix locks within active deadline window
-    if (college.manual_lock_override) {
-      return {
-        canRegister: true,
-        isFinePeriod: isFine,
-        isSuperFinePeriod: isSuperFine,
-        fineAmount: deadlineEval.fineAmount as any,
-        tier: deadlineEval.tier,
-        reason: fineReason
-          ? `Admin Override Active (${fineReason})`
-          : 'Admin Override Active',
-      };
-    }
-
-    // 2. Specific 2D Matrix cell configuration for this college & item takes precedence over generic item lock
-    if (cell !== undefined) {
-      if (!cell.is_open) {
-        return {
-          canRegister: false,
-          reason: 'Registration closed by fest admin for this event',
-          isFinePeriod: false,
-          isSuperFinePeriod: false,
-          fineAmount: 0,
-          tier: deadlineEval.tier,
-        };
-      }
-      return {
-        canRegister: true,
-        isFinePeriod: isFine,
-        isSuperFinePeriod: isSuperFine,
-        fineAmount: deadlineEval.fineAmount as any,
-        tier: deadlineEval.tier,
-        reason: fineReason || 'Admin Matrix Permission Active',
-      };
-    }
-
-    // 3. Fallback to event-level lock when no specific college override exists
-    if (item.is_locked) {
-      return {
-        canRegister: false,
-        reason: 'Event is locked by fest admin',
-        isFinePeriod: false,
-        isSuperFinePeriod: false,
-        fineAmount: 0,
-        tier: deadlineEval.tier,
-      };
-    }
+    const fineAmount = deadlineEval.fineAmount || 0;
 
     return {
       canRegister: true,
-      isFinePeriod: isFine,
+      lockType: 'open',
+      isFinePeriod: isFine || isSuperFine,
       isSuperFinePeriod: isSuperFine,
-      fineAmount: deadlineEval.fineAmount as any,
-      tier: deadlineEval.tier,
-      reason: fineReason,
+      fineAmount: fineAmount,
+      tier: deadlineEval.tier === 'upcoming' ? 'closed' : deadlineEval.tier,
+      reason: isSuperFine
+        ? `Super Fine Active (₹${fineAmount})`
+        : isFine
+          ? `Late Fine Active (₹${fineAmount})`
+          : 'Registration Open',
     };
   }
 
@@ -1084,8 +1080,8 @@ class FestService {
     const locksByItemId = new Map<number, EntryLock>();
 
     if (college) {
-      const allLocks = this.getEntryLocks();
-      for (const lock of allLocks) {
+      const explicitLocks = this.getExplicitEntryLocks();
+      for (const lock of explicitLocks) {
         if (lock.college_affl_no === college.affl_no) {
           locksByItemId.set(Number(lock.item_id), lock);
         }
@@ -1119,8 +1115,8 @@ class FestService {
       return this.evaluateRegistrationStatus(settings, college, item, undefined, new Date());
     }
 
-    const entryLocks = this.getEntryLocks();
-    const cell = entryLocks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
+    const explicitLocks = this.getExplicitEntryLocks();
+    const cell = explicitLocks.find(l => l.college_affl_no === college.affl_no && l.item_id === item.item_id);
     return this.evaluateRegistrationStatus(settings, college, item, cell, new Date());
   }
 
@@ -1187,12 +1183,182 @@ class FestService {
     return nextVal;
   }
 
+  // Alias for simplified College Controls
+  public async toggleCollegeLock(afflNoOrId: number | string): Promise<boolean> {
+    return this.toggleCollegeLockOverride(afflNoOrId);
+  }
+
   public async toggleCollegeFine(afflNoOrId: number | string): Promise<boolean> {
     const college = this.getCollege(afflNoOrId);
     if (!college) return false;
     const nextVal = !college.fine_status;
-    this.updateCollege(college.affl_no, { fine_status: nextVal });
-    return nextVal;
+    if (!nextVal) {
+      return this.waiveCollegeAllFines(college.affl_no);
+    }
+    return this.applyCollegeFine(college.affl_no, 500, 'Administrative Fine');
+  }
+
+  public async applyCollegeFine(
+    afflNoOrId: number | string,
+    amount: number,
+    reason: string
+  ): Promise<boolean> {
+    const college = this.getCollege(afflNoOrId);
+    if (!college) return false;
+    const cleanAmount = Math.max(0, Math.round(amount));
+    const cleanReason = (reason || '').trim() || 'Administrative Penalty';
+
+    this.updateCollege(college.affl_no, {
+      fine_status: true,
+      manual_fine_amount: cleanAmount,
+      fine_reason: cleanReason,
+    });
+
+    if (supabase) {
+      await this.postServerApi('/api/admin/manage', {
+        action: 'apply_college_fine',
+        afflNo: college.affl_no,
+        amount: cleanAmount,
+        reason: cleanReason,
+      });
+    }
+    return true;
+  }
+
+  public async waiveCollegeAllFines(afflNoOrId: number | string): Promise<boolean> {
+    const college = this.getCollege(afflNoOrId);
+    if (!college) return false;
+
+    // Reset college manual fine
+    this.updateCollege(college.affl_no, {
+      fine_status: false,
+      manual_fine_amount: 0,
+      fine_reason: null,
+    });
+
+    // Mark all late registrations for this college as waived in memory
+    const lateRegs = this.getStorage<LateRegistration[]>('late_registrations', []);
+    const updatedLate = lateRegs.map(r => {
+      if (r.college_affl_no === college.affl_no) {
+        return { ...r, is_waived: true, waived_at: new Date().toISOString() };
+      }
+      return r;
+    });
+    this.setStorage('late_registrations', updatedLate);
+
+    if (supabase) {
+      await this.postServerApi('/api/admin/manage', {
+        action: 'waive_college_all_fines',
+        afflNo: college.affl_no,
+      });
+    }
+    return true;
+  }
+
+  public async toggleLateRegistrationWaiver(
+    lateEntryId: string,
+    isWaived: boolean,
+    collegeAfflNo?: number,
+    itemId?: number,
+    chestNo?: string
+  ): Promise<boolean> {
+    const lateRegs = this.getStorage<LateRegistration[]>('late_registrations', []);
+    let targetAffl = collegeAfflNo;
+
+    const updated = lateRegs.map(r => {
+      const match =
+        (r.id && r.id === lateEntryId) ||
+        (itemId != null && chestNo && r.item_id === itemId && r.chest_no === chestNo);
+      if (match) {
+        targetAffl = targetAffl ?? r.college_affl_no;
+        return {
+          ...r,
+          is_waived: isWaived,
+          waived_at: isWaived ? new Date().toISOString() : null,
+        };
+      }
+      return r;
+    });
+
+    this.setStorage('late_registrations', updated);
+
+    // Sync college fine_status in memory
+    if (targetAffl != null) {
+      const remainingUnwaived = updated.filter(
+        r => r.college_affl_no === targetAffl && !r.is_waived
+      );
+      const col = this.getCollege(targetAffl);
+      const hasManual = (col?.manual_fine_amount || 0) > 0;
+      const shouldBeFlagged = remainingUnwaived.length > 0 || hasManual;
+      if (col && col.fine_status !== shouldBeFlagged) {
+        this.updateCollege(targetAffl, { fine_status: shouldBeFlagged });
+      }
+    }
+
+    if (supabase) {
+      await this.postServerApi('/api/admin/manage', {
+        action: 'toggle_late_entry_waiver',
+        id: lateEntryId,
+        itemId,
+        chestNo,
+        collegeAfflNo: targetAffl,
+        isWaived,
+      });
+    }
+    return true;
+  }
+
+  public getCollegeFineSummary(afflNoOrId: number | string): {
+    totalAutoFine: number;
+    waivedAutoFine: number;
+    pendingAutoFine: number;
+    manualFine: number;
+    manualFineReason: string;
+    netFine: number;
+    hasActiveFine: boolean;
+  } {
+    const college = this.getCollege(afflNoOrId);
+    if (!college) {
+      return {
+        totalAutoFine: 0,
+        waivedAutoFine: 0,
+        pendingAutoFine: 0,
+        manualFine: 0,
+        manualFineReason: '',
+        netFine: 0,
+        hasActiveFine: false,
+      };
+    }
+
+    const lateRegs = this.getLateRegistrations(college.affl_no);
+    let totalAutoFine = 0;
+    let waivedAutoFine = 0;
+    let pendingAutoFine = 0;
+
+    for (const lr of lateRegs) {
+      const amount = Number(lr.fine_amount) || 0;
+      totalAutoFine += amount;
+      if (lr.is_waived) {
+        waivedAutoFine += amount;
+      } else {
+        pendingAutoFine += amount;
+      }
+    }
+
+    const manualFine = Number(college.manual_fine_amount) || 0;
+    const manualFineReason = college.fine_reason || '';
+    const netFine = pendingAutoFine + manualFine;
+    const hasActiveFine = netFine > 0 || Boolean(college.fine_status);
+
+    return {
+      totalAutoFine,
+      waivedAutoFine,
+      pendingAutoFine,
+      manualFine,
+      manualFineReason,
+      netFine,
+      hasActiveFine,
+    };
   }
 
   public async revokeAllCollegeLockOverrides(): Promise<number> {
@@ -1213,6 +1379,11 @@ class FestService {
       });
     }
     return targetAffls.length;
+  }
+
+  // Alias for simplified College Controls
+  public async lockAllColleges(): Promise<number> {
+    return this.revokeAllCollegeLockOverrides();
   }
 
   // --- Items ---
@@ -1395,9 +1566,8 @@ class FestService {
       return { success: false, error: 'Event not found' };
     }
 
-    const schedule = regDeadline ? computeDeadlineSchedule(regDeadline) : null;
-    const normalizedReg = schedule ? schedule.regDeadlineIso : regDeadline;
-    const normalizedFine = schedule ? schedule.superFineEndIso : fineDeadline;
+    const normalizedReg = regDeadline;
+    const normalizedFine = fineDeadline || regDeadline;
 
     if (supabase) {
       try {
@@ -1450,9 +1620,8 @@ class FestService {
     if (itemIds.length === 0) return { success: true, count: 0 };
     const items = this.getStorage<Item[]>('items', []);
 
-    const schedule = regDeadline ? computeDeadlineSchedule(regDeadline) : null;
-    const normalizedReg = schedule ? schedule.regDeadlineIso : regDeadline;
-    const normalizedFine = schedule ? schedule.superFineEndIso : fineDeadline;
+    const normalizedReg = regDeadline;
+    const normalizedFine = fineDeadline || regDeadline;
 
     if (supabase) {
       try {
@@ -1496,13 +1665,23 @@ class FestService {
   }
 
   // --- Registration Lock Matrix ---
-  public getEntryLocks(): EntryLock[] {
+  // Return ONLY explicit database/admin overrides saved in entry_locks
+  public getExplicitEntryLocks(): EntryLock[] {
     const raw = this.getStorage<EntryLock[]>('entryLocks', []);
+    const explicitOnly = raw.filter(l => Boolean(l.updated_at || (l as any).id || (l as any).created_at));
+    if (explicitOnly.length !== raw.length) {
+      this.setStorage('entryLocks', explicitOnly);
+    }
+    return explicitOnly;
+  }
+
+  // Full composite view used exclusively for rendering the 2D matrix in LocksMatrixTab
+  public getEntryLocks(): EntryLock[] {
+    const explicit = this.getExplicitEntryLocks();
     const colleges = this.getColleges();
     const items = this.getItems();
-    let updated = false;
-    const locks = [...raw];
-    const existingKeys = new Set(raw.map(l => `${l.item_id}:${l.college_affl_no}`));
+    const locks = [...explicit];
+    const existingKeys = new Set(explicit.map(l => `${l.item_id}:${l.college_affl_no}`));
 
     items.forEach(item => {
       colleges.forEach(col => {
@@ -1514,14 +1693,10 @@ class FestService {
             is_open: !item.is_locked
           });
           existingKeys.add(key);
-          updated = true;
         }
       });
     });
 
-    if (updated) {
-      this.setStorage('entryLocks', locks);
-    }
     return locks;
   }
 
@@ -1612,6 +1787,7 @@ class FestService {
     const itm = items.find(i => i.item_id === itemId);
     if (itm) {
       itm.is_locked = !isOpen;
+      (itm as any).updated_at = now;
       this.setStorage('items', items);
     }
 
@@ -1649,6 +1825,7 @@ class FestService {
 
     items.forEach(itm => {
       itm.is_locked = !isOpen;
+      (itm as any).updated_at = now;
       colleges.forEach(col => {
         const key = `${itm.item_id}:${col.affl_no}`;
         const idx = lockMap.get(key);
@@ -2001,16 +2178,29 @@ class FestService {
     let count = 0;
 
     const updated = regs.map(r => {
-      if (isUuid(r.chest_no)) {
-        const s = findStudentByIdentifier(students, r.chest_no, r.college_affl_no);
-        if (s) {
+      let changed = false;
+      let nextChest = r.chest_no;
+      let nextCic = r.cic_no;
+
+      const s = findStudentByIdentifier(students, r.cic_no || r.chest_no, r.college_affl_no);
+      if (s) {
+        if (!nextCic && s.cic_no) {
+          nextCic = Number(s.cic_no);
+          changed = true;
+        }
+        if (isUuid(nextChest) || !nextChest) {
           const repaired = getCanonicalChestNo(s);
           const nextKey = repaired !== '—' ? repaired : getRegistrationStudentKey(s);
           if (nextKey) {
-            count++;
-            return { ...r, chest_no: nextKey };
+            nextChest = nextKey;
+            changed = true;
           }
         }
+      }
+
+      if (changed) {
+        count++;
+        return { ...r, chest_no: nextChest, cic_no: nextCic };
       }
       return r;
     });
@@ -2054,7 +2244,9 @@ class FestService {
       const s = findStudentByIdentifier(collegeStudents, val, college.affl_no);
       if (s) {
         resolvedStudents.push(s);
-        chestNos.push(getRegistrationStudentKey(s));
+        // Prefer cic_no as primary identity for college registration RPC
+        const participantKey = s.cic_no ? String(s.cic_no) : getRegistrationStudentKey(s);
+        chestNos.push(participantKey);
       } else {
         console.warn(`[StudentIdentityResolver] Unable to resolve student identifier: ${val}`);
       }
@@ -2130,7 +2322,13 @@ class FestService {
             : chestNos;
 
         if (dbRows && dbRows.length > 0) {
-          remaining.push(...dbRows);
+          const normalizedDbRows = dbRows.map((r: any) => ({
+            ...r,
+            college_affl_no: Number(r.college_affl_no),
+            item_id: Number(r.item_id),
+            cic_no: r.cic_no ? Number(r.cic_no) : undefined,
+          }));
+          remaining.push(...normalizedDbRows);
         }
         persistedChestNos.forEach(cNo => {
           logs.push({
@@ -2150,10 +2348,11 @@ class FestService {
         await this.fetchChestNos();
 
         // Reflect server-applied late fine or super fine in local college cache and late_registrations store
-        const effectiveRegIso = item.reg_deadline || this.getFestSettings().reg_deadline;
+        const kind = getEventKind(item);
+        const deadlineSetting = this.getEventDeadlineSetting(kind);
         const regTimestampIso = dbRows?.[0]?.created_at || new Date().toISOString();
-        const tierInfo = evaluateDeadlineTierAtTime(effectiveRegIso, regTimestampIso);
-        const isLate = tierInfo.tier !== 'open';
+        const tierInfo = evaluateEventDeadlineSetting(deadlineSetting, regTimestampIso);
+        const isLate = tierInfo.tier !== 'open' && tierInfo.tier !== 'upcoming';
 
         if (isLate) {
           const colList = this.getStorage<College[]>('colleges', []);
@@ -2167,10 +2366,10 @@ class FestService {
           const fineAmount = tierInfo.fineAmount;
           const lateReason =
             fineTier === 'fine'
-              ? 'Fine Period (₹500) — within 1 hr of deadline'
+              ? `Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — within fine window`
               : tierInfo.tier === 'super_fine'
-                ? 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline'
-                : 'Admin Entry Past Super Fine Cutoff (₹1,000)';
+                ? `Super Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — super fine window`
+                : `Admin Entry Past Cutoff (₹${fineAmount.toLocaleString('en-IN')})`;
 
           const lateRows: LateRegistration[] = persistedChestNos.map(cNo => ({
             id: `late-${Date.now()}-${cNo}`,
@@ -2180,7 +2379,7 @@ class FestService {
             late_reason: lateReason,
             fine_tier: fineTier,
             fine_amount: fineAmount,
-            effective_deadline: effectiveRegIso,
+            effective_deadline: deadlineSetting.no_fine_deadline || item.reg_deadline,
             registered_at: regTimestampIso,
             created_at: regTimestampIso
           }));
@@ -2219,21 +2418,22 @@ class FestService {
     this.setStorage('registrations', remaining);
     this.pruneSubmissionsForRoster(item.item_id, college.affl_no, chestNos, item.point_type === 'group' || item.item_type === 'Group');
 
-    const effectiveRegIsoFallback = item.reg_deadline || this.getFestSettings().reg_deadline;
-    const tierFallback = evaluateDeadlineTierAtTime(effectiveRegIsoFallback, fallbackNowIso);
-    if (tierFallback.tier !== 'open' || college.fine_status || college.manual_lock_override) {
+    const kind = getEventKind(item);
+    const deadlineSetting = this.getEventDeadlineSetting(kind);
+    const tierFallback = evaluateEventDeadlineSetting(deadlineSetting, fallbackNowIso);
+    if ((tierFallback.tier !== 'open' && tierFallback.tier !== 'upcoming') || college.fine_status || college.manual_lock_override) {
       const fineTier = tierFallback.tier === 'fine' ? 'fine' : tierFallback.tier === 'super_fine' || tierFallback.tier === 'closed' ? 'super_fine' : 'override';
       const fineAmount = tierFallback.tier === 'open' ? 0 : tierFallback.fineAmount;
       const lateReason =
         tierFallback.tier === 'fine'
-          ? 'Fine Period (₹500) — within 1 hr of deadline'
+          ? `Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — within fine window`
           : tierFallback.tier === 'super_fine'
-            ? 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline'
+            ? `Super Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — super fine window`
             : tierFallback.tier === 'closed'
-              ? 'Admin Entry Past Super Fine Cutoff (₹1,000)'
+              ? `Entry Past Cutoff (₹${fineAmount.toLocaleString('en-IN')})`
               : college.fine_status
                 ? 'Late Fine Flagged on Institution'
-                : 'Admin Lock Override Entry';
+                : 'Late Registration';
 
       const lateRows: LateRegistration[] = chestNos.map(cNo => ({
         id: `late-${Date.now()}-${cNo}`,
@@ -2243,7 +2443,7 @@ class FestService {
         late_reason: lateReason,
         fine_tier: fineTier,
         fine_amount: fineAmount,
-        effective_deadline: effectiveRegIsoFallback,
+        effective_deadline: deadlineSetting.no_fine_deadline || item.reg_deadline,
         registered_at: fallbackNowIso,
         created_at: fallbackNowIso
       }));
@@ -3951,15 +4151,15 @@ class FestService {
       return { success: false, error: 'This event does not require a pre-fest submission link.' };
     }
 
-    // ─── Link Submission Deadline Guard (for screening events) ───────────
+    // ─── Link Submission Deadline Guard (for screening & submission events) ───────────
     const kind = getEventKind(item);
-    if (kind === 'screening') {
-      const dlSetting = this.getEventDeadlineSetting('screening');
+    if (kind === 'screening' || kind === 'submission') {
+      const dlSetting = this.getEventDeadlineSetting(kind);
       const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
       if (!linkEval.canSubmitLink) {
         return {
           success: false,
-          error: `Link submission is closed: ${linkEval.timeRemainingText}. The link submission deadline was ${dlSetting.link_submission_deadline ? formatIstDisplay(dlSetting.link_submission_deadline) : formatIstDisplay(dlSetting.fine_deadline)}.`,
+          error: `Link submission is closed: ${linkEval.timeRemainingText}. ${linkEval.deadlineIso ? `The deadline was ${formatIstDisplay(linkEval.deadlineIso)}.` : ''}`.trim(),
         };
       }
     }
@@ -4001,8 +4201,9 @@ class FestService {
     ).trim();
     const isGroupEvent = item.point_type === 'group' || item.item_type === 'Group';
     const settings = this.getFestSettings();
-    const regDeadline = item.reg_deadline || settings.reg_deadline;
-    const fineDeadline = computeDeadlineSchedule(regDeadline)?.superFineEndIso || item.fine_deadline || settings.fine_deadline;
+    const deadlineSetting = this.getEventDeadlineSetting(kind);
+    const regDeadline = item.reg_deadline || deadlineSetting.no_fine_deadline || settings.reg_deadline;
+    const fineDeadline = item.fine_deadline || deadlineSetting.fine_deadline || settings.fine_deadline;
     const nowMs = Date.now();
     let status: SubmissionStatus = 'on_time';
     if (fineDeadline && nowMs > new Date(fineDeadline).getTime()) {
@@ -4161,10 +4362,20 @@ class FestService {
 
     if (supabase) {
       try {
-        const { data, error } = await supabase
-          .from('fest_leaderboard')
-          .select('*')
-          .order('rank', { ascending: true });
+        let data: any = null;
+        let error: any = null;
+
+        const rpcRes = await supabase.rpc('get_fest_leaderboard');
+        if (!rpcRes.error && Array.isArray(rpcRes.data) && rpcRes.data.length > 0) {
+          data = rpcRes.data;
+        } else {
+          const viewRes = await supabase
+            .from('fest_leaderboard')
+            .select('*')
+            .order('rank', { ascending: true });
+          data = viewRes.data;
+          error = viewRes.error;
+        }
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const colleges = this.getColleges();
@@ -4882,6 +5093,17 @@ class FestService {
       const data = await res.json();
       if (!res.ok) {
         return { success: false, error: data?.error || 'Failed to update deadline settings' };
+      }
+      this.broadcastGlobalSync('event_deadline_settings', { setting: data.setting || updated });
+      if (typeof window !== 'undefined') {
+        try {
+          if ('BroadcastChannel' in window) {
+            const bc = new BroadcastChannel('wsf_settings_sync');
+            bc.postMessage({ type: 'SETTINGS_UPDATED', timestamp: Date.now() });
+            setTimeout(() => bc.close(), 100);
+          }
+          window.dispatchEvent(new CustomEvent('wsf_settings_updated'));
+        } catch { }
       }
       return { success: true, setting: data.setting || updated };
     } catch (err: any) {

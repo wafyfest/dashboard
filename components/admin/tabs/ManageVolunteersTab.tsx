@@ -43,7 +43,9 @@ import {
   ChevronDown,
   FileSpreadsheet,
   RefreshCw,
-  Check
+  Check,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -93,6 +95,12 @@ export function ManageVolunteersTab({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Universal Volunteer Registration Lock State
+  const [isVolunteerRegLocked, setIsVolunteerRegLocked] = useState<boolean>(() =>
+    festService.isVolunteerRegistrationLocked()
+  );
+  const [isTogglingLock, setIsTogglingLock] = useState(false);
+
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVolunteer, setEditingVolunteer] = useState<Volunteer | null>(null);
@@ -121,11 +129,13 @@ export function ManageVolunteersTab({
     // 1. Immediately read cached memory / local storage
     const cached = festService.getVolunteers();
     setVolunteers(cached);
+    setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
 
     // 2. Fetch fresh from Supabase if connected
     try {
       const fresh = await festService.fetchAllVolunteers();
       if (fresh) setVolunteers(fresh);
+      setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
     } finally {
       if (showIndicator) setIsSyncing(false);
     }
@@ -137,11 +147,19 @@ export function ManageVolunteersTab({
 
     // 1. Cross-Tab / Cross-Window BroadcastChannel listener
     let bc: BroadcastChannel | null = null;
+    let settingsBc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         bc = new BroadcastChannel('wsf_volunteers_sync');
         bc.onmessage = () => {
           syncVolunteers();
+        };
+      } catch (e) {}
+
+      try {
+        settingsBc = new BroadcastChannel('wsf_settings_sync');
+        settingsBc.onmessage = () => {
+          setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
         };
       } catch (e) {}
     }
@@ -151,6 +169,9 @@ export function ManageVolunteersTab({
       if (e.key === 'wsf_volunteers' || e.key === 'wsf_volunteers_updated') {
         syncVolunteers();
       }
+      if (e.key === 'festSettings' || e.key === 'fest_settings') {
+        setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
+      }
     };
     window.addEventListener('storage', handleStorage);
 
@@ -159,6 +180,11 @@ export function ManageVolunteersTab({
       syncVolunteers();
     };
     window.addEventListener('wsf_volunteers_change', handleCustomChange);
+
+    const handleSettingsUpdated = () => {
+      setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
+    };
+    window.addEventListener('wsf_settings_updated', handleSettingsUpdated);
 
     // 4. Supabase Realtime WebSocket Channel
     let unsubRealtime: (() => void) | null = null;
@@ -172,6 +198,13 @@ export function ManageVolunteersTab({
           (payload: any) => {
             console.log('⚡ [Admin Volunteers Live] DB change detected:', payload);
             syncVolunteers();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'fest_settings' },
+          () => {
+            setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
           }
         )
         .on(
@@ -195,8 +228,10 @@ export function ManageVolunteersTab({
 
     return () => {
       bc?.close();
+      settingsBc?.close();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('wsf_volunteers_change', handleCustomChange);
+      window.removeEventListener('wsf_settings_updated', handleSettingsUpdated);
       unsubRealtime?.();
       clearInterval(heartbeat);
     };
@@ -310,6 +345,27 @@ export function ManageVolunteersTab({
     });
     return counts;
   }, [volunteers]);
+
+  // Toggle Universal Volunteer Registration Lock
+  const handleToggleVolunteerLock = async () => {
+    const nextLocked = !isVolunteerRegLocked;
+    const confirmMessage = nextLocked
+      ? 'Are you sure you want to LOCK volunteer registration for all colleges?\n\nColleges will no longer be able to add, edit, or remove volunteers.'
+      : 'Are you sure you want to UNLOCK volunteer registration for all colleges?\n\nColleges will be able to register and manage their volunteers.';
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsTogglingLock(true);
+    try {
+      await festService.setVolunteerRegistrationLocked(nextLocked);
+      setIsVolunteerRegLocked(nextLocked);
+      onRefresh?.();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update volunteer registration lock.');
+    } finally {
+      setIsTogglingLock(false);
+    }
+  };
 
   // Open Edit Modal
   const handleOpenEdit = (vol: Volunteer) => {
@@ -587,6 +643,25 @@ export function ManageVolunteersTab({
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Sync Active
               </span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border font-sans ${
+                  isVolunteerRegLocked
+                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                }`}
+              >
+                {isVolunteerRegLocked ? (
+                  <>
+                    <Lock className="w-3 h-3 text-rose-500" />
+                    Reg Locked (All Colleges)
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-3 h-3 text-emerald-500" />
+                    Reg Open (All Colleges)
+                  </>
+                )}
+              </span>
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-sans">
               Review institutional volunteer submissions (Aliya & PG scholars), approve rosters, and manage departmental assignments.
@@ -594,7 +669,34 @@ export function ManageVolunteersTab({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Universal Volunteer Registration Lock / Unlock Control */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleVolunteerLock}
+            disabled={isTogglingLock}
+            className={`text-xs font-semibold transition-all shadow-sm ${
+              isVolunteerRegLocked
+                ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 hover:border-rose-500'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500'
+            }`}
+            title={
+              isVolunteerRegLocked
+                ? 'Volunteer registration is LOCKED for all colleges. Click to unlock.'
+                : 'Volunteer registration is UNLOCKED for all colleges. Click to lock.'
+            }
+          >
+            {isTogglingLock ? (
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : isVolunteerRegLocked ? (
+              <Lock className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
+            ) : (
+              <Unlock className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+            )}
+            Volunteer Reg: {isVolunteerRegLocked ? 'Locked' : 'Open'}
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -628,6 +730,31 @@ export function ManageVolunteersTab({
           </Button>
         </div>
       </div>
+
+      {/* Alert banner when volunteer registration is locked */}
+      {isVolunteerRegLocked && (
+        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <Lock className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <div>
+              <span className="font-bold">Volunteer Registration is locked for all colleges.</span>
+              <span className="ml-1 opacity-90">
+                Colleges cannot add, modify, or remove volunteers. Administrators retain full executive control.
+              </span>
+            </div>
+          </div>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={handleToggleVolunteerLock}
+            disabled={isTogglingLock}
+            className="border-rose-500/40 text-rose-700 dark:text-rose-200 hover:bg-rose-500/20 shrink-0 font-semibold"
+          >
+            <Unlock className="w-3 h-3 mr-1" />
+            Unlock Registration
+          </Button>
+        </div>
+      )}
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

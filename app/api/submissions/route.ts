@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
 import { isValidYouTubeUrl } from '@/lib/utils/youtube';
+import { evaluateLinkSubmissionDeadline } from '@/lib/utils/istDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,12 +29,27 @@ export async function POST(req: NextRequest) {
       const repId = String(body?.repId ?? '').trim();
       if (!repId) return NextResponse.json({ error: 'repId is required.' }, { status: 400 });
       const dbClient = (auth as any).sessionDb || auth.db;
-      const { error } = await dbClient.rpc('review_replacement_tx', {
-        p_replacement_id: repId,
-        p_status: body?.status,
-        p_remarks: body?.remarks ?? null,
-      });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      let reviewErr: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await dbClient.rpc('review_replacement_tx', {
+          p_replacement_id: repId,
+          p_status: body?.status,
+          p_remarks: body?.remarks ?? null,
+        });
+        reviewErr = error;
+        if (
+          reviewErr &&
+          attempt === 0 &&
+          (reviewErr.message?.includes('fetch failed') ||
+            reviewErr.code === 'PGRST000' ||
+            reviewErr.code === '57P01')
+        ) {
+          await new Promise(r => setTimeout(r, 250));
+          continue;
+        }
+        break;
+      }
+      if (reviewErr) return NextResponse.json({ error: reviewErr.message }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
@@ -258,6 +274,38 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Check link submission timeline guard if not admin
+      if (auth.role !== 'admin') {
+        const { data: itmRow } = await auth.db
+          .from('events')
+          .select('mode, is_screening, is_submission')
+          .eq('item_id', itemId)
+          .maybeSingle();
+
+        if (itmRow) {
+          const isScreening = Boolean(itmRow.is_screening || (itmRow.mode || '').toLowerCase() === 'screening');
+          const isSubmission = Boolean(itmRow.is_submission || (itmRow.mode || '').toLowerCase() === 'submission');
+          if (isScreening || isSubmission) {
+            const eventKind = isScreening ? 'screening' : 'submission';
+            const { data: dlSetting } = await auth.db
+              .from('event_deadline_settings')
+              .select('*')
+              .eq('event_kind', eventKind)
+              .maybeSingle();
+
+            if (dlSetting) {
+              const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
+              if (!linkEval.canSubmitLink) {
+                return NextResponse.json(
+                  { error: `Link submission is restricted during this phase: ${linkEval.label} (${linkEval.timeRemainingText}).` },
+                  { status: 403 }
+                );
+              }
+            }
+          }
+        }
+      }
+
       let { data, error } = await auth.db
         .from('submission_entries')
         .upsert(
@@ -346,7 +394,7 @@ export async function POST(req: NextRequest) {
           ) {
             const { data: pfReg } = await auth.db
               .from('prefest_registrations')
-              .select('id')
+              .select('id, college_id')
               .eq('college_affl_no', collegeAfflNo)
               .eq('event_id', pfEvent.id)
               .maybeSingle();
@@ -355,7 +403,7 @@ export async function POST(req: NextRequest) {
               await auth.db.from('prefest_submissions').upsert(
                 {
                   registration_id: pfReg.id,
-                  college_id: `col-${collegeAfflNo}`,
+                  college_id: pfReg.college_id,
                   college_affl_no: collegeAfflNo,
                   event_id: pfEvent.id,
                   youtube_url: fileUrl,

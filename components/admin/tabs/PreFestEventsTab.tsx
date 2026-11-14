@@ -16,7 +16,6 @@ import {
   Calendar,
   AlertTriangle,
   ExternalLink,
-  Trash2,
   RefreshCw,
   Video,
   FileCheck,
@@ -38,7 +37,13 @@ import {
   isSubmissionEvent,
   isScreeningEvent
 } from '@/lib/types/fest';
-import { formatIstDisplay, formatToIstInput, parseIstInputToIso } from '@/lib/utils/istDate';
+import {
+  formatIstDisplay,
+  formatToIstInput,
+  parseIstInputToIso,
+  evaluateEventDeadlineSetting,
+  evaluateLinkSubmissionDeadline
+} from '@/lib/utils/istDate';
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from '@/lib/utils/youtube';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 
@@ -52,13 +57,13 @@ function YouTubeIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 export interface PreFestEventsTabProps {
   mode?: 'all' | 'setup' | 'registrations';
+  onNavigateTab?: (tab: string) => void;
 }
 
-export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
+export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsTabProps = {}) {
   const { refreshKey, triggerRefresh } = useFest();
   const [activeSection, setActiveSection] = useState<SpecialEventType>('SCREENING');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Synchronous cache hydration for 0ms paint
@@ -152,36 +157,19 @@ export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
     );
   }, [settingsList, activeSection]);
 
-  // Form state for current master settings
-  const [regEnabled, setRegEnabled] = useState<boolean>(true);
-  const [regOpensAt, setRegOpensAt] = useState<string>('');
-  const [regClosesAt, setRegClosesAt] = useState<string>('');
-  const [fineClosesAt, setFineClosesAt] = useState<string>('');
-  const [fineAmount, setFineAmount] = useState<number>(200);
-  const [ytEnabled, setYtEnabled] = useState<boolean>(true);
-  const [ytOpensAt, setYtOpensAt] = useState<string>('');
-  const [ytClosesAt, setYtClosesAt] = useState<string>('');
-
-  useEffect(() => {
+  // Live deadline setting from event_deadline_settings
+  const currentDeadlineSetting = useMemo(() => {
     const kind = activeSection === 'SCREENING' ? 'screening' : 'submission';
-    const dlSetting = festService.getEventDeadlineSetting(kind);
-    setRegEnabled(dlSetting.is_active ?? (currentSettings.registration_enabled ?? true));
-    setRegOpensAt(dlSetting.start_time ? formatToIstInput(dlSetting.start_time) : (currentSettings.registration_opens_at ? formatToIstInput(currentSettings.registration_opens_at) : (activeSection === 'SCREENING' ? '2026-11-15T10:00' : '')));
-    setRegClosesAt(dlSetting.no_fine_deadline ? formatToIstInput(dlSetting.no_fine_deadline) : (currentSettings.registration_closes_at ? formatToIstInput(currentSettings.registration_closes_at) : (activeSection === 'SCREENING' ? '2026-11-22T22:00' : '')));
-    setFineClosesAt(dlSetting.fine_deadline ? formatToIstInput(dlSetting.fine_deadline) : (currentSettings.fine_closes_at ? formatToIstInput(currentSettings.fine_closes_at) : (activeSection === 'SCREENING' ? '2026-11-24T22:00' : '')));
-    setFineAmount(dlSetting.fine_amount ?? (currentSettings.fine_amount ?? (activeSection === 'SCREENING' ? 200 : 500)));
-    setYtEnabled(dlSetting.is_active ?? (currentSettings.youtube_submission_enabled ?? true));
-    setYtOpensAt(dlSetting.start_time ? formatToIstInput(dlSetting.start_time) : (currentSettings.youtube_submission_opens_at ? formatToIstInput(currentSettings.youtube_submission_opens_at) : ''));
-    setYtClosesAt(dlSetting.link_submission_deadline ? formatToIstInput(dlSetting.link_submission_deadline) : (currentSettings.youtube_submission_closes_at ? formatToIstInput(currentSettings.youtube_submission_closes_at) : ''));
-  }, [currentSettings, activeSection, refreshKey]);
+    return festService.getEventDeadlineSetting(kind);
+  }, [activeSection, refreshKey]);
 
-  const applyOfficialScreeningSchedule = () => {
-    setRegEnabled(true);
-    setRegOpensAt('2026-11-15T10:00'); // 15/11/2026, 10:00 AM
-    setRegClosesAt('2026-11-22T22:00'); // 22/11/2026, 10:00 PM
-    setFineClosesAt('2026-11-24T22:00'); // 24/11/2026, 10:00 PM
-    setFineAmount(200); // 200 Rs per event
-  };
+  const regScheduleStatus = useMemo(() => {
+    return evaluateEventDeadlineSetting(currentDeadlineSetting);
+  }, [currentDeadlineSetting]);
+
+  const linkScheduleStatus = useMemo(() => {
+    return evaluateLinkSubmissionDeadline(currentDeadlineSetting);
+  }, [currentDeadlineSetting]);
 
   // Filter events by active section
   const sectionEvents = useMemo(() => {
@@ -234,101 +222,22 @@ export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
     }
     const pendingSubs = Math.max(0, totalRegs - totalSubs);
 
-    const now = new Date();
-    const isRegOpen =
-      currentSettings.registration_enabled &&
-      (!currentSettings.registration_opens_at || now >= new Date(currentSettings.registration_opens_at)) &&
-      (!currentSettings.registration_closes_at || now <= new Date(currentSettings.registration_closes_at));
-
-    const isYtOpen =
-      currentSettings.youtube_submission_enabled &&
-      (!currentSettings.youtube_submission_opens_at || now >= new Date(currentSettings.youtube_submission_opens_at)) &&
-      (!currentSettings.youtube_submission_closes_at || now <= new Date(currentSettings.youtube_submission_closes_at));
-
     return {
       totalEvents,
       uniqueColleges,
       totalRegs,
       totalSubs,
       pendingSubs,
-      isRegOpen,
-      isYtOpen
+      isRegOpen: regScheduleStatus.canRegister,
+      isYtOpen: linkScheduleStatus.canSubmitLink,
     };
-  }, [sectionEvents, sectionRegistrations, submissionsMap, currentSettings]);
-
-  // Save Settings handler
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingSettings(true);
-    setToast(null);
-
-    const kind = activeSection === 'SCREENING' ? 'screening' : 'submission';
-    await festService.updateEventDeadlineSetting({
-      event_kind: kind,
-      display_name: activeSection === 'SCREENING' ? 'Screening Events' : 'Digital Submission Events',
-      start_time: regOpensAt ? parseIstInputToIso(regOpensAt) : new Date().toISOString(),
-      no_fine_deadline: regClosesAt ? parseIstInputToIso(regClosesAt) : new Date().toISOString(),
-      fine_deadline: fineClosesAt ? parseIstInputToIso(fineClosesAt) : new Date().toISOString(),
-      fine_amount: Number(fineAmount) || 0,
-      super_fine_deadline: fineClosesAt ? parseIstInputToIso(fineClosesAt) : new Date().toISOString(),
-      super_fine_amount: Number(fineAmount) || 0,
-      link_submission_deadline: ytClosesAt ? parseIstInputToIso(ytClosesAt) : (fineClosesAt ? parseIstInputToIso(fineClosesAt) : null),
-      is_active: regEnabled,
-    });
-
-    const res = await festService.updateSpecialEventSettings({
-      event_type: activeSection,
-      registration_enabled: regEnabled,
-      registration_opens_at: regOpensAt ? parseIstInputToIso(regOpensAt) : null,
-      registration_closes_at: regClosesAt ? parseIstInputToIso(regClosesAt) : null,
-      fine_closes_at: fineClosesAt ? parseIstInputToIso(fineClosesAt) : null,
-      fine_amount: Number(fineAmount) || 0,
-      youtube_submission_enabled: ytEnabled,
-      youtube_submission_opens_at: ytOpensAt ? parseIstInputToIso(ytOpensAt) : null,
-      youtube_submission_closes_at: ytClosesAt ? parseIstInputToIso(ytClosesAt) : null,
-      disabled_event_ids: []
-    });
-
-    setIsSavingSettings(false);
-    if (!res.success) {
-      setToast({ type: 'error', message: res.error || 'Failed to save settings.' });
-    } else {
-      setToast({ type: 'success', message: `${activeSection} settings updated successfully.` });
-      setSettingsList(prev => {
-        const idx = prev.findIndex(s => s.event_type === activeSection);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = res.settings;
-          return updated;
-        }
-        return [...prev, res.settings];
-      });
-      triggerRefresh();
-    }
-  };
-
-  // Admin unregister
-  const handleAdminUnregister = async (reg: Registration) => {
-    const colAffl = Number(reg.college_affl_no);
-    const itmId = Number(reg.item_id);
-    const item = eventsList.find(e => Number(e.item_id || e.id) === itmId);
-    const col = collegesList.find(c => Number(c.affl_no) === colAffl);
-    const colName = col ? `${col.name} (#${col.affl_no})` : `College #${colAffl}`;
-    const itemName = item?.name_eng || item?.name || `Item #${itmId}`;
-
-    if (!confirm(`Are you sure you want to remove the registration for "${itemName}" from ${colName}? This will also delete any associated submission link.`)) {
-      return;
-    }
-
-    const res = await festService.unregisterCollegeForItem(colAffl, itmId);
-    if (!res.success) {
-      setToast({ type: 'error', message: res.error || 'Failed to remove registration.' });
-    } else {
-      setToast({ type: 'success', message: 'Registration removed successfully.' });
-      triggerRefresh();
-      loadData(false);
-    }
-  };
+  }, [
+    sectionEvents,
+    sectionRegistrations,
+    submissionsMap,
+    regScheduleStatus.canRegister,
+    linkScheduleStatus.canSubmitLink,
+  ]);
 
   // Filtered registrations table rows
   const filteredRegistrations = useMemo(() => {
@@ -467,195 +376,130 @@ export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
         </div>
       )}
 
-      {/* Master Controls & Deadlines in Setup */}
+      {/* Registration & Submission Schedule (Centrally Managed in Deadlines & Fines) */}
       {(mode === 'all' || mode === 'setup') && (
         <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)]">
-        <CardHeader className="pb-3 border-b border-[var(--border-subtle)]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-amber-500" />
-                <span>{activeSection} Master Controls & Deadlines</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Set master registration and link submission schedules specifically for {activeSection} events.
-              </CardDescription>
+          <CardHeader className="pb-3 border-b border-[var(--border-subtle)]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-amber-500" />
+                  <span>{activeSection} Registration & Submission Schedule</span>
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Schedules, fine stages, super fines, and link cutoff windows are managed centrally in the <strong>Deadlines & Fines</strong> tab.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 font-mono">
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                    metrics.isRegOpen
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  Registration: {metrics.isRegOpen ? 'OPEN' : 'CLOSED'}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                    metrics.isYtOpen
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  Submissions: {metrics.isYtOpen ? 'OPEN' : 'CLOSED'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 font-mono">
-              <span
-                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-                  metrics.isRegOpen
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                }`}
-              >
-                Registration: {metrics.isRegOpen ? 'OPEN' : 'CLOSED'}
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-                  metrics.isYtOpen
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                }`}
-              >
-                Submissions: {metrics.isYtOpen ? 'OPEN' : 'CLOSED'}
-              </span>
-            </div>
-          </div>
-        </CardHeader>
+          </CardHeader>
 
-        <CardContent className="pt-4 font-sans">
-          <form onSubmit={handleSaveSettings} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Box 1: Registration Control */}
-              <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold font-heading text-[var(--text-primary)]">
-                      1. College Registration Window
-                    </h3>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      Enable or schedule roster registration for {activeSection} events.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={regEnabled}
-                      onChange={e => setRegEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                  </label>
+          <CardContent className="pt-4 font-sans space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Registration Window */}
+              <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Registration Window</span>
+                  <Badge variant="outline" className={`text-[10px] ${regScheduleStatus.badgeClass}`}>
+                    {regScheduleStatus.label}
+                  </Badge>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Registration Opens (IST)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={regOpensAt}
-                      onChange={e => setRegOpensAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Registration Closes (No Fine) (IST)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={regClosesAt}
-                      onChange={e => setRegClosesAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Late Fine Period Closes (IST)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={fineClosesAt}
-                      onChange={e => setFineClosesAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Late Fine Amount (₹ / event)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="50"
-                      value={fineAmount}
-                      onChange={e => setFineAmount(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
+                <div className="text-xs font-mono text-[var(--text-primary)] space-y-0.5">
+                  <div>Opens: {currentDeadlineSetting?.start_time ? formatIstDisplay(currentDeadlineSetting.start_time) : 'Default'}</div>
+                  <div className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    Free cutoff: {currentDeadlineSetting?.no_fine_deadline ? formatIstDisplay(currentDeadlineSetting.no_fine_deadline) : 'Default'}
                   </div>
                 </div>
+              </div>
 
-                {activeSection === 'SCREENING' && (
-                  <div className="pt-2 border-t border-[var(--border-subtle)]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="text-[11px] text-[var(--text-muted)] font-mono">
-                      Circular <span className="font-bold text-amber-500">WSFWF_26_016</span>: 15 Nov 10 AM → 22 Nov 10 PM (Free) → 24 Nov 10 PM (₹200 Fine)
+              {/* Fine Tiers */}
+              <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Late & Super Fine</span>
+                  <span className="text-[11px] font-bold text-amber-500">₹{currentDeadlineSetting?.fine_amount ?? 500} Late Fine</span>
+                </div>
+                <div className="text-xs font-mono text-[var(--text-primary)] space-y-0.5">
+                  <div>Late fine until: {currentDeadlineSetting?.fine_deadline ? formatIstDisplay(currentDeadlineSetting.fine_deadline) : 'Default'}</div>
+                  {currentDeadlineSetting?.has_super_fine ? (
+                    <div className="text-rose-500 font-semibold">
+                      Super fine (₹{currentDeadlineSetting.super_fine_amount ?? 1000}) until: {currentDeadlineSetting.super_fine_deadline ? formatIstDisplay(currentDeadlineSetting.super_fine_deadline) : 'Default'}
                     </div>
-                    <button
-                      type="button"
-                      onClick={applyOfficialScreeningSchedule}
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
-                    >
-                      Fill Circular Dates
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-[var(--text-muted)] italic">Super fine: Disabled</div>
+                  )}
+                </div>
               </div>
 
-              {/* Box 2: Submission Link Control */}
-              <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold font-heading text-[var(--text-primary)] flex items-center gap-1.5">
-                      <YouTubeIcon className="w-3.5 h-3.5 text-rose-500" />
-                      <span>2. Video / Digital Link Submissions</span>
-                    </h3>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      Enable or schedule video URL / Drive uploads for registered entries.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={ytEnabled}
-                      onChange={e => setYtEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500"></div>
-                  </label>
+              {/* Link Submission Window */}
+              <div className="p-3.5 rounded-xl border border-cyan-500/20 bg-cyan-500/5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400">
+                    {activeSection === 'SCREENING' ? 'YouTube Video Submissions' : 'Digital Link Submissions'}
+                  </span>
+                  <Badge variant="outline" className={`text-[10px] ${linkScheduleStatus.badgeClass}`}>
+                    {linkScheduleStatus.label}
+                  </Badge>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="text-xs font-mono text-[var(--text-primary)] space-y-0.5">
                   <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Submissions Open (IST)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={ytOpensAt}
-                      onChange={e => setYtOpensAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
+                    Opens: {currentDeadlineSetting?.link_start_time ? formatIstDisplay(currentDeadlineSetting.link_start_time) : (currentDeadlineSetting?.start_time ? formatIstDisplay(currentDeadlineSetting.start_time) : 'Default')}
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
-                      Submissions Close (IST)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={ytClosesAt}
-                      onChange={e => setYtClosesAt(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono"
-                    />
+                  <div className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    Free cutoff: {currentDeadlineSetting?.link_no_fine_deadline ? formatIstDisplay(currentDeadlineSetting.link_no_fine_deadline) : (currentDeadlineSetting?.link_submission_deadline ? formatIstDisplay(currentDeadlineSetting.link_submission_deadline) : 'Same as Reg')}
+                  </div>
+                  {Number(currentDeadlineSetting?.link_fine_amount) > 0 && currentDeadlineSetting?.link_fine_deadline && (
+                    <div className="text-amber-500">
+                      Late fine (₹{currentDeadlineSetting.link_fine_amount}) until {formatIstDisplay(currentDeadlineSetting.link_fine_deadline)}
+                    </div>
+                  )}
+                  {currentDeadlineSetting?.link_has_super_fine && currentDeadlineSetting?.link_super_fine_deadline && (
+                    <div className="text-rose-500">
+                      Super fine (₹{currentDeadlineSetting.link_super_fine_amount ?? 250}) until {formatIstDisplay(currentDeadlineSetting.link_super_fine_deadline)}
+                    </div>
+                  )}
+                  <div className="text-[10.5px] text-[var(--text-muted)] pt-0.5 font-sans">
+                    {linkScheduleStatus.timeRemainingText}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
-              <Button
-                type="submit"
-                disabled={isSavingSettings}
-                className="bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-5"
-              >
-                {isSavingSettings ? 'Saving...' : `Save ${activeSection} Master Schedule`}
-              </Button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-[var(--border-subtle)]">
+              <p className="text-[11px] text-[var(--text-muted)]">
+                To modify deadlines, late fines, or link cutoff dates, open the central <strong>Deadlines & Fines</strong> manager.
+              </p>
+              {onNavigateTab && (
+                <Button
+                  type="button"
+                  onClick={() => onNavigateTab('settings')}
+                  className="bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-4 py-1.5 h-auto flex items-center gap-1.5 shadow-sm whitespace-nowrap self-start sm:self-auto"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Configure in Deadlines & Fines</span>
+                </Button>
+              )}
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
       )}
 
       {/* Events Catalog Table in Setup */}
@@ -805,13 +649,12 @@ export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
                   <TableHead className="w-44">Registered Participants</TableHead>
                   <TableHead className="w-24 text-center">Mode</TableHead>
                   <TableHead className="w-48 text-center">Submission Link</TableHead>
-                  <TableHead className="w-24 text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRegistrations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-[var(--text-muted)] italic">
+                    <TableCell colSpan={6} className="text-center py-8 text-[var(--text-muted)] italic">
                       No registrations found matching the filters.
                     </TableCell>
                   </TableRow>
@@ -919,16 +762,6 @@ export function PreFestEventsTab({ mode = 'all' }: PreFestEventsTabProps = {}) {
                               Pending Link
                             </span>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleAdminUnregister(reg)}
-                            className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Remove Registration"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </TableCell>
                       </TableRow>
                     );

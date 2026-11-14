@@ -41,7 +41,7 @@ import {
   isSpecialEvent,
   getEffectiveStageMode
 } from '@/lib/types/fest';
-import { formatIstDisplay, evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { StudentsListTable } from '../college/StudentsListTable';
 import { AdmitCardTable } from '../college/AdmitCardTable';
@@ -190,6 +190,32 @@ export function CollegeView() {
     return selectedStudentIds.filter(id => !visibleIds.has(id)).length;
   }, [filteredModalStudents, selectedStudentIds]);
 
+  // Precomputed metadata for the registration modal
+  const regModalMeta = React.useMemo(() => {
+    if (!selectedItemForReg) return null;
+    const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
+    const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
+    const matchingEventRegs = registrations.filter(
+      r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
+    );
+    const currentlyRegisteredStudents: Student[] = [];
+    students.forEach(s => {
+      if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
+        currentlyRegisteredStudents.push(s);
+      }
+    });
+    const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
+    return {
+      targetItemId,
+      minPart,
+      maxPart,
+      isOpenPart,
+      matchingEventRegs,
+      currentlyRegisteredStudents,
+      isAlreadyRegistered,
+    };
+  }, [selectedItemForReg, registrations, students]);
+
   const handleOpenRegistrationModal = (item: Item) => {
     const targetItemId = Number(item.item_id || item.id);
     const matchingRegs = registrations.filter(
@@ -306,12 +332,13 @@ export function CollegeView() {
     alert('Participant replacement request submitted for Admin verification.');
   };
 
-  // Check deadline tier for college
-  const tierInfo = React.useMemo(
-    () => evaluateDeadlineTierAtTime(festSettings.reg_deadline, new Date()),
-    [festSettings.reg_deadline, timeTick]
+  // Check dynamic deadline tier for college
+  const deadlineSetting = festService.getEventDeadlineSetting('general');
+  const deadlineEval = React.useMemo(
+    () => evaluateEventDeadlineSetting(deadlineSetting, new Date()),
+    [deadlineSetting, timeTick]
   );
-  const isFineApplicable = tierInfo.tier === 'fine' || tierInfo.tier === 'super_fine';
+  const isFineApplicable = (deadlineSetting?.is_active ?? true) && (deadlineEval.tier === 'fine' || deadlineEval.tier === 'super_fine');
 
   return (
     <div className="space-y-6">
@@ -325,7 +352,11 @@ export function CollegeView() {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-heading font-bold text-[var(--text-primary)]">{college?.name}</h2>
               {college?.fine_status && <Badge variant="destructive">Late Fine Flagged</Badge>}
-              {college?.manual_lock_override && <Badge variant="amber">Admin Override Active</Badge>}
+              {college?.manual_lock_override ? (
+                <Badge variant="emerald">Unlocked</Badge>
+              ) : (
+                <Badge variant="destructive">Locked</Badge>
+              )}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
               Affiliation: <span className="font-mono text-[var(--text-secondary)] font-semibold">{college?.affiliation_no}</span> | Coordinator: <strong className="text-[var(--text-primary)]">{college?.coordinator_name}</strong> ({college?.coordinator_phone})
@@ -355,24 +386,27 @@ export function CollegeView() {
       {/* Late fine / super fine notice if active */}
       {isFineApplicable && (
         <div
-          className={`border rounded-xl p-3 text-xs flex items-center gap-2 ${tierInfo.tier === 'super_fine'
+          className={`border rounded-xl p-3 text-xs flex items-center gap-2 ${deadlineEval.tier === 'super_fine'
             ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
             : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-300'
             }`}
         >
           <AlertTriangle
-            className={`w-4 h-4 shrink-0 ${tierInfo.tier === 'super_fine' ? 'text-rose-600' : 'text-amber-600'}`}
+            className={`w-4 h-4 shrink-0 ${deadlineEval.tier === 'super_fine' ? 'text-rose-600' : 'text-amber-600'}`}
           />
           <span>
-            {tierInfo.tier === 'super_fine' ? (
+            {deadlineEval.tier === 'super_fine' ? (
               <>
-                <strong>Super Fine Period Active (₹1,000):</strong> The 1-hour ₹500 fine window has ended. New registrations incur a <strong>₹1,000 super fine</strong> until{' '}
-                <strong className="font-mono">{tierInfo.schedule ? formatIstDisplay(tierInfo.schedule.superFineEndIso) : ''}</strong>, after which registration will be completely locked.
+                <strong>Super Fine Period Active (₹{deadlineEval.fineAmount}):</strong> Registrations now incur a <strong>₹{deadlineEval.fineAmount} super fine</strong> until{' '}
+                <strong className="font-mono">{deadlineSetting.super_fine_deadline ? formatIstDisplay(deadlineSetting.super_fine_deadline) : ''}</strong>, after which registration will be completely locked.
               </>
             ) : (
               <>
-                <strong>Fine Period Active (₹500):</strong> The normal registration deadline has passed. Registrations up to{' '}
-                <strong className="font-mono">{tierInfo.schedule ? formatIstDisplay(tierInfo.schedule.fineEndIso) : ''}</strong> incur a <strong>₹500 fine</strong> (₹1,000 Super Fine after 1 hour).
+                <strong>Fine Period Active (₹{deadlineEval.fineAmount}):</strong> The normal registration deadline has passed. Registrations up to{' '}
+                <strong className="font-mono">{deadlineSetting.fine_deadline ? formatIstDisplay(deadlineSetting.fine_deadline) : ''}</strong> incur a <strong>₹{deadlineEval.fineAmount} fine</strong>.
+                {deadlineSetting.has_super_fine && deadlineSetting.super_fine_deadline && (
+                  <> (₹{deadlineSetting.super_fine_amount ?? 1000} Super Fine applies afterwards until <strong className="font-mono">{formatIstDisplay(deadlineSetting.super_fine_deadline)}</strong>).</>
+                )}
               </>
             )}
           </span>
@@ -837,10 +871,11 @@ export function CollegeView() {
 
       {/* Modal: Event Registration with Capacity Verification */}
       <Modal
-        isOpen={isRegisterModalOpen}
+        isOpen={isRegisterModalOpen && Boolean(selectedItemForReg && regModalMeta)}
         onClose={() => setIsRegisterModalOpen(false)}
+        onSubmit={handleConfirmRegistration}
         title={
-          selectedItemForReg && registrations.some(r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id))
+          regModalMeta?.isAlreadyRegistered
             ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
             : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
         }
@@ -849,26 +884,68 @@ export function CollegeView() {
             ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
             : `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg.no_of_participants} participant(s)`
         }
-        maxWidth="xl"
-      >
-        {selectedItemForReg && (() => {
-          const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
-          const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
-          const matchingEventRegs = registrations.filter(
-            r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
-          );
+        maxWidth="2xl"
+        footer={
+          regModalMeta && (
+            <div className="space-y-2.5">
+              {/* Status & Secondary Destructive Action */}
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {selectedStudentIds.length < regModalMeta.minPart ? (
+                    <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-sans font-medium text-xs">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                      <span>Need at least {regModalMeta.minPart} participant(s) selected</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-sans font-semibold text-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                      <span>Capacity verified ({selectedStudentIds.length} / {regModalMeta.isOpenPart ? 'Open' : regModalMeta.maxPart} selected)</span>
+                    </span>
+                  )}
+                </div>
 
-          // Resolve currently enrolled students
-          const currentlyRegisteredStudents: Student[] = [];
-          students.forEach(s => {
-            if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
-              currentlyRegisteredStudents.push(s);
-            }
-          });
-          const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
+                {regModalMeta.isAlreadyRegistered && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-heading text-xs shrink-0"
+                    onClick={() => selectedItemForReg && handleUnregisterRegistration(selectedItemForReg)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                    Remove Registration
+                  </Button>
+                )}
+              </div>
+
+              {/* Primary Dialog Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-[var(--border-subtle)]/40">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="font-heading"
+                  onClick={() => setIsRegisterModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="saffron"
+                  className="font-heading font-bold min-w-[140px]"
+                  disabled={selectedStudentIds.length < regModalMeta.minPart || selectedStudentIds.length > regModalMeta.maxPart}
+                >
+                  {regModalMeta.isAlreadyRegistered ? 'Update Registration' : 'Confirm Registration'}
+                </Button>
+              </div>
+            </div>
+          )
+        }
+      >
+        {selectedItemForReg && regModalMeta && (() => {
+          const { minPart, maxPart, isOpenPart, currentlyRegisteredStudents, isAlreadyRegistered } = regModalMeta;
 
           return (
-            <form onSubmit={handleConfirmRegistration} className="space-y-4">
+            <div className="space-y-4">
               <div className="bg-[var(--bg-subtle)]/75 p-3 rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div>
                   <span className="font-semibold text-[var(--text-secondary)] font-heading">Category: </span>
@@ -1005,7 +1082,7 @@ export function CollegeView() {
                   </span>
                 </div>
 
-                <div className="max-h-60 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                <div className="max-h-48 sm:max-h-56 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
                   {filteredModalStudents.length === 0 ? (
                     <div className="py-8 text-center text-xs text-[var(--text-muted)]">
                       <p className="font-heading font-semibold text-[var(--text-primary)]">No participants match your criteria</p>
@@ -1148,46 +1225,10 @@ export function CollegeView() {
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-between">
-                <div className="text-xs">
-                  {selectedStudentIds.length < minPart && (
-                    <span className="text-rose-600 dark:text-rose-400 font-medium">
-                      Need at least {minPart} participant(s).
-                    </span>
-                  )}
-                  {selectedStudentIds.length >= minPart &&
-                    selectedStudentIds.length <= maxPart && (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Capacity verified!</span>
-                    )}
-                </div>
-                <div className="flex gap-2">
-                  {isAlreadyRegistered && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
-                      onClick={() => handleUnregisterRegistration(selectedItemForReg)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      Remove Registration
-                    </Button>
-                  )}
-                  <Button type="button" variant="outline" onClick={() => setIsRegisterModalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="saffron"
-                    disabled={selectedStudentIds.length < minPart || selectedStudentIds.length > maxPart}
-                  >
-                    {isAlreadyRegistered ? 'Update Registration' : 'Confirm Registration'}
-                  </Button>
-                </div>
               </div>
-            </form>
-          );
-        })()}
-      </Modal>
+            );
+          })()}
+        </Modal>
 
       {/* Modal: Appeal Filing */}
       <Modal

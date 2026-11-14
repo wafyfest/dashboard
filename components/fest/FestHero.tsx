@@ -26,19 +26,19 @@ interface HeroSlide {
 const HERO_SLIDES: HeroSlide[] = [
   {
     id: 'stage',
-    src: '/fest-stage.jpg',
+    src: '/fest-steering.jpeg',
     alt: 'Wafy Arts Fest Grand Stage with illuminated Islamic architectural arches',
     objectFit: 'object-cover',
   },
   {
     id: 'arts',
-    src: '/fest-arts.jpg',
+    src: '/fest-manuel.jpeg',
     alt: 'Islamic Calligraphy & Arts Exhibition gallery display',
     objectFit: 'object-cover',
   },
   {
     id: 'concept',
-    src: '/hero-fest.png',
+    src: '/hero-fest.jpeg',
     alt: 'Wafy Wafiyya State Arts Fest official identity and emblem',
     objectFit: 'object-contain bg-white',
   },

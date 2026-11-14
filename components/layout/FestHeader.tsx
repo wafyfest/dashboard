@@ -6,11 +6,10 @@ import {
   Calendar,
   AlertTriangle,
   Sun,
-  Moon,
-  Award
+  Moon
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
-import { formatIstDisplay, getDeadlineStatus } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 
 export function FestHeader() {
   const {
@@ -26,9 +25,10 @@ export function FestHeader() {
   const colleges = festService.getColleges();
   const activeCollege = colleges.find(c => c.id === currentCollegeId) || colleges[0];
 
-  const deadlineStatus = React.useMemo(
-    () => getDeadlineStatus(festSettings.reg_deadline),
-    [festSettings.reg_deadline, timeTick]
+  const deadlineSetting = festService.getEventDeadlineSetting('general');
+  const deadlineEval = React.useMemo(
+    () => evaluateEventDeadlineSetting(deadlineSetting, new Date()),
+    [deadlineSetting, timeTick]
   );
 
   return (
@@ -51,20 +51,26 @@ export function FestHeader() {
 
         {/* Status Pill & Actions */}
         <div className="flex items-center gap-2">
-          {deadlineStatus.status === 'open' ? (
+          {deadlineSetting?.is_active === false ? (
+            currentRole === 'college' ? null : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-[11px] font-medium font-mono">
+                Registrations Disabled
+              </span>
+            )
+          ) : deadlineEval.tier === 'open' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-medium font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
               Registration Open
             </span>
-          ) : deadlineStatus.status === 'fine' ? (
+          ) : deadlineEval.tier === 'fine' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-medium font-mono">
               <AlertTriangle className="w-3 h-3 text-amber-500" />
-              Fine Active (₹500)
+              Late Fine (₹{deadlineEval.fineAmount})
             </span>
-          ) : deadlineStatus.status === 'super_fine' ? (
+          ) : deadlineEval.tier === 'super_fine' ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/30 text-[11px] font-medium font-mono">
               <AlertTriangle className="w-3 h-3 text-orange-500" />
-              Super Fine (₹1,000)
+              Super Fine (₹{deadlineEval.fineAmount})
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-[11px] font-medium font-mono">
@@ -93,8 +99,8 @@ export function FestHeader() {
       {/* Main Header Nav */}
       <div className="px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-bold text-xs shadow-md shadow-amber-500/20 border border-amber-300/40">
-            <Award className="w-4 h-4 text-[#090d1a]" />
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-heading font-extrabold text-xs shadow-md shadow-amber-500/20 border border-amber-300/40 select-none">
+            14
           </div>
           <div>
             <h1 className="text-sm font-semibold text-[var(--text-primary)] leading-none flex items-center gap-1.5">

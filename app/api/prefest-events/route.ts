@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
 import { createClient } from '@supabase/supabase-js';
 import { isValidYouTubeUrl } from '@/lib/utils/youtube';
-import { evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
+import { evaluateEventDeadlineSetting, evaluateLinkSubmissionDeadline } from '@/lib/utils/istDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -265,26 +265,31 @@ export async function POST(req: NextRequest) {
           .eq('event_type', eventType)
           .single();
 
-        if (!settings || !settings.registration_enabled) {
-          return NextResponse.json({ error: `Registration for ${eventType} events is currently disabled.` }, { status: 403 });
-        }
+        const { data: dlSetting } = await auth.db
+          .from('event_deadline_settings')
+          .select('*')
+          .eq('event_kind', eventType.toLowerCase())
+          .maybeSingle();
 
         const now = new Date();
-        if (settings.registration_opens_at && now < new Date(settings.registration_opens_at)) {
+        const dlEval = evaluateEventDeadlineSetting(dlSetting || {
+          start_time: settings?.registration_opens_at,
+          no_fine_deadline: settings?.registration_closes_at,
+          fine_deadline: settings?.fine_closes_at,
+          is_active: settings?.registration_enabled
+        }, now);
+
+        if (!dlEval.canRegister || dlEval.tier === 'closed') {
+          return NextResponse.json({
+            error: `Registration completely locked for ${eventType} events: ${dlEval.timeRemainingText || 'deadline has passed'}.`
+          }, { status: 403 });
+        }
+
+        if (dlEval.tier === 'upcoming') {
           return NextResponse.json({ error: `Registration for ${eventType} events has not opened yet.` }, { status: 403 });
         }
 
-        // Apply normal tiered deadline check (Normal -> ₹500 fine -> ₹1000 super fine -> Locked)
-        if (settings.registration_closes_at) {
-          const tierInfo = evaluateDeadlineTierAtTime(settings.registration_closes_at, now);
-          if (tierInfo.tier === 'closed') {
-            return NextResponse.json({
-              error: `Registration completely locked for ${eventType} events: normal, ₹500 fine (1h), and ₹1,000 super fine (2h) grace periods have ended.`
-            }, { status: 403 });
-          }
-        }
-
-        if (Array.isArray(settings.disabled_event_ids) && settings.disabled_event_ids.includes(event_id)) {
+        if (Array.isArray(settings?.disabled_event_ids) && settings.disabled_event_ids.includes(event_id)) {
           return NextResponse.json({ error: 'Registration for this individual event is currently disabled.' }, { status: 403 });
         }
       }
@@ -317,25 +322,10 @@ export async function POST(req: NextRequest) {
           .eq('id', event_id)
           .maybeSingle();
 
-        if (eventItem?.item_id) {
-          const { data: existingMainReg } = await auth.db
-            .from('registrations')
-            .select('id')
-            .eq('item_id', eventItem.item_id)
-            .eq('college_affl_no', targetAffl)
-            .maybeSingle();
-
-          if (!existingMainReg) {
-            await auth.db.from('registrations').insert({
-              item_id: eventItem.item_id,
-              college_affl_no: targetAffl,
-              chest_no: '—',
-              created_at: new Date().toISOString()
-            });
-          }
-        }
+        // Pre-fest event registration is recorded in prefest_registrations.
+        // Participant allocations in registrations occur when students are registered with their cic_no.
       } catch (syncErr) {
-        console.warn('Notice: registrations table mirror sync deferred:', syncErr);
+        console.warn('Notice: prefest_registrations sync notice:', syncErr);
       }
 
       return NextResponse.json({ success: true, registration: reg });
@@ -368,19 +358,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Forbidden: You cannot modify another college registration.' }, { status: 403 });
       }
 
-      // If college, verify registration deadline has not passed (+2h super fine cutoff)
+      // If college, verify registration deadline has not passed in event_deadline_settings
       if (auth.role !== 'admin') {
-        const { data: settings } = await auth.db
-          .from('prefest_registration_settings')
+        const { data: dlSetting } = await auth.db
+          .from('event_deadline_settings')
           .select('*')
-          .eq('event_type', existingReg.event_type)
-          .single();
+          .eq('event_kind', existingReg.event_type.toLowerCase())
+          .maybeSingle();
 
-        if (settings?.registration_closes_at) {
-          const tierInfo = evaluateDeadlineTierAtTime(settings.registration_closes_at, new Date());
-          if (tierInfo.tier === 'closed') {
-            return NextResponse.json({ error: 'Cannot cancel registration after the registration and grace periods have ended.' }, { status: 403 });
-          }
+        const dlEval = evaluateEventDeadlineSetting(dlSetting, new Date());
+        if (dlEval.tier === 'closed') {
+          return NextResponse.json({ error: 'Cannot cancel registration after the registration window has ended.' }, { status: 403 });
         }
       }
 
@@ -472,16 +460,11 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (dlSetting) {
-          if (dlSetting.is_active === false) {
-            return NextResponse.json({ error: `Link submission for ${dlSetting.display_name} is currently disabled.` }, { status: 403 });
-          }
-          const now = new Date();
-          if (dlSetting.start_time && now < new Date(dlSetting.start_time)) {
-            return NextResponse.json({ error: `Link submissions for ${dlSetting.display_name} have not opened yet.` }, { status: 403 });
-          }
-          const linkDeadline = dlSetting.link_submission_deadline || dlSetting.fine_deadline || dlSetting.no_fine_deadline;
-          if (linkDeadline && now > new Date(linkDeadline)) {
-            return NextResponse.json({ error: `YouTube link submission deadline for ${dlSetting.display_name} has expired.` }, { status: 403 });
+          const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
+          if (!linkEval.canSubmitLink) {
+            return NextResponse.json({
+              error: `Link submission is closed: ${linkEval.timeRemainingText}. (Status: ${linkEval.label})`
+            }, { status: 403 });
           }
         } else {
           // Fallback to legacy prefest_registration_settings
@@ -543,24 +526,26 @@ export async function POST(req: NextRequest) {
             .select('chest_no')
             .eq('item_id', eventItem.item_id)
             .eq('college_affl_no', reg.college_affl_no)
+            .order('created_at', { ascending: true })
+            .limit(1)
             .maybeSingle();
 
-          const targetChest = mainReg?.chest_no || `COL-${reg.college_affl_no}`;
-
-          await auth.db.from('submission_entries').upsert(
-            {
-              college_affl_no: reg.college_affl_no,
-              chest_no: targetChest,
-              item_id: eventItem.item_id,
-              status: 'on_time',
-              file_url: cleanUrl,
-              submitted_at: new Date().toISOString()
-            },
-            { onConflict: 'item_id,chest_no' }
-          );
+          if (mainReg?.chest_no) {
+            await auth.db.from('submission_entries').upsert(
+              {
+                college_affl_no: reg.college_affl_no,
+                chest_no: mainReg.chest_no,
+                item_id: eventItem.item_id,
+                status: 'on_time',
+                file_url: cleanUrl,
+                submitted_at: new Date().toISOString()
+              },
+              { onConflict: 'item_id,chest_no' }
+            );
+          }
         }
       } catch (mirrorErr) {
-        // Non-blocking mirror
+        console.warn('Notice: submission_entries mirror error:', mirrorErr);
       }
 
       return NextResponse.json({

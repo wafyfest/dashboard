@@ -9,7 +9,9 @@ import {
   UserCheck,
   Loader2,
   Printer,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  Lock
 } from 'lucide-react';
 import { Student, College, Registration, FestSettings } from '@/lib/types/fest';
 import { generateAdmitCardPdf } from '@/lib/utils/admitCardPdf';
@@ -103,8 +105,12 @@ export function AdmitCardTable({
     });
   }, [registeredStudents, searchQuery]);
 
+  // Temporary flag to control Admit Card downloads
+  const IS_ADMIT_CARD_DOWNLOAD_ENABLED = false;
+
   // Handle single student PDF download
   const handleDownload = async (student: Student, idx: number) => {
+    if (!IS_ADMIT_CARD_DOWNLOAD_ENABLED) return;
     try {
       setDownloadingId(student.id || `idx-${idx}`);
 
@@ -137,7 +143,7 @@ export function AdmitCardTable({
 
   // Handle download all filtered admit cards into individual files
   const handleDownloadAll = async () => {
-    if (filteredStudents.length === 0) return;
+    if (!IS_ADMIT_CARD_DOWNLOAD_ENABLED || filteredStudents.length === 0) return;
     for (let i = 0; i < Math.min(filteredStudents.length, 25); i++) {
       const stu = filteredStudents[i];
       await handleDownload(stu, i);
@@ -168,20 +174,33 @@ export function AdmitCardTable({
             {registeredStudents.length} Registered
           </Badge>
           <Button
-            variant="saffron"
+            variant={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'saffron' : 'secondary'}
             size="sm"
             onClick={handleDownloadAll}
-            disabled={filteredStudents.length === 0 || downloadingId !== null}
-            title="Batch Download Filtered Admit Cards"
-            className="font-heading font-bold"
+            disabled={!IS_ADMIT_CARD_DOWNLOAD_ENABLED || filteredStudents.length === 0 || downloadingId !== null}
+            title={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? "Batch Download Filtered Admit Cards" : "Admit Card download is temporarily disabled"}
+            className={`font-heading font-bold ${!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'cursor-not-allowed opacity-60' : ''}`}
           >
-            <Printer className="w-4 h-4 mr-1.5" />
+            {!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? (
+              <Lock className="w-4 h-4 mr-1.5" />
+            ) : (
+              <Printer className="w-4 h-4 mr-1.5" />
+            )}
             Batch Download (PDF)
           </Button>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {!IS_ADMIT_CARD_DOWNLOAD_ENABLED && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="font-sans">
+              <strong className="font-heading font-bold">Admit Card Downloads Disabled:</strong> Official hall ticket and admit card PDF generation is temporarily disabled by fest administration.
+            </span>
+          </div>
+        )}
+
         {/* Search Bar with Glass Surface */}
         <div className="relative w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
@@ -266,16 +285,22 @@ export function AdmitCardTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
-                        variant="saffron"
+                        variant={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'saffron' : 'secondary'}
                         size="xs"
-                        onClick={() => handleDownload(student, idx)}
-                        disabled={isDownloading}
-                        title="Download Student Admit Card PDF"
+                        onClick={() => IS_ADMIT_CARD_DOWNLOAD_ENABLED && handleDownload(student, idx)}
+                        disabled={!IS_ADMIT_CARD_DOWNLOAD_ENABLED || isDownloading}
+                        title={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'Download Student Admit Card PDF' : 'Admit Card download is temporarily disabled'}
+                        className={!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'cursor-not-allowed opacity-60' : undefined}
                       >
                         {isDownloading ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>Saving...</span>
+                          </>
+                        ) : !IS_ADMIT_CARD_DOWNLOAD_ENABLED ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Disabled</span>
                           </>
                         ) : (
                           <>

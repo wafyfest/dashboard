@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
+import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Item,
@@ -17,8 +17,8 @@ import {
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { useFest } from '@/lib/context/FestContext';
-import { getDeadlineStatus, formatIstDisplay } from '@/lib/utils/istDate';
-import { ChevronDown, Plus, Lock, SquarePen, Trash2, CalendarCheck, AlertTriangle, Search, X, CheckCircle2 } from 'lucide-react';
+import { evaluateEventDeadlineSetting, formatIstDisplay } from '@/lib/utils/istDate';
+import { ChevronDown, Plus, Lock, Unlock, Clock, SquarePen, Trash2, CalendarCheck, AlertTriangle, Search, X, CheckCircle2 } from 'lucide-react';
 
 interface CollegeRegistrationTabProps {
   filteredItems: Item[];
@@ -55,16 +55,25 @@ export function CollegeRegistrationTab({
   allItemsCount,
   registrationStatusByItem
 }: CollegeRegistrationTabProps) {
-  const { festSettings, timeTick } = useFest();
-  const deadlineInfo = React.useMemo(
-    () => getDeadlineStatus(festSettings.reg_deadline),
-    [festSettings.reg_deadline, timeTick]
-  );
-  const deadlineSchedule = deadlineInfo.schedule;
-
+  const { timeTick } = useFest();
   const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage'>('All');
   const [statusFilter, setStatusFilter] = React.useState<'All' | 'enrolled' | 'not_enrolled'>('All');
   const [eventSearch, setEventSearch] = React.useState<string>('');
+
+  const onstageSetting = festService.getEventDeadlineSetting('onstage');
+  const offstageSetting = festService.getEventDeadlineSetting('offstage');
+  const generalSetting = festService.getEventDeadlineSetting('general');
+
+  const activeDeadlineSetting = React.useMemo(() => {
+    if (selectedMode === 'onstage') return onstageSetting;
+    if (selectedMode === 'offstage') return offstageSetting;
+    return generalSetting;
+  }, [selectedMode, onstageSetting, offstageSetting, generalSetting]);
+
+  const activeDeadlineEval = React.useMemo(
+    () => evaluateEventDeadlineSetting(activeDeadlineSetting, new Date()),
+    [activeDeadlineSetting, timeTick]
+  );
 
   const registrationByItemId = React.useMemo(() => {
     const byItem = new Map<number, Registration>();
@@ -117,43 +126,52 @@ export function CollegeRegistrationTab({
 
   return (
     <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
-      <CardHeader className="flex flex-col gap-4 pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
-              </span>
-              <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
-                Event Registration
-              </CardTitle>
-            </div>
-            <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
-              Enroll student participants in Single and Group events according to phase quotas
-            </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
+            </span>
+            <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+              Event Registration
+            </CardTitle>
+            <Badge variant="saffron" className="font-mono font-bold">
+              {enrolledCount} / {totalCount} Enrolled ({progressPercent}%)
+            </Badge>
           </div>
-
-          {/* Enrolled Badge & Progress */}
-          <div className="flex items-center gap-3 bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)] rounded-2xl px-3.5 py-2 shrink-0">
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-heading font-semibold">
-                Progress
-              </div>
-              <div className="text-xs font-mono font-bold text-[var(--text-primary)]">
-                <span className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">{enrolledCount}</span> / {totalCount} Events
-              </div>
-            </div>
-            <div className="w-12 h-12 relative flex items-center justify-center shrink-0">
-              <span className="font-mono text-xs font-extrabold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
-                {progressPercent}%
-              </span>
-            </div>
-          </div>
+          <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
+            Enroll student participants in Single and Group events according to phase quotas
+          </CardDescription>
         </div>
 
-        {/* Filter & Search Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+        {/* Right side: Real-time Deadline Status Badge */}
+        {activeDeadlineSetting.is_active !== false && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            {activeDeadlineEval.tier === 'open' ? (
+              <Badge variant="success" size="md" className="font-mono font-bold">
+                Registration Open
+              </Badge>
+            ) : activeDeadlineEval.tier === 'fine' ? (
+              <Badge variant="warning" size="md" className="font-mono font-bold">
+                Late Fine Active (₹{activeDeadlineEval.fineAmount})
+              </Badge>
+            ) : activeDeadlineEval.tier === 'super_fine' ? (
+              <Badge variant="destructive" size="md" className="font-mono font-bold">
+                Super Fine Active (₹{activeDeadlineEval.fineAmount})
+              </Badge>
+            ) : (
+              <Badge variant="secondary" size="md" className="font-mono font-bold">
+                Registration Closed
+              </Badge>
+            )}
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-4 pt-4">
+        {/* Full-width Filters Toolbar matching all other tabs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 p-3 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
           {/* Event Search */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -168,7 +186,7 @@ export function CollegeRegistrationTab({
               <button
                 type="button"
                 onClick={() => setEventSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded-full"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded-full cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -220,35 +238,37 @@ export function CollegeRegistrationTab({
             <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Registration Deadline Alert Banner */}
-        {deadlineInfo.status === 'fine' && (
+
+        {/* Registration Deadline Alert Banner (Active Schedules) */}
+        {activeDeadlineSetting.is_active !== false && activeDeadlineEval.tier === 'fine' && (
           <div className="flex items-center gap-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="flex-1 font-sans">
-              <strong className="font-heading font-bold">Fine Period Active (₹500):</strong> The normal deadline has passed. New registrations incur a <strong>₹500 fine</strong> until{' '}
-              <strong className="font-mono">{deadlineSchedule ? formatIstDisplay(deadlineSchedule.fineEndIso) : '—'}</strong>. After that, a <strong>₹1,000 Super Fine</strong> applies for 1 hour.
+              <strong className="font-heading font-bold">Fine Period Active (₹{activeDeadlineEval.fineAmount}):</strong> The normal deadline has passed. New registrations incur a <strong>₹{activeDeadlineEval.fineAmount} fine</strong> until{' '}
+              <strong className="font-mono">{activeDeadlineSetting.fine_deadline ? formatIstDisplay(activeDeadlineSetting.fine_deadline) : '—'}</strong>.
+              {activeDeadlineSetting.has_super_fine && activeDeadlineSetting.super_fine_deadline && (
+                <> After that, a <strong>₹{activeDeadlineSetting.super_fine_amount ?? 1000} Super Fine</strong> applies until <strong className="font-mono">{formatIstDisplay(activeDeadlineSetting.super_fine_deadline)}</strong>.</>
+              )}
             </div>
           </div>
         )}
 
-        {deadlineInfo.status === 'super_fine' && (
+        {activeDeadlineSetting.is_active !== false && activeDeadlineEval.tier === 'super_fine' && (
           <div className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-900 dark:text-rose-200">
             <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
             <div className="flex-1 font-sans">
-              <strong className="font-heading font-bold">Super Fine Period Active (₹1,000):</strong> The 1-hour ₹500 fine window has ended. Registrations now incur a <strong>₹1,000 Super Fine</strong> until{' '}
-              <strong className="font-mono">{deadlineSchedule ? formatIstDisplay(deadlineSchedule.superFineEndIso) : '—'}</strong>, after which registration will be <strong>completely locked for all colleges</strong>!
+              <strong className="font-heading font-bold">Super Fine Period Active (₹{activeDeadlineEval.fineAmount}):</strong> Registrations now incur a <strong>₹{activeDeadlineEval.fineAmount} Super Fine</strong> until{' '}
+              <strong className="font-mono">{activeDeadlineSetting.super_fine_deadline ? formatIstDisplay(activeDeadlineSetting.super_fine_deadline) : '—'}</strong>, after which registration will be <strong>completely locked for all colleges</strong>!
             </div>
           </div>
         )}
 
-        {deadlineInfo.status === 'closed' && (
+        {activeDeadlineSetting.is_active !== false && activeDeadlineEval.tier === 'closed' && (
           <div className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-900 dark:text-rose-200">
             <Lock className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
             <div className="flex-1 font-sans">
-              <strong className="font-heading font-bold">Registrations Locked:</strong> The deadline and 2-hour Super Fine grace window have ended. Registration is completely closed for all colleges.
+              <strong className="font-heading font-bold">Registrations Locked:</strong> The deadline and fine grace windows have ended. Registration is completely closed for all colleges.
             </div>
           </div>
         )}
@@ -277,8 +297,8 @@ export function CollegeRegistrationTab({
                 ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
                 : (item.item_type === 'Group' ? 'Group' : 'Individual');
               const { min: minCount, max: maxCount, isOpen: isOpenParticipants } = getItemParticipantBounds(item);
-              const fallbackStudent = (students.length > 0 && reg?.chest_no)
-                ? findStudentByIdentifier(students, reg.chest_no, currentCollegeAfflNo)
+              const fallbackStudent = (students.length > 0 && (reg?.cic_no || reg?.chest_no))
+                ? findStudentByIdentifier(students, reg.cic_no || reg.chest_no, currentCollegeAfflNo)
                 : undefined;
               const rosterParticipants = reg
                 ? ((reg.participants && reg.participants.length > 0)
@@ -310,8 +330,8 @@ export function CollegeRegistrationTab({
                         </span>
                         {rosterParticipants.length > 0 ? (
                           rosterParticipants.map((p, pIdx) => {
-                            const chest = getCanonicalChestNo(p);
-                            const idLabel = chest !== '—' ? `#${chest}` : `CIC: ${p.admission_no || p.cic_no || p.cic_number || 'N/A'}`;
+                            const cicVal = p.cic_no || p.admission_no || p.cic_number;
+                            const idLabel = cicVal ? `CIC: ${cicVal}` : getCanonicalChestNo(p);
                             return (
                               <span
                                 key={p.id || pIdx}
@@ -323,7 +343,7 @@ export function CollegeRegistrationTab({
                           })
                         ) : (
                           <span className="text-[var(--text-secondary)] font-mono text-[10.5px]">
-                            {reg.chest_no ? `Chest #${reg.chest_no}` : 'Enrolled'}
+                            {reg.cic_no ? `CIC: ${reg.cic_no}` : (reg.chest_no ? `Chest #${reg.chest_no}` : 'Enrolled')}
                           </span>
                         )}
                       </div>
@@ -415,18 +435,19 @@ export function CollegeRegistrationTab({
                         </Button>
                       )}
                     </div>
-                    {!isLocked && (lockCheck.isSuperFinePeriod || lockCheck.isFinePeriod) && (
+                    {!isLocked && (lockCheck.isSuperFinePeriod || lockCheck.isFinePeriod) && lockCheck.lockType !== 'admin_clearance' && (
                       <div className="mt-1">
                         <span
                           className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold font-mono border ${lockCheck.isSuperFinePeriod
-                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
-                              : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30'
+                            ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                            : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30'
                             }`}
                         >
-                          {lockCheck.isSuperFinePeriod ? 'Super Fine ₹1,000' : 'Fine ₹500'}
+                          {lockCheck.isSuperFinePeriod ? `Super Fine ₹${lockCheck.fineAmount || 1000}` : `Fine ₹${lockCheck.fineAmount || 500}`}
                         </span>
                       </div>
                     )}
+
                   </TableCell>
                 </TableRow>
               );

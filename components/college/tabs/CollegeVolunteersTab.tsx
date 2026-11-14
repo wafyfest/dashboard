@@ -39,7 +39,9 @@ import {
   X,
   Filter,
   GraduationCap,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -87,6 +89,11 @@ export function CollegeVolunteersTab({
   const [dutyFilter, setDutyFilter] = useState<string>('all');
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
+  // Universal Volunteer Registration Lock State
+  const [isVolunteerRegLocked, setIsVolunteerRegLocked] = useState<boolean>(() =>
+    festService.isVolunteerRegistrationLocked()
+  );
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [targetStudent, setTargetStudent] = useState<Student | null>(null);
@@ -113,6 +120,7 @@ export function CollegeVolunteersTab({
     // 1. Immediately read cached memory / local storage
     const cached = festService.getVolunteers(collegeAfflNo);
     setVolunteers(cached);
+    setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
 
     // 2. Fetch fresh from Supabase if connected
     try {
@@ -120,6 +128,7 @@ export function CollegeVolunteersTab({
         const fresh = await festService.fetchVolunteersForCollege(collegeAfflNo);
         if (fresh) setVolunteers(fresh);
       }
+      setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
     } finally {
       if (showIndicator) setIsSyncing(false);
     }
@@ -131,11 +140,19 @@ export function CollegeVolunteersTab({
 
     // 1. Cross-Tab / Cross-Window BroadcastChannel listener
     let bc: BroadcastChannel | null = null;
+    let settingsBc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         bc = new BroadcastChannel('wsf_volunteers_sync');
         bc.onmessage = () => {
           syncVolunteers();
+        };
+      } catch (e) { }
+
+      try {
+        settingsBc = new BroadcastChannel('wsf_settings_sync');
+        settingsBc.onmessage = () => {
+          setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
         };
       } catch (e) { }
     }
@@ -145,6 +162,9 @@ export function CollegeVolunteersTab({
       if (e.key === 'wsf_volunteers' || e.key === 'wsf_volunteers_updated') {
         syncVolunteers();
       }
+      if (e.key === 'festSettings' || e.key === 'fest_settings') {
+        setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
+      }
     };
     window.addEventListener('storage', handleStorage);
 
@@ -153,6 +173,11 @@ export function CollegeVolunteersTab({
       syncVolunteers();
     };
     window.addEventListener('wsf_volunteers_change', handleCustomChange);
+
+    const handleSettingsUpdated = () => {
+      setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
+    };
+    window.addEventListener('wsf_settings_updated', handleSettingsUpdated);
 
     // 4. Supabase Realtime WebSocket Channel
     let unsubRealtime: (() => void) | null = null;
@@ -166,6 +191,13 @@ export function CollegeVolunteersTab({
           (payload: any) => {
             console.log('⚡ [College Volunteers Live] DB change detected:', payload);
             syncVolunteers();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'fest_settings' },
+          () => {
+            setIsVolunteerRegLocked(festService.isVolunteerRegistrationLocked());
           }
         )
         .on(
@@ -189,8 +221,10 @@ export function CollegeVolunteersTab({
 
     return () => {
       bc?.close();
+      settingsBc?.close();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('wsf_volunteers_change', handleCustomChange);
+      window.removeEventListener('wsf_settings_updated', handleSettingsUpdated);
       unsubRealtime?.();
       clearInterval(heartbeat);
     };
@@ -292,6 +326,11 @@ export function CollegeVolunteersTab({
 
   // Open modal for registration
   const handleOpenRegister = (student: Student) => {
+    if (isVolunteerRegLocked) {
+      alert('Volunteer registration is currently locked for all colleges by fest administration.');
+      return;
+    }
+
     const existing =
       volunteerMap.get(student.id) ||
       (student.cic_no ? volunteerMap.get(String(student.cic_no)) : null);
@@ -316,6 +355,10 @@ export function CollegeVolunteersTab({
   // Submit volunteer registration
   const handleSaveVolunteer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVolunteerRegLocked) {
+      alert('Volunteer registration is locked for all colleges by fest administration.');
+      return;
+    }
     if (!targetStudent) return;
 
     setIsSubmitting(true);
@@ -361,6 +404,10 @@ export function CollegeVolunteersTab({
 
   // Unregister volunteer
   const handleUnregister = async (student: Student) => {
+    if (isVolunteerRegLocked) {
+      alert('Volunteer registration is locked for all colleges by fest administration.');
+      return;
+    }
     const vol =
       volunteerMap.get(student.id) ||
       (student.cic_no ? volunteerMap.get(String(student.cic_no)) : null);
@@ -386,6 +433,10 @@ export function CollegeVolunteersTab({
 
   // Open multiple registration modal with selected table students
   const handleOpenBatchModal = () => {
+    if (isVolunteerRegLocked) {
+      alert('Volunteer registration is locked for all colleges by fest administration.');
+      return;
+    }
     if (selectedAvailableStudents.length === 0) return;
     const defaultDuty = VOLUNTEER_DUTIES[0];
     const initialDrafts: Record<
@@ -433,6 +484,10 @@ export function CollegeVolunteersTab({
   // Batch register selected students with shared duty and per-student details
   const handleBatchRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVolunteerRegLocked) {
+      setBatchError('Volunteer registration is locked for all colleges by fest administration.');
+      return;
+    }
     if (selectedAvailableStudents.length === 0) {
       setBatchError('Please select at least one student to register.');
       return;
@@ -599,6 +654,25 @@ export function CollegeVolunteersTab({
               <h3 className="text-sm sm:text-base font-bold font-heading text-[var(--text-primary)]">
                 Volunteer Registration (Aliya & PG)
               </h3>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border font-sans ${
+                  isVolunteerRegLocked
+                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                }`}
+              >
+                {isVolunteerRegLocked ? (
+                  <>
+                    <Lock className="w-3 h-3 text-rose-500" />
+                    Registration Locked
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-3 h-3 text-emerald-500" />
+                    Registration Open
+                  </>
+                )}
+              </span>
             </div>
             <p className="text-xs font-sans text-[var(--text-secondary)] mt-0.5">
               Only students enrolled in the <strong>Aliya or PG</strong> ({college?.name || `College #${collegeAfflNo}`}) are eligible for official Fest Volunteer duties.
@@ -630,6 +704,19 @@ export function CollegeVolunteersTab({
           </Button>
         </div>
       </div>
+
+      {/* Alert banner when volunteer registration is locked */}
+      {isVolunteerRegLocked && (
+        <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 flex items-start gap-3 shadow-sm">
+          <Lock className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-sm font-heading">Volunteer Registration is Locked</h4>
+            <p className="text-xs mt-0.5 opacity-90 font-sans leading-relaxed">
+              Fest administration has closed volunteer registration for all colleges. You can view the assigned roster and print official lists, but new registrations, role updates, and volunteer removals are disabled.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -731,11 +818,16 @@ export function CollegeVolunteersTab({
                 size="sm"
                 variant="saffron"
                 onClick={handleOpenBatchModal}
-                disabled={isSubmitting}
-                className="text-xs h-8 font-heading font-bold"
+                disabled={isSubmitting || isVolunteerRegLocked}
+                className="text-xs h-8 font-heading font-bold disabled:opacity-50"
+                title={isVolunteerRegLocked ? 'Volunteer registration is locked' : undefined}
               >
-                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                Register Selected ({selectedAvailableStudents.length})
+                {isVolunteerRegLocked ? (
+                  <Lock className="w-3.5 h-3.5 mr-1.5" />
+                ) : (
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {isVolunteerRegLocked ? 'Registration Locked' : `Register Selected (${selectedAvailableStudents.length})`}
               </Button>
               <Button
                 size="sm"
@@ -851,7 +943,7 @@ export function CollegeVolunteersTab({
                     <input
                       type="checkbox"
                       checked={allUnregisteredSelected}
-                      disabled={unregisteredDisplayed.length === 0}
+                      disabled={isVolunteerRegLocked || unregisteredDisplayed.length === 0}
                       onChange={e => {
                         if (e.target.checked) {
                           setSelectedStudentIds(new Set(unregisteredDisplayed.map(s => s.id)));
@@ -860,7 +952,13 @@ export function CollegeVolunteersTab({
                         }
                       }}
                       className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 w-3.5 h-3.5 disabled:opacity-30 cursor-pointer"
-                      title={unregisteredDisplayed.length === 0 ? 'No unregistered students visible' : 'Select all visible unregistered students'}
+                      title={
+                        isVolunteerRegLocked
+                          ? 'Volunteer registration is locked'
+                          : unregisteredDisplayed.length === 0
+                          ? 'No unregistered students visible'
+                          : 'Select all visible unregistered students'
+                      }
                     />
                   );
                 })()}
@@ -927,9 +1025,10 @@ export function CollegeVolunteersTab({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        disabled={isRegistered}
+                        disabled={isRegistered || isVolunteerRegLocked}
                         onChange={e => toggleSelectedStudent(student.id, e.target.checked)}
                         className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 w-3.5 h-3.5 disabled:opacity-30 cursor-pointer"
+                        title={isVolunteerRegLocked ? 'Registration is locked' : isRegistered ? 'Already registered' : 'Select for batch registration'}
                       />
                     </TableCell>
 
@@ -1031,9 +1130,10 @@ export function CollegeVolunteersTab({
                           <Button
                             variant="outline"
                             size="xs"
+                            disabled={isVolunteerRegLocked}
                             onClick={() => handleOpenRegister(student)}
-                            className="text-xs"
-                            title="Edit volunteer duty or contact"
+                            className="text-xs disabled:opacity-40"
+                            title={isVolunteerRegLocked ? 'Editing locked by fest administration' : 'Edit volunteer duty or contact'}
                           >
                             <Edit2 className="w-3 h-3 mr-1" />
                             Edit
@@ -1041,9 +1141,10 @@ export function CollegeVolunteersTab({
                           <Button
                             variant="ghost"
                             size="xs"
+                            disabled={isVolunteerRegLocked}
                             onClick={() => handleUnregister(student)}
-                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 p-1.5"
-                            title="Remove from volunteer roster"
+                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 p-1.5 disabled:opacity-40"
+                            title={isVolunteerRegLocked ? 'Removal locked by fest administration' : 'Remove from volunteer roster'}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1052,11 +1153,22 @@ export function CollegeVolunteersTab({
                         <Button
                           size="xs"
                           variant="saffron"
+                          disabled={isVolunteerRegLocked}
                           onClick={() => handleOpenRegister(student)}
-                          className="font-heading font-bold text-xs"
+                          className="font-heading font-bold text-xs disabled:opacity-50"
+                          title={isVolunteerRegLocked ? 'Volunteer registration is locked by fest administration' : 'Register volunteer'}
                         >
-                          <HeartHandshake className="w-3.5 h-3.5 mr-1" />
-                          Register
+                          {isVolunteerRegLocked ? (
+                            <>
+                              <Lock className="w-3.5 h-3.5 mr-1" />
+                              Locked
+                            </>
+                          ) : (
+                            <>
+                              <HeartHandshake className="w-3.5 h-3.5 mr-1" />
+                              Register
+                            </>
+                          )}
                         </Button>
                       )}
                     </TableCell>

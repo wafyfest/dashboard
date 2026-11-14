@@ -24,7 +24,6 @@ import {
   AlertTriangle,
   Unlock,
   Lock,
-  UserCheck,
   Phone,
   Mail,
   MapPin,
@@ -38,7 +37,6 @@ import {
 } from 'lucide-react';
 
 interface CollegesTabProps {
-  onManageRegistrations?: (afflNo: number) => void;
   onOpenMatrix?: () => void;
   hideMetrics?: boolean;
 }
@@ -46,13 +44,18 @@ interface CollegesTabProps {
 type FilterType = 'all' | 'override' | 'fine' | 'clear';
 type SortType = 'affl_asc' | 'affl_desc' | 'name_asc';
 
-export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics = false }: CollegesTabProps) {
+export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabProps) {
   const { refreshKey, triggerRefresh } = useFest();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [sortBy, setSortBy] = useState<SortType>('affl_asc');
   const [selectedCollegeForDetail, setSelectedCollegeForDetail] = useState<College | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Apply Fine Modal State
+  const [collegeForFineModal, setCollegeForFineModal] = useState<College | null>(null);
+  const [fineModalAmount, setFineModalAmount] = useState<number>(500);
+  const [fineModalReason, setFineModalReason] = useState<string>('Administrative Penalty');
 
   // Reactive colleges from festService keyed to refreshKey
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
@@ -149,13 +152,39 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
     }
   };
 
-  const handleToggleFine = async (afflNo: number) => {
+  const handleOpenFineModal = (col: College) => {
+    setCollegeForFineModal(col);
+    setFineModalAmount(500);
+    setFineModalReason('Administrative Penalty');
+  };
+
+  const handleApplyFineSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!collegeForFineModal) return;
     setIsProcessing(true);
     try {
-      await festService.toggleCollegeFine(afflNo);
+      await festService.applyCollegeFine(collegeForFineModal.affl_no, fineModalAmount, fineModalReason);
       triggerRefresh();
+      setCollegeForFineModal(null);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleWaiveAll = async (afflNo: number, collegeName: string, netAmount: number) => {
+    const amountLabel = netAmount > 0 ? ` (₹${netAmount.toLocaleString('en-IN')})` : '';
+    if (window.confirm(`Waive all pending fines${amountLabel} for #${afflNo} ${collegeName}?`)) {
+      setIsProcessing(true);
+      try {
+        await festService.waiveCollegeAllFines(afflNo);
+        triggerRefresh();
+        if (selectedCollegeForDetail?.affl_no === afflNo) {
+          const fresh = festService.getCollege(afflNo);
+          setSelectedCollegeForDetail(fresh || null);
+        }
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -163,14 +192,14 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
     if (metrics.overrideCount === 0) return;
     if (
       window.confirm(
-        `🚨 Are you sure you want to REVOKE manual lock overrides from all ${metrics.overrideCount} colleges?\n\nThis will immediately re-enforce all fest deadlines and event locks across these institutions.`
+        `Lock all ${metrics.overrideCount} currently unlocked colleges back to standard lock rules?`
       )
     ) {
       setIsProcessing(true);
       try {
         const revoked = await festService.revokeAllCollegeLockOverrides();
         triggerRefresh();
-        alert(`Successfully revoked lock overrides from ${revoked} institutions.`);
+        alert(`Successfully locked ${revoked} institutions.`);
       } finally {
         setIsProcessing(false);
       }
@@ -202,7 +231,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
             </div>
           </Card>
 
-          {/* Active Overrides */}
+          {/* Unlocked Colleges */}
           <Card className={`p-4 border [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl transition-all ${metrics.overrideCount > 0
               ? 'bg-amber-500/10 border-amber-500/30'
               : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
@@ -210,7 +239,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                  Lock Overrides Active
+                  Unlocked Colleges
                 </p>
                 <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
                   {metrics.overrideCount}
@@ -223,10 +252,10 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
             <div className="mt-2 text-[11px] text-[var(--text-secondary)] flex items-center gap-1 font-medium">
               {metrics.overrideCount > 0 ? (
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                  ⚠️ Bypassing deadlines & locks
+                  ⚠️ Unlocked across events
                 </span>
               ) : (
-                <span className="text-[var(--text-muted)]">All standard gates enforced</span>
+                <span className="text-[var(--text-muted)]">All standard locks enforced</span>
               )}
             </div>
           </Card>
@@ -318,7 +347,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                 }`}
             >
-              Overrides ({metrics.overrideCount})
+              Unlocked ({metrics.overrideCount})
             </button>
             <button
               onClick={() => setActiveFilter('fine')}
@@ -345,7 +374,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
             </select>
           </div>
 
-          {/* Bulk Revoke Overrides (Only shown if overrides exist) */}
+          {/* Bulk Lock All (Only shown if any colleges are unlocked) */}
           {metrics.overrideCount > 0 && (
             <Button
               size="sm"
@@ -353,10 +382,10 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
               onClick={handleRevokeAllOverrides}
               disabled={isProcessing}
               className="text-xs h-8 px-2.5 font-semibold shadow-xs"
-              title="Revoke all active lock overrides across all colleges"
+              title="Lock all unlocked colleges back to standard rules"
             >
               <Lock className="w-3.5 h-3.5 mr-1" />
-              Revoke All Overrides ({metrics.overrideCount})
+              Lock All ({metrics.overrideCount})
             </Button>
           )}
 
@@ -491,99 +520,114 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
 
                       {/* Status Badges */}
                       <TableCell className="py-2.5 align-middle text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          {col.manual_lock_override ? (
-                            <Badge variant="amber" size="sm" className="text-[10px] px-1.5 py-0 leading-tight">
-                              Override Active
-                            </Badge>
-                          ) : (
-                            <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                              Standard Lock
-                            </span>
-                          )}
+                        {(() => {
+                          const fineSummary = festService.getCollegeFineSummary(col.affl_no);
+                          return (
+                            <div className="flex flex-col items-center gap-1">
+                              {col.manual_lock_override ? (
+                                <Badge variant="amber" size="sm" className="text-[10px] px-1.5 py-0 leading-tight">
+                                  Unlocked
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                                  Locked
+                                </span>
+                              )}
 
-                          {col.fine_status ? (
-                            <Badge variant="destructive" size="sm" className="text-[10px] px-1.5 py-0 leading-tight">
-                              Fine Flagged
-                            </Badge>
-                          ) : (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              Fine Clear
-                            </span>
-                          )}
-                        </div>
+                              {fineSummary.hasActiveFine ? (
+                                <Badge
+                                  variant="destructive"
+                                  size="sm"
+                                  className="text-[10px] px-1.5 py-0 leading-tight font-mono font-bold"
+                                  title={
+                                    fineSummary.manualFine > 0
+                                      ? `Late Fines: ₹${fineSummary.pendingAutoFine.toLocaleString('en-IN')} | Admin Fine: ₹${fineSummary.manualFine.toLocaleString('en-IN')} (${fineSummary.manualFineReason})`
+                                      : `Pending Late Fines: ₹${fineSummary.pendingAutoFine.toLocaleString('en-IN')}`
+                                  }
+                                >
+                                  Fine: ₹{fineSummary.netFine.toLocaleString('en-IN')}
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                  Fine Clear
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
 
                       {/* Controls Buttons */}
                       <TableCell className="py-2.5 pr-4 align-middle text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1">
-                          {/* Manage Registrations */}
-                          {onManageRegistrations && (
-                            <Button
-                              size="xs"
-                              variant="saffron"
-                              onClick={() => onManageRegistrations(col.affl_no)}
-                              className="h-7 px-2 text-xs font-semibold"
-                              title="Open Student Event Registration Roster"
-                            >
-                              <UserCheck className="w-3 h-3 mr-1" />
-                              Manage
-                            </Button>
-                          )}
+                        {(() => {
+                          const fineSummary = festService.getCollegeFineSummary(col.affl_no);
+                          return (
+                            <div className="inline-flex items-center gap-1">
+                              {/* Lock / Unlock Toggle */}
+                              <Button
+                                size="xs"
+                                variant={col.manual_lock_override ? 'destructive' : 'outline'}
+                                onClick={() => handleToggleOverride(col.affl_no)}
+                                disabled={isProcessing}
+                                className={`h-7 px-2 text-xs font-semibold ${col.manual_lock_override
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-transparent'
+                                    : 'text-[var(--text-secondary)] hover:text-emerald-600 hover:border-emerald-500/40'
+                                  }`}
+                                title={
+                                  col.manual_lock_override
+                                    ? 'Lock this college to standard event & deadline rules'
+                                    : 'Unlock this college for all events'
+                                }
+                              >
+                                {col.manual_lock_override ? (
+                                  <>
+                                    <Lock className="w-3 h-3 mr-1" /> Lock
+                                  </>
+                                ) : (
+                                  <>
+                                    <Unlock className="w-3 h-3 mr-1 text-emerald-500" /> Unlock
+                                  </>
+                                )}
+                              </Button>
 
-                          {/* Override Toggle */}
-                          <Button
-                            size="xs"
-                            variant={col.manual_lock_override ? 'destructive' : 'outline'}
-                            onClick={() => handleToggleOverride(col.affl_no)}
-                            disabled={isProcessing}
-                            className={`h-7 px-2 text-xs font-semibold ${col.manual_lock_override
-                                ? 'bg-amber-600 hover:bg-amber-700 text-white border-transparent'
-                                : 'text-[var(--text-secondary)] hover:text-amber-500 hover:border-amber-500/40'
-                              }`}
-                            title={
-                              col.manual_lock_override
-                                ? 'Revoke emergency lock override'
-                                : 'Grant emergency lock override bypassing deadlines'
-                            }
-                          >
-                            {col.manual_lock_override ? (
-                              <>
-                                <Lock className="w-3 h-3 mr-1" /> Revoke
-                              </>
-                            ) : (
-                              <>
-                                <Unlock className="w-3 h-3 mr-1" /> Override
-                              </>
-                            )}
-                          </Button>
+                              {/* Fine Action: Waive if active, Apply modal if not */}
+                              {fineSummary.hasActiveFine ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => handleWaiveAll(col.affl_no, col.name, fineSummary.netFine)}
+                                  disabled={isProcessing}
+                                  className="h-7 px-2 text-xs font-semibold border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                                  title={`Waive all fines (₹${fineSummary.netFine.toLocaleString('en-IN')}) for this college`}
+                                >
+                                  Waive
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="xs"
+                                  variant="secondary"
+                                  onClick={() => handleOpenFineModal(col)}
+                                  disabled={isProcessing}
+                                  className="h-7 px-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                                  title="Apply administrative fine with amount & reason"
+                                >
+                                  Fine
+                                </Button>
+                              )}
 
-                          {/* Fine Toggle */}
-                          <Button
-                            size="xs"
-                            variant={col.fine_status ? 'outline' : 'secondary'}
-                            onClick={() => handleToggleFine(col.affl_no)}
-                            disabled={isProcessing}
-                            className={`h-7 px-2 text-xs font-semibold ${col.fine_status
-                                ? 'border-rose-400/40 text-rose-500 hover:bg-rose-500/10'
-                                : 'text-[var(--text-secondary)]'
-                              }`}
-                            title={col.fine_status ? 'Waive late registration fine' : 'Apply late registration fine'}
-                          >
-                            {col.fine_status ? 'Waive Fine' : 'Apply Fine'}
-                          </Button>
-
-                          {/* Details Modal Trigger */}
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => setSelectedCollegeForDetail(col)}
-                            className="h-7 w-7 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
-                            title="View Full Institution Details & Quotas"
-                          >
-                            <Info className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
+                              {/* Details Modal Trigger */}
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => setSelectedCollegeForDetail(col)}
+                                className="h-7 w-7 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer"
+                                title="View Full Institution Details & Quotas"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   );
@@ -601,9 +645,9 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
           </span>
           <span className="font-mono">
             {metrics.overrideCount > 0 ? (
-              <span className="text-amber-500 font-semibold">⚠️ {metrics.overrideCount} override(s) active</span>
+              <span className="text-amber-500 font-semibold">⚠️ {metrics.overrideCount} college(s) unlocked</span>
             ) : (
-              'All institutions strictly locked to deadlines'
+              'All institutions standard locked'
             )}
           </span>
         </div>
@@ -635,7 +679,7 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
               <div className="flex items-center gap-1.5">
                 {selectedCollegeForDetail.manual_lock_override && (
                   <Badge variant="amber" size="sm">
-                    Lock Override Active
+                    Unlocked
                   </Badge>
                 )}
                 {selectedCollegeForDetail.fine_status ? (
@@ -766,34 +810,33 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
                     if (fresh) setSelectedCollegeForDetail(fresh);
                   }}
                 >
-                  {selectedCollegeForDetail.manual_lock_override ? 'Disable Override' : 'Allow Override (Apply Fine)'}
+                  {selectedCollegeForDetail.manual_lock_override ? 'Lock College' : 'Unlock College'}
                 </Button>
-                <Button
-                  size="xs"
-                  variant={selectedCollegeForDetail.fine_status ? 'outline' : 'secondary'}
-                  onClick={async () => {
-                    await handleToggleFine(selectedCollegeForDetail.affl_no);
-                    setSelectedCollegeForDetail(prev => prev ? { ...prev, fine_status: !prev.fine_status } : null);
-                  }}
-                >
-                  {selectedCollegeForDetail.fine_status ? 'Waive Fine' : 'Apply Fine'}
-                </Button>
+                {(() => {
+                  const summary = festService.getCollegeFineSummary(selectedCollegeForDetail.affl_no);
+                  return summary.hasActiveFine ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => handleWaiveAll(selectedCollegeForDetail.affl_no, selectedCollegeForDetail.name, summary.netFine)}
+                      className="border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                    >
+                      Waive All (₹{summary.netFine.toLocaleString('en-IN')})
+                    </Button>
+                  ) : (
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => handleOpenFineModal(selectedCollegeForDetail)}
+                      className="cursor-pointer"
+                    >
+                      Apply Fine
+                    </Button>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-1.5">
-                {onManageRegistrations && (
-                  <Button
-                    size="xs"
-                    variant="saffron"
-                    onClick={() => {
-                      onManageRegistrations(selectedCollegeForDetail.affl_no);
-                      setSelectedCollegeForDetail(null);
-                    }}
-                  >
-                    <UserCheck className="w-3 h-3 mr-1" />
-                    Manage Registrations
-                  </Button>
-                )}
                 <Button
                   size="xs"
                   variant="outline"
@@ -806,6 +849,85 @@ export function CollegesTab({ onManageRegistrations, onOpenMatrix, hideMetrics =
           </div>
         )}
       </Modal>
+
+      {/* APPLY FINE MODAL */}
+      {collegeForFineModal && (
+        <Modal
+          isOpen={Boolean(collegeForFineModal)}
+          onClose={() => setCollegeForFineModal(null)}
+          title={`Apply Fine: #${collegeForFineModal.affl_no} ${collegeForFineModal.name}`}
+          description="Allocate an administrative penalty amount and specify the official committee reason."
+          maxWidth="md"
+        >
+          <form onSubmit={handleApplyFineSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
+                Fine Amount (₹)
+              </label>
+              <div className="flex items-center gap-2 mb-2">
+                {[500, 1000, 2000, 5000].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setFineModalAmount(amt)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
+                      fineModalAmount === amt
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                        : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    ₹{amt.toLocaleString('en-IN')}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                value={fineModalAmount}
+                onChange={e => setFineModalAmount(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full px-3 py-2 text-sm font-mono font-bold bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)]"
+                placeholder="Enter fine amount..."
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
+                Official Penalty Reason
+              </label>
+              <input
+                type="text"
+                value={fineModalReason}
+                onChange={e => setFineModalReason(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)]"
+                placeholder="e.g. Late stage reporting, Roster dispute, Disciplinary fee..."
+                required
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-[var(--border-subtle)]">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCollegeForFineModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                size="sm"
+                disabled={isProcessing}
+                className="font-semibold cursor-pointer"
+              >
+                Apply Fine • ₹{fineModalAmount.toLocaleString('en-IN')}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

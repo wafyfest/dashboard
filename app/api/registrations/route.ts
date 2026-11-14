@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
-import { evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
+import { evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
+import { EventDeadlineSetting } from '@/lib/types/fest';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -111,63 +112,105 @@ export async function POST(req: NextRequest) {
     }
 
     // Enforce college ownership: a college user may only modify its own registrations
-    if (
-      auth.role === 'college' &&
-      (auth.collegeAfflNo === null || Number(auth.collegeAfflNo) !== collegeAfflNo)
-    ) {
-      return NextResponse.json(
-        { error: 'Forbidden: you can only manage registrations for your own college.' },
-        { status: 403 }
-      );
-    }
-
     if (action === 'register' || action === 'unregister') {
-      if (auth.role !== 'admin' && auth.role !== 'college') {
+      if (auth.role !== 'college') {
         return NextResponse.json(
-          { error: 'Forbidden: only college users or admin can register or unregister entries.' },
+          { error: 'Forbidden: only college representatives can register or unregister participants. Administrative registration is disabled.' },
           { status: 403 }
         );
       }
-      const [eventRes, settingsRes, collegeRes, cellRes] = await Promise.all([
-        auth.db.from('events').select('id, item_id, item_code, reg_deadline, is_locked, is_screening, is_submission, mode').eq('item_id', itemId).maybeSingle(),
-        auth.db.from('fest_settings').select('reg_deadline').limit(1).maybeSingle(),
-        auth.db.from('colleges').select('affl_no, manual_lock_override').eq('affl_no', collegeAfflNo).maybeSingle(),
-        auth.db.from('entry_locks').select('is_open').eq('item_id', itemId).eq('college_affl_no', collegeAfflNo).maybeSingle(),
+      if (auth.collegeAfflNo === null || Number(auth.collegeAfflNo) !== collegeAfflNo) {
+        return NextResponse.json(
+          { error: 'Forbidden: you can only manage registrations for your own college.' },
+          { status: 403 }
+        );
+      }
+      const [eventRes, settingsRes, collegeRes, cellRes, deadlineRes] = await Promise.all([
+        auth.db.from('events').select('id, item_id, item_code, reg_deadline, fine_deadline, is_locked, is_screening, is_submission, mode').eq('item_id', itemId).maybeSingle(),
+        auth.db.from('fest_settings').select('reg_deadline, fine_deadline').limit(1).maybeSingle(),
+        auth.db.from('colleges').select('id, affl_no, manual_lock_override').eq('affl_no', collegeAfflNo).maybeSingle(),
+        auth.db.from('entry_locks').select('is_open, updated_at').eq('item_id', itemId).eq('college_affl_no', collegeAfflNo).maybeSingle(),
+        auth.db.from('event_deadline_settings').select('*'),
       ]);
 
-      if (eventRes.error || !eventRes.data) {
+      if (eventRes.error) {
+        return NextResponse.json({ error: `Database error querying event ${itemId}: ${eventRes.error.message}` }, { status: 500 });
+      }
+      if (!eventRes.data) {
         return NextResponse.json({ error: `Event ${itemId} not found.` }, { status: 404 });
       }
-      if (collegeRes.error || !collegeRes.data) {
+      if (collegeRes.error) {
+        return NextResponse.json({ error: `Database error querying college ${collegeAfflNo}: ${collegeRes.error.message}` }, { status: 500 });
+      }
+      if (!collegeRes.data) {
         return NextResponse.json({ error: `College ${collegeAfflNo} not found.` }, { status: 404 });
       }
 
-      const effectiveRegDeadline = eventRes.data.reg_deadline || settingsRes.data?.reg_deadline || null;
-      const tierInfo = evaluateDeadlineTierAtTime(effectiveRegDeadline, new Date());
+      const isScreening = Boolean(eventRes.data.is_screening || eventRes.data.mode === 'screening');
+      const isSubmission = Boolean(eventRes.data.is_submission || eventRes.data.mode === 'submission');
+      const isOnstage = eventRes.data.mode === 'onstage';
+      const eventKind = isScreening ? 'screening' : isSubmission ? 'submission' : isOnstage ? 'onstage' : (eventRes.data.mode === 'offstage' ? 'offstage' : 'general');
+
+      const dlList: EventDeadlineSetting[] = deadlineRes.data || [];
+      const kindSetting = dlList.find(s => s.event_kind === eventKind) || dlList.find(s => s.event_kind === 'general');
+      const activeSetting = kindSetting || {
+        no_fine_deadline: eventRes.data.reg_deadline || settingsRes.data?.reg_deadline,
+        fine_deadline: eventRes.data.fine_deadline || settingsRes.data?.fine_deadline
+      };
+      const deadlineEval = evaluateEventDeadlineSetting(activeSetting, new Date());
+
+      // Cutoff time: after super_fine (or fine / no_fine) deadline has passed
+      const cutoffIso = (activeSetting as any).super_fine_deadline || (activeSetting as any).fine_deadline || (activeSetting as any).no_fine_deadline;
+      const cutoffMs = cutoffIso ? new Date(cutoffIso).getTime() : Infinity;
+      const isPastDeadline = deadlineEval.tier === 'closed' || (cutoffMs !== Infinity && Date.now() > cutoffMs);
+
+      const isCollegeUnlocked = Boolean(collegeRes.data?.manual_lock_override);
+      const isCellExplicitlyClosed = cellRes.data?.is_open === false;
+      const isItemLocked = Boolean(eventRes.data?.is_locked);
 
       if (auth.role === 'college') {
-        if (tierInfo.tier === 'closed') {
+        if (!isCollegeUnlocked) {
           return NextResponse.json(
             {
-              error: `Registration completely locked for event ${eventRes.data.item_code || itemId}: normal, ₹500 fine (1h), and ₹1,000 super fine (2h) periods have ended.`,
+              error: `Registration locked: Your institution (#${collegeAfflNo}) has been locked by fest administration.`,
             },
             { status: 403 }
           );
         }
 
-        if (!collegeRes.data.manual_lock_override) {
-          if (eventRes.data.is_locked) {
-            return NextResponse.json(
-              { error: `Registration closed: Event ${eventRes.data.item_code || itemId} is locked by fest administration.` },
-              { status: 403 }
-            );
-          }
-          if (cellRes.data && !cellRes.data.is_open) {
-            return NextResponse.json(
-              { error: `Registration closed: Registration for event ${eventRes.data.item_code || itemId} is locked for your institution.` },
-              { status: 403 }
-            );
-          }
+        if (deadlineEval.tier === 'upcoming') {
+          return NextResponse.json(
+            {
+              error: `Registration has not opened yet for event ${eventRes.data.item_code || itemId}.`,
+            },
+            { status: 403 }
+          );
+        }
+
+        if (isCellExplicitlyClosed || isItemLocked) {
+          return NextResponse.json(
+            { error: `Registration locked: Event ${eventRes.data.item_code || itemId} is locked.` },
+            { status: 403 }
+          );
+        }
+
+        if ((activeSetting as any)?.is_active === false) {
+          const kindLabel = eventKind === 'onstage' ? 'On-Stage' : eventKind === 'offstage' ? 'Off-Stage' : eventKind === 'screening' ? 'Screening' : eventKind === 'submission' ? 'Digital Submission' : 'General';
+          return NextResponse.json(
+            {
+              error: `Registration disabled: Registrations for ${kindLabel} events are currently disabled by administration.`,
+            },
+            { status: 403 }
+          );
+        }
+
+        if (isPastDeadline || !deadlineEval.canRegister) {
+          return NextResponse.json(
+            {
+              error: `Registration locked: Deadline passed for event ${eventRes.data.item_code || itemId}.`,
+            },
+            { status: 403 }
+          );
         }
       }
 
@@ -178,11 +221,28 @@ export async function POST(req: NextRequest) {
           ? body.chestNos.map((c: unknown) => String(c ?? '').trim()).filter(Boolean)
           : [];
 
-        const { data: dbRows, error: rpcError } = await dbClient.rpc('register_college_for_item_tx', {
-          p_item_id: itemId,
-          p_college_affl_no: collegeAfflNo,
-          p_chest_nos: chestNos,
-        });
+        let dbRows: any = null;
+        let rpcError: any = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const res = await dbClient.rpc('register_college_for_item_tx', {
+            p_item_id: itemId,
+            p_college_affl_no: collegeAfflNo,
+            p_chest_nos: chestNos,
+          });
+          dbRows = res.data;
+          rpcError = res.error;
+          if (
+            rpcError &&
+            attempt === 0 &&
+            (rpcError.message?.includes('fetch failed') ||
+              rpcError.code === 'PGRST000' ||
+              rpcError.code === '57P01')
+          ) {
+            await new Promise(r => setTimeout(r, 250));
+            continue;
+          }
+          break;
+        }
 
         if (rpcError) {
           return NextResponse.json(
@@ -205,13 +265,13 @@ export async function POST(req: NextRequest) {
           try {
             await auth.db.from('prefest_registrations').upsert(
               {
-                college_id: `col-${collegeAfflNo}`,
+                college_id: collegeRes.data.id,
                 college_affl_no: collegeAfflNo,
                 event_id: (eventRes.data as any).id,
                 event_type: eventType,
                 registration_status: 'registered',
               },
-              { onConflict: 'college_affl_no,event_id' }
+              { onConflict: 'college_id,event_id' }
             );
           } catch (pfErr) {
             console.warn('Pre-fest registration sync notice:', pfErr);
@@ -221,8 +281,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           rows: dbRows ?? [],
-          deadlineTier: tierInfo.tier,
-          fineAmount: tierInfo.fineAmount,
+          deadlineTier: deadlineEval.tier,
+          fineAmount: deadlineEval.fineAmount,
         });
       }
 

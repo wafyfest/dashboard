@@ -44,8 +44,12 @@ export default function StudentLoginPage() {
     setError(null);
     setLoading(true);
 
-    const cleanCic = cicNo.trim().replace(/^ST-|^CH-/i, '');
-    const cleanPassword = password.trim();
+    const cleanCic = cicNo
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632))
+      .trim()
+      .replace(/^ST-|^CH-/i, '');
+    const cleanPassword = password.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
 
     if (!cleanCic) {
       setError('Please enter your CIC Number.');
@@ -224,7 +228,7 @@ export default function StudentLoginPage() {
         </div>
 
         <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-[var(--text-primary)] tracking-[-0.02em] leading-tight flex items-center justify-center gap-2">
-          <span>{festSettings.fest_name}</span>
+          <span suppressHydrationWarning>{festSettings.fest_name}</span>
         </h1>
 
         {/* Arabic Kufi Calligraphic Flourish */}
@@ -392,7 +396,7 @@ export default function StudentLoginPage() {
       <footer className="mt-6 text-center text-xs text-[var(--text-muted)] relative z-10 flex flex-col items-center gap-1">
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_6px_var(--f-saffron)]" />
-          <span className="font-heading font-semibold text-[var(--text-secondary)]">
+          <span suppressHydrationWarning className="font-heading font-semibold text-[var(--text-secondary)]">
             {festSettings.fest_name}
           </span>
           <span className="text-[var(--text-muted)]">•</span>

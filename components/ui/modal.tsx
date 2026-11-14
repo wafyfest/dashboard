@@ -12,6 +12,8 @@ export interface ModalProps {
   title: string;
   description?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
+  onSubmit?: (e: React.FormEvent) => void;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
 }
 
@@ -21,6 +23,8 @@ export function Modal({
   title,
   description,
   children,
+  footer,
+  onSubmit,
   maxWidth = 'lg',
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -61,25 +65,28 @@ export function Modal({
     full: 'max-w-[95vw]',
   };
 
+  const ContentWrapper = onSubmit ? 'form' : 'div';
+
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
         className="fixed inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div
+      <ContentWrapper
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        onSubmit={onSubmit}
         className={twMerge(
           clsx(
-            'relative w-full my-auto bg-[var(--bg-elevated)] rounded-2xl shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)] border border-[var(--border-subtle)] overflow-hidden z-10 animate-in zoom-in-95 duration-150 backdrop-blur-xl',
+            'relative w-full my-auto flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[calc(100dvh-3rem)] bg-[var(--bg-elevated)] rounded-2xl shadow-elevated [box-shadow:var(--shadow-elevated),var(--glass-highlight)] border border-[var(--border-subtle)] overflow-hidden z-10 animate-in zoom-in-95 duration-150 backdrop-blur-xl',
             maxWidthStyles[maxWidth]
           )
         )}
       >
-        <div className="px-4 sm:px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-start justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
             <h3 id={titleId} className="text-base sm:text-lg font-heading font-bold text-[var(--text-primary)] tracking-tight break-words">
               {title}
@@ -97,8 +104,13 @@ export function Modal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 sm:p-6 max-h-[82vh] overflow-y-auto text-[var(--text-primary)] font-sans">{children}</div>
-      </div>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 text-[var(--text-primary)] font-sans overscroll-contain">{children}</div>
+        {footer && (
+          <div className="px-4 sm:px-6 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 backdrop-blur-md shrink-0">
+            {footer}
+          </div>
+        )}
+      </ContentWrapper>
     </div>,
     document.body
   );

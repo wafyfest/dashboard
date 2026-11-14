@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
-import { computeDeadlineSchedule } from '@/lib/utils/istDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -122,6 +121,103 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'apply_college_fine') {
+      if (auth.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: only executive admin can apply institutional fines.' }, { status: 403 });
+      }
+      const afflNo = Number(body?.afflNo);
+      const amount = Math.max(0, Number(body?.amount) || 0);
+      const reason = String(body?.reason ?? '').trim();
+      if (!afflNo || Number.isNaN(afflNo)) {
+        return NextResponse.json({ error: 'Valid college afflNo is required.' }, { status: 400 });
+      }
+
+      const { error } = await auth.db.from('colleges').update({
+        fine_status: true,
+        manual_fine_amount: amount,
+        fine_reason: reason || 'Administrative Penalty',
+      }).eq('affl_no', afflNo);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, amount, reason });
+    }
+
+    if (action === 'waive_college_all_fines') {
+      if (auth.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: only executive admin can waive institutional fines.' }, { status: 403 });
+      }
+      const afflNo = Number(body?.afflNo);
+      if (!afflNo || Number.isNaN(afflNo)) {
+        return NextResponse.json({ error: 'Valid college afflNo is required.' }, { status: 400 });
+      }
+
+      // Reset manual college fine
+      const collegeUpdate = auth.db.from('colleges').update({
+        fine_status: false,
+        manual_fine_amount: 0,
+        fine_reason: null,
+      }).eq('affl_no', afflNo);
+
+      // Waive all late registrations for this college
+      const lateUpdate = auth.db.from('late_registrations').update({
+        is_waived: true,
+        waived_at: new Date().toISOString(),
+      }).eq('college_affl_no', afflNo);
+
+      const [resCol, resLate] = await Promise.all([collegeUpdate, lateUpdate]);
+      if (resCol.error) return NextResponse.json({ error: resCol.error.message }, { status: 500 });
+      if (resLate.error) return NextResponse.json({ error: resLate.error.message }, { status: 500 });
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'toggle_late_entry_waiver') {
+      if (auth.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: only executive admin can toggle entry-level waivers.' }, { status: 403 });
+      }
+      const lateEntryId = body?.id ? String(body.id) : null;
+      const itemId = body?.itemId != null ? Number(body.itemId) : null;
+      const chestNo = body?.chestNo ? String(body.chestNo).trim() : null;
+      const collegeAfflNo = body?.collegeAfflNo != null ? Number(body.collegeAfflNo) : null;
+      const isWaived = Boolean(body?.isWaived);
+
+      let query = auth.db.from('late_registrations').update({
+        is_waived: isWaived,
+        waived_at: isWaived ? new Date().toISOString() : null,
+      });
+
+      if (lateEntryId) {
+        query = query.eq('id', lateEntryId);
+      } else if (itemId != null && chestNo) {
+        query = query.eq('item_id', itemId).eq('chest_no', chestNo);
+        if (collegeAfflNo != null) {
+          query = query.eq('college_affl_no', collegeAfflNo);
+        }
+      } else {
+        return NextResponse.json({ error: 'Entry identifier (id or itemId + chestNo) required.' }, { status: 400 });
+      }
+
+      const { data, error } = await query.select('college_affl_no').maybeSingle();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      const affl = collegeAfflNo ?? data?.college_affl_no;
+      if (affl) {
+        // Check if college still has any active (unwaived) late registrations or manual fine
+        const [activeLateRes, colRes] = await Promise.all([
+          auth.db.from('late_registrations').select('id').eq('college_affl_no', affl).eq('is_waived', false).limit(1),
+          auth.db.from('colleges').select('manual_fine_amount').eq('affl_no', affl).maybeSingle(),
+        ]);
+
+        const hasActiveLate = Boolean(activeLateRes.data && activeLateRes.data.length > 0);
+        const hasManualFine = Boolean(colRes.data && (colRes.data.manual_fine_amount || 0) > 0);
+        const shouldBeFineStatus = hasActiveLate || hasManualFine;
+
+        await auth.db.from('colleges').update({ fine_status: shouldBeFineStatus }).eq('affl_no', affl);
+      }
+
+      return NextResponse.json({ success: true, isWaived });
+    }
+
     if (action === 'clear_late_registrations') {
       if (auth.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden: only executive admin can clear fines and late registrations.' }, { status: 403 });
@@ -133,13 +229,13 @@ export async function POST(req: NextRequest) {
       const results =
         afflNo !== null && !Number.isNaN(afflNo)
           ? await Promise.all([
-              auth.db.from('late_registrations').delete().eq('college_affl_no', afflNo),
-              auth.db.from('colleges').update({ fine_status: false }).eq('affl_no', afflNo),
-            ])
+            auth.db.from('late_registrations').delete().eq('college_affl_no', afflNo),
+            auth.db.from('colleges').update({ fine_status: false }).eq('affl_no', afflNo),
+          ])
           : await Promise.all([
-              auth.db.from('late_registrations').delete().gte('college_affl_no', 0),
-              auth.db.from('colleges').update({ fine_status: false }).gte('college_affl_no', 0),
-            ]);
+            auth.db.from('late_registrations').delete().gte('college_affl_no', 0),
+            auth.db.from('colleges').update({ fine_status: false }).gte('college_affl_no', 0),
+          ]);
 
       const err = results.find(r => r.error)?.error;
       if (err) return NextResponse.json({ error: err.message }, { status: 500 });
@@ -182,15 +278,13 @@ export async function POST(req: NextRequest) {
       }
 
       const rawRegDeadline = body?.regDeadline ?? null;
-      const schedule = typeof rawRegDeadline === 'string' && rawRegDeadline
-        ? computeDeadlineSchedule(rawRegDeadline)
-        : null;
+      const rawFineDeadline = body?.fineDeadline ?? null;
 
       const { data, error } = await auth.db
         .from('events')
         .update({
-          reg_deadline: schedule ? schedule.regDeadlineIso : rawRegDeadline,
-          fine_deadline: schedule ? schedule.superFineEndIso : null,
+          reg_deadline: rawRegDeadline,
+          fine_deadline: rawFineDeadline || rawRegDeadline,
         })
         .in('item_id', itemIds)
         .select();

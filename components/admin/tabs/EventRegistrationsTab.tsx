@@ -43,7 +43,8 @@ import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
-import { formatIstDisplay, evaluateDeadlineTierAtTime } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
+import { getEventKind } from '@/lib/types/fest';
 
 interface EnrolledParticipantRow {
   id: string;
@@ -53,7 +54,7 @@ interface EnrolledParticipantRow {
   codeLetter?: string | null;
   isLate: boolean;
   fineTier?: 'fine' | 'super_fine' | 'override';
-  fineAmount?: 0 | 500 | 1000;
+  fineAmount?: number;
   registeredAt?: string;
 }
 
@@ -103,24 +104,28 @@ export function EventRegistrationsTab() {
       const lateRow = lateRegistrations.find(
         l => Number(l.item_id) === itmId && l.chest_no === r.chest_no
       );
-      const regDeadlineIso = evt?.reg_deadline || festSettings.reg_deadline;
-      const tierInfo = r.created_at ? evaluateDeadlineTierAtTime(regDeadlineIso, r.created_at) : null;
-      const isLate = Boolean(lateRow) || Boolean(tierInfo && tierInfo.tier !== 'open');
+      const kind = getEventKind(evt);
+      const deadlineSetting = festService.getEventDeadlineSetting(kind);
+      const tierInfo = r.created_at ? evaluateEventDeadlineSetting(deadlineSetting, r.created_at) : null;
+      const isLate = Boolean(lateRow) || Boolean(tierInfo && tierInfo.tier !== 'open' && tierInfo.tier !== 'upcoming');
       let fineTier: 'fine' | 'super_fine' | 'override' | undefined;
-      let fineAmount: 0 | 500 | 1000 | undefined;
+      let fineAmount: number | undefined;
       if (isLate) {
-        if (lateRow?.fine_tier === 'super_fine' || Number(lateRow?.fine_amount) === 1000) {
+        if (lateRow?.fine_tier === 'super_fine' || (lateRow?.fine_amount != null && Number(lateRow.fine_amount) >= 1000)) {
           fineTier = 'super_fine';
-          fineAmount = 1000;
-        } else if (lateRow?.fine_tier === 'fine' || Number(lateRow?.fine_amount) === 500) {
+          fineAmount = Number(lateRow?.fine_amount) || 1000;
+        } else if (lateRow?.fine_tier === 'fine' || (lateRow?.fine_amount != null && Number(lateRow.fine_amount) > 0)) {
           fineTier = 'fine';
-          fineAmount = 500;
+          fineAmount = Number(lateRow?.fine_amount) || 500;
         } else if (tierInfo && (tierInfo.tier === 'super_fine' || tierInfo.tier === 'closed')) {
           fineTier = 'super_fine';
-          fineAmount = 1000;
+          fineAmount = tierInfo.fineAmount;
         } else if (tierInfo && tierInfo.tier === 'fine') {
           fineTier = 'fine';
-          fineAmount = 500;
+          fineAmount = tierInfo.fineAmount;
+        } else if (lateRow) {
+          fineTier = (lateRow.fine_tier as any) || 'fine';
+          fineAmount = Number(lateRow.fine_amount) || 0;
         }
       }
 
@@ -861,9 +866,9 @@ export function EventRegistrationsTab() {
                                               }`}
                                             />
                                             {p.fineTier === 'super_fine'
-                                              ? 'Super Fine ₹1,000'
+                                              ? `Super Fine ₹${(p.fineAmount ?? 1000).toLocaleString('en-IN')}`
                                               : p.fineTier === 'fine'
-                                                ? 'Fine ₹500'
+                                                ? `Fine ₹${(p.fineAmount ?? 500).toLocaleString('en-IN')}`
                                                 : 'Late Entry'}
                                           </span>
                                         ) : (

@@ -128,7 +128,7 @@ export interface DeadlineSchedule {
 }
 
 /**
- * Computes the fixed 1h Fine (₹500) and 2h Super Fine (₹1,000) cutoffs from a normal deadline.
+ * Computes the late Fine and Super Fine cutoffs from a normal deadline.
  */
 export function computeDeadlineSchedule(regDeadlineIso?: string | null): DeadlineSchedule | null {
   if (!regDeadlineIso) return null;
@@ -155,10 +155,11 @@ export function computeDeadlineSchedule(regDeadlineIso?: string | null): Deadlin
  */
 export function evaluateDeadlineTierAtTime(
   regDeadlineIso?: string | null,
-  atTime: string | Date | number = Date.now()
+  atTime: string | Date | number = Date.now(),
+  customFines?: { fineAmount?: number; superFineAmount?: number }
 ): {
   tier: RegistrationDeadlineTier;
-  fineAmount: 0 | 500 | 1000;
+  fineAmount: number;
   label: string;
   schedule: DeadlineSchedule | null;
   elapsedMs: number;
@@ -171,6 +172,9 @@ export function evaluateDeadlineTierAtTime(
         ? atTime.getTime()
         : new Date(atTime).getTime();
 
+  const fineAmt = customFines?.fineAmount ?? FINE_AMOUNT_RS;
+  const superFineAmt = customFines?.superFineAmount ?? SUPER_FINE_AMOUNT_RS;
+
   if (!schedule || Number.isNaN(atMs)) {
     return { tier: 'open', fineAmount: 0, label: 'On Time', schedule, elapsedMs: 0 };
   }
@@ -181,20 +185,20 @@ export function evaluateDeadlineTierAtTime(
     return { tier: 'open', fineAmount: 0, label: 'On Time', schedule, elapsedMs: 0 };
   }
   if (atMs <= schedule.fineEndMs) {
-    return { tier: 'fine', fineAmount: FINE_AMOUNT_RS, label: 'Fine (₹500)', schedule, elapsedMs };
+    return { tier: 'fine', fineAmount: fineAmt, label: `Fine (₹${fineAmt.toLocaleString('en-IN')})`, schedule, elapsedMs };
   }
   if (atMs <= schedule.superFineEndMs) {
     return {
       tier: 'super_fine',
-      fineAmount: SUPER_FINE_AMOUNT_RS,
-      label: 'Super Fine (₹1,000)',
+      fineAmount: superFineAmt,
+      label: `Super Fine (₹${superFineAmt.toLocaleString('en-IN')})`,
       schedule,
       elapsedMs,
     };
   }
   return {
     tier: 'closed',
-    fineAmount: SUPER_FINE_AMOUNT_RS,
+    fineAmount: superFineAmt,
     label: 'Super Fine Ended (Locked)',
     schedule,
     elapsedMs,
@@ -221,10 +225,11 @@ export function formatDurationCompact(ms: number): string {
  */
 export function getDeadlineStatus(
   regDeadlineIso?: string | null,
-  _ignoredFineDeadlineIso?: string | null
+  _ignoredFineDeadlineIso?: string | null,
+  customFines?: { fineAmount?: number; superFineAmount?: number }
 ): {
   status: RegistrationDeadlineTier;
-  fineAmount: 0 | 500 | 1000;
+  fineAmount: number;
   label: string;
   badgeClass: string;
   timeRemainingText: string;
@@ -232,7 +237,7 @@ export function getDeadlineStatus(
   schedule: DeadlineSchedule | null;
 } {
   const now = Date.now();
-  const evaluated = evaluateDeadlineTierAtTime(regDeadlineIso, now);
+  const evaluated = evaluateDeadlineTierAtTime(regDeadlineIso, now, customFines);
   const schedule = evaluated.schedule;
 
   if (!schedule || evaluated.tier === 'open') {
@@ -254,10 +259,10 @@ export function getDeadlineStatus(
     const diff = schedule.fineEndMs - now;
     return {
       status: 'fine',
-      fineAmount: FINE_AMOUNT_RS,
-      label: 'Fine Period (₹500)',
+      fineAmount: evaluated.fineAmount,
+      label: `Fine Period (₹${evaluated.fineAmount.toLocaleString('en-IN')})`,
       badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-      timeRemainingText: `${formatDurationCompact(diff)} left (₹500 Fine)`,
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹${evaluated.fineAmount.toLocaleString('en-IN')} Fine)`,
       isCustom: false,
       schedule,
     };
@@ -267,10 +272,10 @@ export function getDeadlineStatus(
     const diff = schedule.superFineEndMs - now;
     return {
       status: 'super_fine',
-      fineAmount: SUPER_FINE_AMOUNT_RS,
-      label: 'Super Fine (₹1,000)',
+      fineAmount: evaluated.fineAmount,
+      label: `Super Fine (₹${evaluated.fineAmount.toLocaleString('en-IN')})`,
       badgeClass: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/25',
-      timeRemainingText: `${formatDurationCompact(diff)} left (₹1,000 Super Fine)`,
+      timeRemainingText: `${formatDurationCompact(diff)} left (₹${evaluated.fineAmount.toLocaleString('en-IN')} Super Fine)`,
       isCustom: false,
       schedule,
     };
@@ -422,10 +427,17 @@ export function evaluateEventDeadlineSetting(
 /**
  * Evaluates whether the screening link submission window is open, upcoming, or closed.
  * Uses the dedicated `link_submission_deadline` field from event_deadline_settings.
- * Falls back to fine_deadline → no_fine_deadline if link_submission_deadline is not set.
+ * Supports multi-tier schedules:
+ * 1. link_start_time (Opening window)
+ * 2. link_no_fine_deadline (Free submission cutoff)
+ * 3. link_fine_deadline + link_fine_amount (Late fine cutoff & amount)
+ * 4. link_super_fine_deadline + link_super_fine_amount (Super fine cutoff & amount)
+ * Falls back to legacy link_submission_deadline → fine_deadline → no_fine_deadline.
  */
 export interface LinkSubmissionDeadlineEvaluation {
+  tier: 'upcoming' | 'open' | 'fine' | 'super_fine' | 'closed';
   canSubmitLink: boolean;
+  fineAmount: number;
   label: string;
   badgeClass: string;
   timeRemainingText: string;
@@ -436,6 +448,13 @@ export interface LinkSubmissionDeadlineEvaluation {
 export function evaluateLinkSubmissionDeadline(
   setting?: {
     start_time?: string | null;
+    link_start_time?: string | null;
+    link_no_fine_deadline?: string | null;
+    link_fine_deadline?: string | null;
+    link_fine_amount?: number | null;
+    link_has_super_fine?: boolean;
+    link_super_fine_deadline?: string | null;
+    link_super_fine_amount?: number | null;
     link_submission_deadline?: string | null;
     fine_deadline?: string | null;
     no_fine_deadline?: string | null;
@@ -452,7 +471,9 @@ export function evaluateLinkSubmissionDeadline(
 
   if (!setting) {
     return {
+      tier: 'open',
       canSubmitLink: true,
+      fineAmount: 0,
       label: 'Link Submission Open',
       badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
       timeRemainingText: 'Always Open (no deadline set)',
@@ -464,7 +485,9 @@ export function evaluateLinkSubmissionDeadline(
   // Disabled by admin
   if (setting.is_active === false) {
     return {
+      tier: 'closed',
       canSubmitLink: false,
+      fineAmount: 0,
       label: 'Link Submission Disabled',
       badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
       timeRemainingText: 'Disabled by fest admin',
@@ -473,65 +496,98 @@ export function evaluateLinkSubmissionDeadline(
     };
   }
 
-  // Resolve the effective deadline: prefer dedicated field, fall back to fine/no_fine
-  const deadlineIso = setting.link_submission_deadline || setting.fine_deadline || setting.no_fine_deadline || null;
-  if (!deadlineIso) {
-    return {
-      canSubmitLink: true,
-      label: 'Link Submission Open',
-      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-      timeRemainingText: 'No deadline configured',
-      deadlineIso: null,
-      diffMs: 0,
-    };
-  }
-
-  const deadlineMs = new Date(deadlineIso).getTime();
-  if (Number.isNaN(deadlineMs)) {
-    return {
-      canSubmitLink: true,
-      label: 'Link Submission Open',
-      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-      timeRemainingText: 'Invalid deadline — treating as open',
-      deadlineIso,
-      diffMs: 0,
-    };
-  }
-
-  // Not yet started (before registration window opens)
-  const startMs = setting.start_time ? new Date(setting.start_time).getTime() : 0;
+  // 1. Check Link Starting Time
+  // Link submission has an independent timeline and is restricted during the registration timeline
+  const startIso = setting.link_start_time || setting.no_fine_deadline || null;
+  const startMs = startIso ? new Date(startIso).getTime() : 0;
   if (startMs > 0 && atMs < startMs) {
     const diff = startMs - atMs;
     return {
+      tier: 'upcoming',
       canSubmitLink: false,
-      label: 'Link Submission Upcoming',
+      fineAmount: 0,
+      label: 'Link Submission Restricted',
       badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-      timeRemainingText: `Opens in ${formatDurationCompact(diff)}`,
-      deadlineIso,
+      timeRemainingText: `Opens in ${formatDurationCompact(diff)} (Registration Phase)`,
+      deadlineIso: startIso,
       diffMs: diff,
     };
   }
 
-  // Still within the link submission window
-  if (atMs <= deadlineMs) {
-    const diff = deadlineMs - atMs;
+  // 2. Check Stage: Without Fine (Free submission window)
+  const noFineIso =
+    setting.link_no_fine_deadline ||
+    setting.link_submission_deadline ||
+    setting.no_fine_deadline ||
+    null;
+  const noFineMs = noFineIso ? new Date(noFineIso).getTime() : 0;
+  if (noFineMs > 0 && atMs <= noFineMs) {
+    const diff = noFineMs - atMs;
     return {
+      tier: 'open',
       canSubmitLink: true,
-      label: 'Link Submission Open',
+      fineAmount: 0,
+      label: 'Link Submission (Free)',
       badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-      timeRemainingText: `${formatDurationCompact(diff)} left to submit link`,
-      deadlineIso,
+      timeRemainingText: `${formatDurationCompact(diff)} left (Free)`,
+      deadlineIso: noFineIso,
       diffMs: diff,
     };
   }
 
-  // Past the deadline
+  // 3. Check Stage: With Late Fine
+  const fineIso =
+    setting.link_fine_deadline ||
+    setting.link_submission_deadline ||
+    setting.fine_deadline ||
+    null;
+  const fineMs = fineIso ? new Date(fineIso).getTime() : 0;
+  const fineAmt = Number(setting.link_fine_amount ?? 0);
+
+  if (fineMs > 0 && atMs <= fineMs) {
+    const diff = fineMs - atMs;
+    return {
+      tier: 'fine',
+      canSubmitLink: true,
+      fineAmount: fineAmt,
+      label: fineAmt > 0 ? `Link Submission (₹${fineAmt} Late Fine)` : 'Link Submission (Late Window)',
+      badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      timeRemainingText: `${formatDurationCompact(diff)} left ${fineAmt > 0 ? `(₹${fineAmt} Fine)` : ''}`.trim(),
+      deadlineIso: fineIso,
+      diffMs: diff,
+    };
+  }
+
+  // 4. Check Stage: Super Fine (Optional)
+  const hasSuperFine = Boolean(setting.link_has_super_fine);
+  const superFineIso = setting.link_super_fine_deadline || null;
+  const superFineMs = superFineIso ? new Date(superFineIso).getTime() : 0;
+  const superFineAmt = Number(setting.link_super_fine_amount ?? 0);
+
+  if (hasSuperFine && superFineMs > 0 && atMs <= superFineMs) {
+    const diff = superFineMs - atMs;
+    return {
+      tier: 'super_fine',
+      canSubmitLink: true,
+      fineAmount: superFineAmt,
+      label: superFineAmt > 0 ? `Link Submission (₹${superFineAmt} Super Fine)` : 'Link Submission (Super Fine Window)',
+      badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+      timeRemainingText: `${formatDurationCompact(diff)} left with Super Fine`,
+      deadlineIso: superFineIso,
+      diffMs: diff,
+    };
+  }
+
+  // 5. Past all link deadlines
+  const finalCutoffIso = hasSuperFine && superFineIso ? superFineIso : (fineIso || noFineIso || null);
   return {
+    tier: 'closed',
     canSubmitLink: false,
+    fineAmount: 0,
     label: 'Link Submission Closed',
     badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
     timeRemainingText: 'Link submission deadline has passed',
-    deadlineIso,
+    deadlineIso: finalCutoffIso,
     diffMs: 0,
   };
 }

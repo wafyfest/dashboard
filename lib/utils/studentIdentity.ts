@@ -332,6 +332,17 @@ export function registrationContainsStudent(
 ): boolean {
   if (!registration || !studentOrIdentifier) return false;
 
+  // Direct exact match on cic_no if present
+  if (registration.cic_no != null && String(registration.cic_no).trim() !== '') {
+    const regCic = String(registration.cic_no).trim();
+    if (typeof studentOrIdentifier === 'object') {
+      const stuCic = String(studentOrIdentifier.cic_no ?? studentOrIdentifier.admission_no ?? studentOrIdentifier.cic_number ?? '').trim();
+      if (stuCic && stuCic === regCic) return true;
+    } else if (String(studentOrIdentifier).trim() === regCic) {
+      return true;
+    }
+  }
+
   // Direct match on participant list if present
   if (registration.participants && registration.participants.length > 0) {
     const isMatch = registration.participants.some(p => isSameStudent(p, studentOrIdentifier));
@@ -383,7 +394,7 @@ export function normalizeRegistration(
   const college = colleges?.find(c => Number(c.affl_no) === colAffl);
 
   // Resolve main student for this registration row
-  const student = findStudentByIdentifier(students, registration.chest_no, colAffl);
+  const student = findStudentByIdentifier(students, registration.cic_no || registration.chest_no, colAffl);
 
   // Group event participant aggregation
   let participants: Student[] = [];
@@ -392,11 +403,18 @@ export function normalizeRegistration(
       r => Number(r.item_id) === itmId && Number(r.college_affl_no) === colAffl
     );
     participants = groupRows
-      .map(r => findStudentByIdentifier(students, r.chest_no, colAffl))
+      .map(r => findStudentByIdentifier(students, r.cic_no || r.chest_no, colAffl) || ({
+        id: `reg-${r.id || r.chest_no || r.cic_no}`,
+        full_name: r.chest_no ? `Chest #${r.chest_no}` : `CIC: ${r.cic_no}`,
+        name: r.chest_no ? `Chest #${r.chest_no}` : `CIC: ${r.cic_no}`,
+        chest_no: r.chest_no,
+        cic_no: r.cic_no,
+        college_affl_no: colAffl,
+      } as any))
       .filter((s): s is Student => s !== undefined);
   } else if (registration.participants && registration.participants.length > 0) {
     participants = registration.participants
-      .map(p => findStudentByIdentifier(students, p.chest_no || p.id || p.admission_no, colAffl) || p)
+      .map(p => findStudentByIdentifier(students, (p as any).cic_no || p.chest_no || p.id || p.admission_no, colAffl) || p)
       .filter((s): s is Student => s !== undefined);
   } else if (student) {
     participants = [student];
@@ -430,6 +448,8 @@ export function calculateStudentEvents(
   offstageCount: number;
   individualCount: number;
   groupCount: number;
+  generalCount: number;
+  totalFestivalEventsCount: number;
   events: Array<{ registration: Registration; item?: Item }>;
 } {
   const studentRegs = registrations.filter(r => registrationContainsStudent(r, student, allStudents));
@@ -447,6 +467,7 @@ export function calculateStudentEvents(
   let offstageCount = 0;
   let individualCount = 0;
   let groupCount = 0;
+  let generalCount = 0;
   let quotaEventsCount = 0;
 
   const events: Array<{ registration: Registration; item?: Item }> = [];
@@ -457,14 +478,27 @@ export function calculateStudentEvents(
 
     // Special Programs are exempt from student max_participation quotas
     if (item && !isSpecialEvent(item)) {
-      quotaEventsCount++;
-      if (getEffectiveStageMode(item) === 'onstage') onstageCount++;
-      else offstageCount++;
+      const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+      const itemCat = normalizeCategoryKey(item.phase || item.category);
 
-      if (item.point_type === 'group' || item.item_type === 'Group') groupCount++;
-      else individualCount++;
+      if (itemCat === 'GENERAL') {
+        generalCount++;
+      }
+
+      if (isGroup) {
+        groupCount++;
+      } else {
+        individualCount++;
+        quotaEventsCount++;
+        if (getEffectiveStageMode(item) === 'onstage') {
+          onstageCount++;
+        } else {
+          offstageCount++;
+        }
+      }
     } else if (!item) {
       quotaEventsCount++;
+      individualCount++;
     }
   });
 
@@ -474,6 +508,8 @@ export function calculateStudentEvents(
     offstageCount,
     individualCount,
     groupCount,
+    generalCount,
+    totalFestivalEventsCount: groupCount + individualCount,
     events
   };
 }
@@ -487,6 +523,7 @@ export interface QuotaCheckResult {
     offstageCount: number;
     individualCount: number;
     groupCount: number;
+    generalCount: number;
   };
   totalStats: {
     registeredEventsCount: number;
@@ -494,6 +531,7 @@ export interface QuotaCheckResult {
     offstageCount: number;
     individualCount: number;
     groupCount: number;
+    generalCount: number;
   };
   isAlreadyRegisteredInItem: boolean;
   quota?: MaxParticipation;
@@ -504,13 +542,13 @@ const DEFAULT_FALLBACK_QUOTAS: MaxParticipation[] = [
   { phase: 'Thamheediyya', off_max: 4, on_max: 3, total_max: 7, group_max: 3 },
   { phase: 'Aliya', off_max: 4, on_max: 3, total_max: 7, group_max: 4 },
   { phase: 'PG', off_max: 5, on_max: 4, total_max: 6, group_max: 4 },
-  { phase: 'General', off_max: 2, on_max: 2, total_max: 2, group_max: 2 }
+  { phase: 'General', off_max: 2, on_max: 2, total_max: 2, group_max: 3 }
 ];
 
 /**
  * Validates a student's participation quota against max_participation quotas.
- * Accurately checks onstage (on_max), offstage (off_max), group (group_max), and total (total_max).
- * Provides both totalStats (true festival-wide total) and stats (headroom excluding target item).
+ * Respects Rule 16 (Individual on_max, off_max, total_max) and Rule 17 (General category limit = 2),
+ * with group events tracked independently under group_max.
  */
 export function checkStudentQuota(
   student: Student,
@@ -553,48 +591,64 @@ export function checkStudentQuota(
   const isGroup = targetItem.point_type === 'group' || targetItem.item_type === 'Group';
   const isOnstage = getEffectiveStageMode(targetItem) === 'onstage';
   const isOffstage = !isOnstage;
+  const isGeneral = normalizeCategoryKey(targetItem.phase || targetItem.category) === 'GENERAL';
 
-  // 1. Check Onstage Limit
-  if (isOnstage && stats.onstageCount >= quota.on_max) {
-    return {
-      allowed: false,
-      reason: `Exceeds max onstage limit (${stats.onstageCount}/${quota.on_max})`,
-      stats,
-      totalStats,
-      isAlreadyRegisteredInItem,
-      quota
-    };
+  // 1. Group Events Quota Check (independent from individual limits)
+  if (isGroup) {
+    if (stats.groupCount >= quota.group_max) {
+      return {
+        allowed: false,
+        reason: `Exceeds max group limit (${stats.groupCount}/${quota.group_max})`,
+        stats,
+        totalStats,
+        isAlreadyRegisteredInItem,
+        quota
+      };
+    }
+  } else {
+    // 2. Individual Events Quota Check (Rule 16: max 3 on, max 4 off, max 7 total)
+    // 2a. Check Onstage Limit
+    if (isOnstage && stats.onstageCount >= quota.on_max) {
+      return {
+        allowed: false,
+        reason: `Exceeds max onstage limit (${stats.onstageCount}/${quota.on_max})`,
+        stats,
+        totalStats,
+        isAlreadyRegisteredInItem,
+        quota
+      };
+    }
+
+    // 2b. Check Offstage Limit
+    if (isOffstage && stats.offstageCount >= quota.off_max) {
+      return {
+        allowed: false,
+        reason: `Exceeds max offstage limit (${stats.offstageCount}/${quota.off_max})`,
+        stats,
+        totalStats,
+        isAlreadyRegisteredInItem,
+        quota
+      };
+    }
+
+    // 2c. Check Total Individual Events Limit
+    if (stats.individualCount >= quota.total_max) {
+      return {
+        allowed: false,
+        reason: `Exceeds max individual limit (${stats.individualCount}/${quota.total_max})`,
+        stats,
+        totalStats,
+        isAlreadyRegisteredInItem,
+        quota
+      };
+    }
   }
 
-  // 2. Check Offstage Limit
-  if (isOffstage && stats.offstageCount >= quota.off_max) {
+  // 3. General Category Limit (Rule 17: Maximum 2 General events)
+  if (isGeneral && stats.generalCount >= 2) {
     return {
       allowed: false,
-      reason: `Exceeds max offstage limit (${stats.offstageCount}/${quota.off_max})`,
-      stats,
-      totalStats,
-      isAlreadyRegisteredInItem,
-      quota
-    };
-  }
-
-  // 3. Check Group Limit
-  if (isGroup && stats.groupCount >= quota.group_max) {
-    return {
-      allowed: false,
-      reason: `Exceeds max group limit (${stats.groupCount}/${quota.group_max})`,
-      stats,
-      totalStats,
-      isAlreadyRegisteredInItem,
-      quota
-    };
-  }
-
-  // 4. Check Total Events Limit
-  if (stats.registeredEventsCount >= quota.total_max) {
-    return {
-      allowed: false,
-      reason: `Exceeds max total events (${stats.registeredEventsCount}/${quota.total_max})`,
+      reason: `Exceeds General category limit (${stats.generalCount}/2)`,
       stats,
       totalStats,
       isAlreadyRegisteredInItem,

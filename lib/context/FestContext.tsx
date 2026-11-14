@@ -93,6 +93,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
       if (studentSessionRaw || savedRole) {
         setIsAuthenticatedState(true);
       }
+      setFestSettings(festService.getFestSettings());
     } catch {}
   }, []);
 
@@ -160,7 +161,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
     }
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'festSettings' || e.key === 'fest_settings') {
+      if (e.key === 'festSettings' || e.key === 'fest_settings' || e.key === 'event_deadline_settings') {
         applyFreshSettings();
       }
     };
@@ -500,7 +501,7 @@ export function FestProvider({ children }: { children: ReactNode }) {
         const { createClient } = await import('@/lib/supabase/client');
         const supabase = createClient();
         if (supabase) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
         }
       } catch {
         // Proceed even if Supabase signout fails

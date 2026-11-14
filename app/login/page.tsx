@@ -220,7 +220,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-[var(--text-primary)] tracking-[-0.02em] leading-tight flex items-center justify-center gap-2">
-          <span>{festSettings.fest_name}</span>
+          <span suppressHydrationWarning>{festSettings.fest_name}</span>
         </h1>
 
         {/* Arabic Kufi Calligraphic Flourish */}

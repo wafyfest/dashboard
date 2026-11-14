@@ -17,7 +17,10 @@ import {
   Filter,
   X,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Clock,
+  Lock,
+  CheckCircle2
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -358,6 +361,37 @@ export default function CollegePortalPage() {
     return count;
   }, [filteredModalStudents, selectedStudentIds]);
 
+  // Precomputed metadata for the registration modal
+  const regModalMeta = useMemo(() => {
+    if (!selectedItemForReg) return null;
+    const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
+    const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
+    const matchingEventRegs = registrations.filter(
+      r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
+    );
+    const currentlyRegisteredStudents: Student[] = [];
+    students.forEach(s => {
+      if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
+        currentlyRegisteredStudents.push(s);
+      }
+    });
+    const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
+    const modalLockCheck = festService.isRegistrationOpen(
+      currentCollegeAfflNo || currentCollegeId,
+      selectedItemForReg.item_id || selectedItemForReg.id
+    );
+    return {
+      targetItemId,
+      minPart,
+      maxPart,
+      isOpenPart,
+      matchingEventRegs,
+      currentlyRegisteredStudents,
+      isAlreadyRegistered,
+      modalLockCheck,
+    };
+  }, [selectedItemForReg, registrations, students, currentCollegeAfflNo, currentCollegeId]);
+
   const handleOpenRegistrationModal = (item: Item) => {
     const targetItemId = Number(item.item_id || item.id);
     const matchingRegs = registrations.filter(
@@ -666,10 +700,11 @@ export default function CollegePortalPage() {
 
         {/* Modal: Event Registration with Capacity Verification */}
         <Modal
-          isOpen={isRegisterModalOpen}
+          isOpen={isRegisterModalOpen && Boolean(selectedItemForReg && regModalMeta)}
           onClose={() => setIsRegisterModalOpen(false)}
+          onSubmit={handleConfirmRegistration}
           title={
-            selectedItemForReg && registrations.some(r => Number(r.item_id) === Number(selectedItemForReg.item_id || selectedItemForReg.id))
+            regModalMeta?.isAlreadyRegistered
               ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
               : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
           }
@@ -678,31 +713,79 @@ export default function CollegePortalPage() {
               ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
               : `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg.no_of_participants} participant(s)`
           }
-          maxWidth="xl"
+          maxWidth="2xl"
+          footer={
+            regModalMeta && (
+              <div className="space-y-2.5">
+                {/* Status & Secondary Destructive Action */}
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {selectedStudentIds.size < regModalMeta.minPart ? (
+                      <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-sans font-medium text-xs">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                        <span>Need at least {regModalMeta.minPart} participant(s) selected</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-sans font-semibold text-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                        <span>Capacity verified ({selectedStudentIds.size} / {regModalMeta.isOpenPart ? 'Open' : regModalMeta.maxPart} selected)</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {regModalMeta.isAlreadyRegistered && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={isSubmittingReg}
+                      className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-heading text-xs shrink-0"
+                      onClick={() => selectedItemForReg && handleUnregisterRegistration(selectedItemForReg)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                      Remove Registration
+                    </Button>
+                  )}
+                </div>
+
+                {/* Primary Dialog Actions */}
+                <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-[var(--border-subtle)]/40">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="font-heading"
+                    disabled={isSubmittingReg}
+                    onClick={() => setIsRegisterModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="saffron"
+                    className="font-heading font-bold min-w-[140px]"
+                    disabled={
+                      isSubmittingReg ||
+                      selectedStudentIds.size < regModalMeta.minPart ||
+                      selectedStudentIds.size > regModalMeta.maxPart ||
+                      !regModalMeta.modalLockCheck.canRegister
+                    }
+                  >
+                    {isSubmittingReg
+                      ? 'Saving Registration...'
+                      : regModalMeta.isAlreadyRegistered
+                        ? 'Update Registration'
+                        : 'Save Registration'}
+                  </Button>
+                </div>
+              </div>
+            )
+          }
         >
-          {selectedItemForReg && (() => {
-            const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
-            const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
-            const matchingEventRegs = registrations.filter(
-              r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
-            );
-
-            // Resolve currently enrolled students from records
-            const currentlyRegisteredStudents: Student[] = [];
-            students.forEach(s => {
-              if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
-                currentlyRegisteredStudents.push(s);
-              }
-            });
-            const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
-
-            const modalLockCheck = festService.isRegistrationOpen(
-              currentCollegeAfflNo || currentCollegeId,
-              selectedItemForReg.item_id || selectedItemForReg.id
-            );
+          {selectedItemForReg && regModalMeta && (() => {
+            const { minPart, maxPart, isOpenPart, currentlyRegisteredStudents, isAlreadyRegistered, modalLockCheck } = regModalMeta;
 
             return (
-              <form onSubmit={handleConfirmRegistration} className="space-y-4">
+              <div className="space-y-4">
                 <div className="bg-[var(--bg-subtle)]/75 p-3.5 rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div>
                     <span className="font-heading font-semibold text-[var(--text-secondary)]">Category: </span>
@@ -770,7 +853,14 @@ export default function CollegePortalPage() {
                   </div>
                 )}
 
-                {(modalLockCheck.isFinePeriod || modalLockCheck.isSuperFinePeriod) && (
+                {!modalLockCheck.canRegister && (
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2 font-sans font-medium">
+                    <Lock className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>{modalLockCheck.reason || 'Registration is locked for this event.'}</span>
+                  </div>
+                )}
+
+                {modalLockCheck.canRegister && (modalLockCheck.isFinePeriod || modalLockCheck.isSuperFinePeriod) && (
                   <div
                     className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-sans ${modalLockCheck.isSuperFinePeriod
                       ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
@@ -780,8 +870,8 @@ export default function CollegePortalPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span>
                       {modalLockCheck.isSuperFinePeriod
-                        ? 'Super Fine Period Active: Saving this registration incurs a ₹1,000 Super Fine (1–2h past deadline).'
-                        : 'Fine Period Active: Saving this registration incurs a ₹500 Fine (within 1h past deadline).'}
+                        ? `Super Fine Period Active: Saving this registration incurs a ₹${(modalLockCheck.fineAmount || 1000).toLocaleString('en-IN')} Super Fine.`
+                        : `Fine Period Active: Saving this registration incurs a ₹${(modalLockCheck.fineAmount || 500).toLocaleString('en-IN')} Fine.`}
                     </span>
                   </div>
                 )}
@@ -796,6 +886,7 @@ export default function CollegePortalPage() {
                       placeholder="Search student name, chest no, CIC no..."
                       value={regModalSearch}
                       onChange={e => setRegModalSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                       className="w-full pl-9 pr-8 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 transition-all font-sans font-medium"
                     />
                     {regModalSearch && (
@@ -893,7 +984,7 @@ export default function CollegePortalPage() {
                     </div>
                   )}
 
-                  <div className="max-h-80 sm:max-h-96 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
+                  <div className="max-h-48 sm:max-h-56 overflow-y-auto border border-[var(--border-subtle)] rounded-xl divide-y divide-[var(--border-subtle)] bg-[var(--bg-surface)]">
                     {filteredModalStudents.length === 0 ? (
                       <div className="py-8 text-center text-xs text-[var(--text-muted)]">
                         <p className="font-heading font-semibold text-[var(--text-secondary)]">No participants match your criteria</p>
@@ -927,6 +1018,7 @@ export default function CollegePortalPage() {
                         const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
 
                         const isItemSpecial = isSpecialEvent(selectedItemForReg);
+                        const isItemGroup = selectedItemForReg.point_type === 'group' || selectedItemForReg.item_type === 'Group';
                         const itemStageMode = getEffectiveStageMode(selectedItemForReg);
                         const isItemOnstage = itemStageMode === 'onstage';
                         const isItemOffstage = !isItemOnstage;
@@ -934,11 +1026,13 @@ export default function CollegePortalPage() {
                         // Base counts across festival (consistent across all event modals)
                         const baseOn = quotaCheck.totalStats.onstageCount;
                         const baseOff = quotaCheck.totalStats.offstageCount;
-                        const baseTot = quotaCheck.totalStats.registeredEventsCount;
+                        const baseGrp = quotaCheck.totalStats.groupCount;
+                        const baseTot = quotaCheck.totalStats.individualCount;
 
                         // Dynamic numbers reflecting current selection state in this modal
                         let displayedOn = baseOn;
                         let displayedOff = baseOff;
+                        let displayedGrp = baseGrp;
                         let displayedTot = baseTot;
                         let deltaBadge: React.ReactNode = null;
 
@@ -953,9 +1047,13 @@ export default function CollegePortalPage() {
                           } else {
                             // Unchecked: will be removed on submit!
                             if (!isItemSpecial) {
-                              if (isItemOnstage) displayedOn = Math.max(0, baseOn - 1);
-                              if (isItemOffstage) displayedOff = Math.max(0, baseOff - 1);
-                              displayedTot = Math.max(0, baseTot - 1);
+                              if (isItemGroup) {
+                                displayedGrp = Math.max(0, baseGrp - 1);
+                              } else {
+                                if (isItemOnstage) displayedOn = Math.max(0, baseOn - 1);
+                                if (isItemOffstage) displayedOff = Math.max(0, baseOff - 1);
+                                displayedTot = Math.max(0, baseTot - 1);
+                              }
                             }
                             deltaBadge = (
                               <span className="ml-1 text-[10px] text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/30">
@@ -967,9 +1065,13 @@ export default function CollegePortalPage() {
                           if (isSelected) {
                             // Newly checked to add!
                             if (!isItemSpecial) {
-                              if (isItemOnstage) displayedOn = baseOn + 1;
-                              if (isItemOffstage) displayedOff = baseOff + 1;
-                              displayedTot = baseTot + 1;
+                              if (isItemGroup) {
+                                displayedGrp = baseGrp + 1;
+                              } else {
+                                if (isItemOnstage) displayedOn = baseOn + 1;
+                                if (isItemOffstage) displayedOff = baseOff + 1;
+                                displayedTot = baseTot + 1;
+                              }
                             }
                             deltaBadge = (
                               <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/30">
@@ -1028,7 +1130,7 @@ export default function CollegePortalPage() {
                                   <span>CIC: {s.admission_no || s.cic_no || s.cic_number || 'N/A'}</span>
                                   <span>•</span>
                                   <span className={`font-sans ${isSelected ? 'text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold' : 'text-[var(--text-secondary)]'}`}>
-                                    On: {displayedOn}/{quotaCheck.quota?.on_max ?? '-'} | Off: {displayedOff}/{quotaCheck.quota?.off_max ?? '-'} | Tot: {displayedTot}/{quotaCheck.quota?.total_max ?? '-'}
+                                    On: {displayedOn}/{quotaCheck.quota?.on_max ?? '-'} | Off: {displayedOff}/{quotaCheck.quota?.off_max ?? '-'} | Grp: {displayedGrp}/{quotaCheck.quota?.group_max ?? '-'} | Tot: {displayedTot}/{quotaCheck.quota?.total_max ?? '-'}
                                     {deltaBadge}
                                   </span>
                                 </div>
@@ -1044,60 +1146,7 @@ export default function CollegePortalPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--border-subtle)]">
-                  <div className="text-xs">
-                    {selectedStudentIds.size < minPart && (
-                      <span className="text-rose-600 font-sans font-medium">
-                        Need at least {minPart} participant(s).
-                      </span>
-                    )}
-                    {selectedStudentIds.size >= minPart &&
-                      selectedStudentIds.size <= maxPart && (
-                        <span className="text-emerald-600 font-sans font-semibold">Capacity verified!</span>
-                      )}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {isAlreadyRegistered && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isSubmittingReg}
-                        className="border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-heading"
-                        onClick={() => handleUnregisterRegistration(selectedItemForReg)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" />
-                        {isSubmittingReg ? 'Processing...' : 'Remove Registration'}
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="font-heading"
-                      disabled={isSubmittingReg}
-                      onClick={() => setIsRegisterModalOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      variant="saffron"
-                      className="font-heading font-bold"
-                      disabled={
-                        isSubmittingReg ||
-                        selectedStudentIds.size < minPart ||
-                        selectedStudentIds.size > maxPart ||
-                        !modalLockCheck.canRegister
-                      }
-                    >
-                      {isSubmittingReg
-                        ? 'Saving Registration...'
-                        : isAlreadyRegistered
-                          ? 'Update Registration'
-                          : 'Save Registration'}
-                    </Button>
-                  </div>
-                </div>
-              </form>
+              </div>
             );
           })()}
         </Modal>

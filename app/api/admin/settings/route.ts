@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
-import { computeDeadlineSchedule } from '@/lib/utils/istDate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,10 +20,8 @@ export async function POST(req: NextRequest) {
     const payload = { ...settings } as Record<string, unknown>;
     payload.id = 1; // Always target the singleton fest_settings row
     if (typeof payload.reg_deadline === 'string' && payload.reg_deadline) {
-      const schedule = computeDeadlineSchedule(payload.reg_deadline);
-      if (schedule) {
-        payload.reg_deadline = schedule.regDeadlineIso;
-        payload.fine_deadline = schedule.superFineEndIso;
+      if (!payload.fine_deadline) {
+        payload.fine_deadline = payload.reg_deadline;
       }
     }
 

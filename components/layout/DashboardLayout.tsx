@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   X,
   LogOut,
-  Award,
 } from 'lucide-react';
 import { useFest } from '@/lib/context/FestContext';
 import { ImportantNoticeModal } from '@/components/common/ImportantNoticeModal';
@@ -106,8 +105,8 @@ export function DashboardLayout({
 
         {/* Sidebar Header & Brand Signature */}
         <div className="flex items-center gap-3 px-2 py-3 mb-4 shrink-0 relative z-10 border-b border-[var(--border-subtle)]/60 pb-4">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-bold text-sm shadow-md shadow-amber-500/20 border border-amber-300/40 shrink-0">
-            <Award className="w-4 h-4 text-[#090d1a]" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-heading font-extrabold text-sm shadow-md shadow-amber-500/20 border border-amber-300/40 shrink-0 select-none">
+            14
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 leading-none">
@@ -115,8 +114,8 @@ export function DashboardLayout({
                 WAFY
               </span>
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] animate-pulse" />
-              <span className="text-[11px] font-bold text-[var(--f-saffron-text)] tracking-wider">
-                14TH
+              <span className="font-heading font-extrabold text-sm text-[var(--f-saffron-text)] tracking-tight">
+                FEST
               </span>
             </div>
             <span className="text-[11px] font-medium text-[var(--text-muted)] truncate mt-1">
@@ -145,8 +144,8 @@ export function DashboardLayout({
                   <button
                     onClick={() => handleNavClick(item)}
                     className={`w-full group font-nav relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none ${isActive
-                        ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/25 border border-amber-400/40'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/25 border border-amber-400/40'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                       }`}
                   >
                     <Icon
@@ -197,16 +196,18 @@ export function DashboardLayout({
         {/* Mobile Drawer Header */}
         <div className="flex items-center justify-between px-1 py-2 mb-4 shrink-0 relative z-10 border-b border-[var(--border-subtle)]/60 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-bold text-sm shadow-md shadow-amber-500/20">
-              <Award className="w-4 h-4 text-[#090d1a]" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-[#090d1a] flex items-center justify-center font-heading font-extrabold text-xs shadow-md shadow-amber-500/20 border border-amber-300/40 shrink-0 select-none">
+              14
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 leading-none">
-                <span className="font-heading font-extrabold text-sm text-[var(--text-primary)]">
+                <span className="font-heading font-extrabold text-sm text-[var(--text-primary)] tracking-tight">
                   WAFY
                 </span>
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)] animate-pulse" />
-                <span className="text-[11px] font-bold text-[var(--f-saffron-text)]">FEST</span>
+                <span className="font-heading font-extrabold text-sm text-[var(--f-saffron-text)] tracking-tight">
+                  FEST
+                </span>
               </div>
               <span className="text-[10px] font-medium text-[var(--text-muted)] mt-1 truncate">
                 {effectivePortalTitle}
@@ -243,8 +244,8 @@ export function DashboardLayout({
                     key={item.id}
                     onClick={() => handleNavClick(item)}
                     className={`w-full group font-nav relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none ${isActive
-                        ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/25 border border-amber-400/40'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                      ? 'bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-md shadow-amber-500/25 border border-amber-400/40'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                       }`}
                   >
                     <Icon

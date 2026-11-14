@@ -11,7 +11,6 @@ import {
   Users,
   UserCheck,
   Search,
-  Trash2,
   Eye,
   Phone,
   ListChecks,
@@ -19,8 +18,6 @@ import {
   AlertTriangle,
   ShieldAlert,
   ClipboardList,
-  CheckSquare,
-  Square,
   Lock,
   Unlock,
   Plus,
@@ -57,7 +54,8 @@ import {
   registrationContainsStudent,
   calculateStudentEvents
 } from '@/lib/utils/studentIdentity';
-import { formatIstDisplay, evaluateDeadlineTierAtTime, formatDurationCompact } from '@/lib/utils/istDate';
+import { formatIstDisplay, evaluateEventDeadlineSetting, formatDurationCompact } from '@/lib/utils/istDate';
+import { getEventKind } from '@/lib/types/fest';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 
 export interface LateRegistrationEntry {
@@ -72,10 +70,12 @@ export interface LateRegistrationEntry {
   reason: string;
   delayText: string;
   fineTier: 'fine' | 'super_fine' | 'override';
-  fineAmount: 0 | 500 | 1000;
+  fineAmount: number;
   isFinePeriod: boolean;
   isSuperFinePeriod: boolean;
   fineStatus: boolean;
+  isWaived: boolean;
+  waivedAt?: string | null;
 }
 
 interface CollegeRegistrationsTabProps {
@@ -98,7 +98,7 @@ export function CollegeRegistrationsTab({
   const itemMap = useMemo(() => new Map(items.map(i => [Number(i.item_id), i])), [items]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
-  const locks = useMemo(() => festService.getEntryLocks(), [refreshKey]);
+  const locks = useMemo(() => festService.getExplicitEntryLocks(), [refreshKey]);
   const schedules = useMemo(() => festService.getSchedules(), [refreshKey]);
   const registrationLogs = useMemo(() => festService.getRegistrationLogs(), [refreshKey]);
   const lateRegistrationsFromTable = useMemo(() => festService.getLateRegistrations(), [refreshKey]);
@@ -207,13 +207,8 @@ export function CollegeRegistrationsTab({
 
   // Modals State
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<Student | null>(null);
-  const [isRegModalOpen, setIsRegModalOpen] = useState(false);
-  const [selectedItemForAdminReg, setSelectedItemForAdminReg] = useState<Item | null>(null);
-  const [selectedStudentChestNosForAdminReg, setSelectedStudentChestNosForAdminReg] = useState<string[]>([]);
-  const [bypassDeadlinesForAdminReg, setBypassDeadlinesForAdminReg] = useState(true);
-  const [regModalStudentSearch, setRegModalStudentSearch] = useState('');
-  const [regModalShowAllCategories, setRegModalShowAllCategories] = useState(false);
-  const [regErrorMessage, setRegErrorMessage] = useState<string | null>(null);
+  // View-only roster modal state (admin does not register students for colleges)
+  const [viewRosterItem, setViewRosterItem] = useState<Item | null>(null);
 
   // Pre-index maps for late evaluation performance
   const collegeMap = useMemo(() => new Map(colleges.map(c => [Number(c.affl_no), c])), [colleges]);
@@ -230,8 +225,8 @@ export function CollegeRegistrationsTab({
     if (!item || !college) return null;
 
     const student =
-      findStudentByIdentifier(collegeStudents, r.chest_no) ||
-      findStudentByIdentifier(studentList, r.chest_no);
+      findStudentByIdentifier(collegeStudents, r.cic_no || r.chest_no) ||
+      findStudentByIdentifier(studentList, r.cic_no || r.chest_no);
 
     const tableRow = lateRegistrationsFromTable.find(
       l => Number(l.item_id) === Number(r.item_id) && l.chest_no === r.chest_no
@@ -239,72 +234,78 @@ export function CollegeRegistrationsTab({
 
     const logMatch = !r.created_at
       ? registrationLogs.find(
-          log =>
-            log.process === 'ADD' &&
-            Number(log.item_id) === Number(r.item_id) &&
-            Number(log.college_affl_no) === Number(r.college_affl_no) &&
-            log.chest_no === r.chest_no
-        )
+        log =>
+          log.process === 'ADD' &&
+          Number(log.item_id) === Number(r.item_id) &&
+          Number(log.college_affl_no) === Number(r.college_affl_no) &&
+          log.chest_no === r.chest_no
+      )
       : undefined;
 
     const rawTimestamp = r.created_at || logMatch?.timestamp || tableRow?.created_at;
     const regTime = rawTimestamp ? new Date(rawTimestamp) : undefined;
     const validRegTime = regTime && !Number.isNaN(regTime.getTime()) ? regTime : undefined;
 
-    const regDeadlineIso = item.reg_deadline || festSettings.reg_deadline;
-    const tierAtReg = validRegTime ? evaluateDeadlineTierAtTime(regDeadlineIso, validRegTime) : null;
-    const effectiveRegDeadline = tierAtReg?.schedule ? new Date(tierAtReg.schedule.regEndMs) : (regDeadlineIso ? new Date(regDeadlineIso) : undefined);
-    const effectiveFineDeadline = tierAtReg?.schedule ? new Date(tierAtReg.schedule.superFineEndMs) : undefined;
+    const kind = getEventKind(item);
+    const deadlineSetting = festService.getEventDeadlineSetting(kind);
+    const effectiveRegDeadline = deadlineSetting.no_fine_deadline ? new Date(deadlineSetting.no_fine_deadline) : (item.reg_deadline ? new Date(item.reg_deadline) : undefined);
+    const effectiveFineDeadline = deadlineSetting.has_super_fine && deadlineSetting.super_fine_deadline
+      ? new Date(deadlineSetting.super_fine_deadline)
+      : (deadlineSetting.fine_deadline ? new Date(deadlineSetting.fine_deadline) : undefined);
 
-    const isAfterRegDeadline = Boolean(tierAtReg && tierAtReg.tier !== 'open');
+    // Strictly check if registration timestamp was past normal deadline
+    const isAfterRegDeadline = Boolean(
+      effectiveRegDeadline &&
+      validRegTime &&
+      validRegTime.getTime() > effectiveRegDeadline.getTime()
+    );
 
-    // Precise Criteria:
-    // 1. Explicitly recorded in public.late_registrations table, OR
-    // 2. Its own registration timestamp (r.created_at or log timestamp) was strictly after the event/fest normal registration deadline
     const isLate = Boolean(tableRow) || isAfterRegDeadline;
 
     if (!isLate) return null;
 
+    const tierAtReg = validRegTime ? evaluateEventDeadlineSetting(deadlineSetting, validRegTime) : null;
+
     let fineTier: 'fine' | 'super_fine' | 'override' = 'fine';
-    let fineAmount: 0 | 500 | 1000 = 500;
+    let fineAmount: number = tierAtReg?.fineAmount ?? 500;
     let reason = tableRow?.late_reason || 'Late Registration';
     let delayText = 'Late Submission';
 
-    if (tableRow?.fine_tier === 'super_fine' || Number(tableRow?.fine_amount) === 1000) {
+    if (tableRow?.fine_tier === 'super_fine' || (tableRow?.fine_amount != null && Number(tableRow.fine_amount) >= 1000)) {
       fineTier = 'super_fine';
-      fineAmount = 1000;
-    } else if (tableRow?.fine_tier === 'fine' || Number(tableRow?.fine_amount) === 500) {
+      fineAmount = Number(tableRow?.fine_amount) || 1000;
+    } else if (tableRow?.fine_tier === 'fine' || (tableRow?.fine_amount != null && Number(tableRow.fine_amount) > 0)) {
       fineTier = 'fine';
-      fineAmount = 500;
+      fineAmount = Number(tableRow?.fine_amount) || 500;
     } else if (tierAtReg && (tierAtReg.tier === 'super_fine' || tierAtReg.tier === 'closed')) {
       fineTier = 'super_fine';
-      fineAmount = 1000;
+      fineAmount = tierAtReg.fineAmount;
     } else if (tierAtReg && tierAtReg.tier === 'fine') {
       fineTier = 'fine';
-      fineAmount = 500;
+      fineAmount = tierAtReg.fineAmount;
     } else if (college.manual_lock_override && !isAfterRegDeadline) {
       fineTier = 'override';
       fineAmount = 0;
     }
 
     if (tierAtReg && isAfterRegDeadline) {
-      delayText = `+${formatDurationCompact(tierAtReg.elapsedMs)} late`;
+      delayText = `+${formatDurationCompact(tierAtReg.diffMs)} late`;
     }
 
     if (tableRow?.late_reason) {
       reason = tableRow.late_reason;
     } else if (tierAtReg?.tier === 'fine') {
-      reason = 'Fine Period (₹500) — within 1 hr of deadline';
+      reason = `Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — within fine window`;
     } else if (tierAtReg?.tier === 'super_fine') {
-      reason = 'Super Fine Period (₹1,000) — 1 to 2 hrs after deadline';
+      reason = `Super Fine Period (₹${fineAmount.toLocaleString('en-IN')}) — super fine window`;
     } else if (tierAtReg?.tier === 'closed') {
-      reason = 'Admin Entry Past Super Fine Cutoff (₹1,000)';
+      reason = `Admin Entry Past Cutoff (₹${fineAmount.toLocaleString('en-IN')})`;
     } else if (college.fine_status) {
       reason = 'Late Fine Flagged on Institution';
       delayText = 'Fine Status Active';
     } else if (college.manual_lock_override) {
-      reason = 'Admin Override Exception';
-      delayText = 'Override Active';
+      reason = 'Admin Clearance';
+      delayText = 'Unlocked';
     }
 
     return {
@@ -322,7 +323,9 @@ export function CollegeRegistrationsTab({
       fineAmount,
       isFinePeriod: fineTier === 'fine',
       isSuperFinePeriod: fineTier === 'super_fine',
-      fineStatus: Boolean(college.fine_status)
+      fineStatus: Boolean(college.fine_status),
+      isWaived: Boolean(tableRow?.is_waived),
+      waivedAt: tableRow?.waived_at,
     };
   };
 
@@ -371,8 +374,8 @@ export function CollegeRegistrationsTab({
             if (r.item_id !== item.item_id) return false;
             if (r.chest_no && r.chest_no.toLowerCase().includes(q)) return true;
             const s =
-              findStudentByIdentifier(collegeStudents, r.chest_no) ||
-              findStudentByIdentifier(students, r.chest_no);
+              findStudentByIdentifier(collegeStudents, r.cic_no || r.chest_no) ||
+              findStudentByIdentifier(students, r.cic_no || r.chest_no);
             return s && (s.name || s.full_name || '').toLowerCase().includes(q);
           });
 
@@ -386,8 +389,8 @@ export function CollegeRegistrationsTab({
           (regModeFilter === 'submission'
             ? isSubmissionEvent(item)
             : regModeFilter === 'screening'
-            ? isScreeningEvent(item)
-            : itemMode === regModeFilter);
+              ? isScreeningEvent(item)
+              : itemMode === regModeFilter);
         const isRegistered = registeredItemIds.has(item.item_id);
         const isLateEvent = activeCollegeLateItemIds.has(Number(item.item_id));
         const matchesStatus =
@@ -406,109 +409,6 @@ export function CollegeRegistrationsTab({
 
   const categories = ['All', 'Foundation', 'Thamheediyya', 'Aliya', 'PG', 'General', 'Special', 'Special - Foundation'];
 
-  // Handlers
-  const handleOpenAdminRegModal = (item: Item, currentParticipantChestNos: string[] = []) => {
-    const resolvedKeys = currentParticipantChestNos
-      .map(idOrChest => {
-        const matched = findStudentByIdentifier(collegeStudents, idOrChest, currentColAffl);
-        return matched ? (matched.id || getRegistrationStudentKey(matched)) : idOrChest;
-      })
-      .filter(Boolean);
-    setSelectedItemForAdminReg(item);
-    setSelectedStudentChestNosForAdminReg(Array.from(new Set(resolvedKeys)));
-    setRegErrorMessage(null);
-    setRegModalStudentSearch('');
-    setRegModalShowAllCategories(false);
-    setIsRegModalOpen(true);
-  };
-
-  const handleToggleStudentSelection = (chestNo: string) => {
-    if (!selectedItemForAdminReg) return;
-    const { max } = getItemParticipantBounds(selectedItemForAdminReg);
-    const isSingle = max <= 1 && selectedItemForAdminReg.item_type === 'Single';
-
-    if (isSingle) {
-      if (selectedStudentChestNosForAdminReg.includes(chestNo)) {
-        setSelectedStudentChestNosForAdminReg([]);
-      } else {
-        setSelectedStudentChestNosForAdminReg([chestNo]);
-      }
-    } else {
-      if (selectedStudentChestNosForAdminReg.includes(chestNo)) {
-        setSelectedStudentChestNosForAdminReg(selectedStudentChestNosForAdminReg.filter(c => c !== chestNo));
-      } else {
-        if (selectedStudentChestNosForAdminReg.length >= max) {
-          setRegErrorMessage(`Maximum limit of ${max} participants reached for this event.`);
-          return;
-        }
-        setRegErrorMessage(null);
-        setSelectedStudentChestNosForAdminReg([...selectedStudentChestNosForAdminReg, chestNo]);
-      }
-    }
-  };
-
-  const handleSaveAdminReg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedItemForAdminReg) return;
-
-    if (selectedStudentChestNosForAdminReg.length === 0) {
-      setRegErrorMessage('Please select at least 1 participant, or use Unregister to remove enrollment.');
-      return;
-    }
-
-    const { min } = getItemParticipantBounds(selectedItemForAdminReg);
-    if (selectedStudentChestNosForAdminReg.length < min) {
-      setRegErrorMessage(`Requires at least ${min} participant(s). Currently selected: ${selectedStudentChestNosForAdminReg.length}.`);
-      return;
-    }
-
-    const result = await festService.registerCollegeForItem(
-      currentColAffl,
-      selectedItemForAdminReg.item_id,
-      selectedStudentChestNosForAdminReg,
-      bypassDeadlinesForAdminReg
-    );
-
-    if (!result.success) {
-      setRegErrorMessage(result.error || 'Failed to update registration');
-      return;
-    }
-
-    setIsRegModalOpen(false);
-    setSelectedItemForAdminReg(null);
-    setSelectedStudentChestNosForAdminReg([]);
-    setRegErrorMessage(null);
-    triggerRefresh();
-  };
-
-  const handleAdminUnregister = async (itemId: number, eventName: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to remove registration for "${eventName}" for ${currentCol?.name}? All enrolled participants will be removed and quotas restored.`
-      )
-    ) {
-      const res = await festService.unregisterCollegeForItem(currentColAffl, itemId);
-      if (!res.success) {
-        alert(res.error || 'Failed to unregister event');
-      } else {
-        triggerRefresh();
-      }
-    }
-  };
-
-  const handleClearCollegeRegistrations = () => {
-    if (!currentCol) return;
-    if (
-      window.confirm(
-        `⚠️ WARNING: Are you sure you want to remove ALL event registrations for ${currentCol.name} (#${currentCol.affl_no})? All enrolled students will be unassigned and quotas restored.`
-      )
-    ) {
-      const res = festService.clearAllRegistrations(currentCol.affl_no);
-      triggerRefresh();
-      alert(`Cleared ${res.count} student registration row(s) for ${currentCol.name}.`);
-    }
-  };
-
   const handleDownloadCollegePdf = () => {
     if (!currentCol) return;
 
@@ -522,8 +422,8 @@ export function CollegeRegistrationsTab({
 
       itemRegs.forEach(reg => {
         const student =
-          findStudentByIdentifier(collegeStudents, reg.chest_no) ||
-          findStudentByIdentifier(students, reg.chest_no);
+          findStudentByIdentifier(collegeStudents, reg.cic_no || reg.chest_no) ||
+          findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
 
         rows.push({
           studentName: student?.name || student?.full_name || 'Participant',
@@ -647,15 +547,15 @@ export function CollegeRegistrationsTab({
                   triggerRefresh();
                 }}
                 className="h-8 text-xs whitespace-nowrap"
-                title="Toggle manual override for this college"
+                title="Toggle lock status for this college"
               >
                 {currentCol?.manual_lock_override ? (
                   <>
-                    <Lock className="w-3.5 h-3.5 mr-1 text-rose-400" /> Revoke Override
+                    <Lock className="w-3.5 h-3.5 mr-1 text-rose-400" /> Lock
                   </>
                 ) : (
                   <>
-                    <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-500" /> Allow Override
+                    <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-500" /> Unlock
                   </>
                 )}
               </Button>
@@ -683,18 +583,6 @@ export function CollegeRegistrationsTab({
                 <FileText className="w-3.5 h-3.5 mr-1 text-amber-500" />
                 <span>Download PDF</span>
               </Button>
-
-              {registeredEventsCount > 0 && (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={handleClearCollegeRegistrations}
-                  className="h-8 text-xs text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 border-rose-500/30 whitespace-nowrap"
-                  title="Remove all event registrations for this college"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Clear
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -707,8 +595,8 @@ export function CollegeRegistrationsTab({
             type="button"
             onClick={() => setMainTab('events')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'events'
-                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               }`}
           >
             <Award className="w-3.5 h-3.5 text-amber-500" />
@@ -722,8 +610,8 @@ export function CollegeRegistrationsTab({
             type="button"
             onClick={() => setMainTab('students')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'students'
-                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               }`}
           >
             <Users className="w-3.5 h-3.5 text-purple-500" />
@@ -737,16 +625,16 @@ export function CollegeRegistrationsTab({
             type="button"
             onClick={() => setMainTab('late_registrations')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${mainTab === 'late_registrations'
-                ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+              ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
               }`}
           >
             <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>Late Registrations</span>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${activeCollegeLateEntries.length > 0
-                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
+                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)]'
                 }`}
             >
               {activeCollegeLateEntries.length}
@@ -790,10 +678,10 @@ export function CollegeRegistrationsTab({
                       type="button"
                       onClick={() => setRegStatusFilter(status)}
                       className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${regStatusFilter === status
-                          ? status === 'Late'
-                            ? 'bg-amber-500 text-[#090d1a] shadow-xs'
-                            : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        ? status === 'Late'
+                          ? 'bg-amber-500 text-[#090d1a] shadow-xs'
+                          : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
                       {status === 'All'
@@ -814,8 +702,8 @@ export function CollegeRegistrationsTab({
                       type="button"
                       onClick={() => setRegCategoryFilter(cat)}
                       className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${regCategoryFilter.toLowerCase() === cat.toLowerCase()
-                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
-                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
                       {cat}
@@ -830,8 +718,8 @@ export function CollegeRegistrationsTab({
                       type="button"
                       onClick={() => setRegModeFilter(m)}
                       className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${regModeFilter === m
-                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
-                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
                       {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : 'Off Stage'}
@@ -908,15 +796,20 @@ export function CollegeRegistrationsTab({
                       const lock = locks.find(
                         l => l.item_id === item.item_id && l.college_affl_no === currentColAffl
                       );
-                      const isUnlocked =
-                        currentCol?.manual_lock_override || (lock ? lock.is_open : !item.is_locked);
+                      const isCollegeUnlocked = Boolean(currentCol?.manual_lock_override);
+                      const isCellExplicitlyOpen = lock?.is_open === true;
+                      const isCellExplicitlyClosed = lock?.is_open === false;
+                      const isItemLocked = Boolean(item.is_locked);
+                      const isUnlocked = isCollegeUnlocked
+                        ? (!isCellExplicitlyClosed && !isItemLocked)
+                        : isCellExplicitlyOpen;
 
                       return (
                         <TableRow
                           key={item.item_id || item.id}
                           className={`border-b border-[var(--border-subtle)]/50 transition-colors ${isReg
-                              ? 'bg-[var(--bg-subtle)]/40 hover:bg-[var(--bg-subtle)]/70'
-                              : 'hover:bg-[var(--bg-subtle)]/50'
+                            ? 'bg-[var(--bg-subtle)]/40 hover:bg-[var(--bg-subtle)]/70'
+                            : 'hover:bg-[var(--bg-subtle)]/50'
                             }`}
                         >
                           <TableCell className="py-2.5 pl-4 align-middle">
@@ -961,14 +854,15 @@ export function CollegeRegistrationsTab({
                                     if (lateInfo) {
                                       return (
                                         <span
-                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${
-                                            lateInfo.fineTier === 'super_fine'
-                                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
-                                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                                          }`}
+                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${lateInfo.fineTier === 'super_fine'
+                                            ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                            }`}
                                         >
                                           <Clock className="w-2.5 h-2.5 mr-0.5" />
-                                          {lateInfo.fineTier === 'super_fine' ? 'Super Fine ₹1,000' : 'Fine ₹500'}
+                                          {lateInfo.fineTier === 'super_fine'
+                                            ? `Super Fine ₹${(lateInfo.fineAmount ?? 1000).toLocaleString('en-IN')}`
+                                            : `Fine ₹${(lateInfo.fineAmount ?? 500).toLocaleString('en-IN')}`}
                                         </span>
                                       );
                                     }
@@ -1076,30 +970,22 @@ export function CollegeRegistrationsTab({
                           </TableCell>
 
                           <TableCell className="py-2.5 pr-4 align-middle text-right whitespace-nowrap">
-                            <div className="inline-flex items-center justify-end gap-1.5">
+                            {isReg ? (
                               <Button
                                 size="xs"
-                                variant={isReg ? 'outline' : 'saffron'}
-                                onClick={() => handleOpenAdminRegModal(item, registeredChestNos)}
-                                className="h-7 px-2.5 text-xs font-semibold"
-                                title={isReg ? 'Edit student assignments for this event' : 'Register students for this event'}
+                                variant="outline"
+                                onClick={() => setViewRosterItem(item)}
+                                className="h-7 px-2.5 text-xs font-semibold cursor-pointer"
+                                title="View enrolled students"
                               >
-                                <UserCheck className="w-3.5 h-3.5 mr-1" />
-                                {isReg ? 'Roster' : 'Register'}
+                                <Eye className="w-3.5 h-3.5 mr-1 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" />
+                                View Roster
                               </Button>
-
-                              {isReg && (
-                                <Button
-                                  size="xs"
-                                  variant="destructive"
-                                  onClick={() => handleAdminUnregister(item.item_id, item.name || item.code || 'Event')}
-                                  className="h-7 w-7 p-0"
-                                  title="Remove registration for this college"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
-                            </div>
+                            ) : (
+                              <span className="text-xs text-[var(--text-muted)] italic pr-2">
+                                Not Registered
+                              </span>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -1158,8 +1044,8 @@ export function CollegeRegistrationsTab({
                         type="button"
                         onClick={() => setStudentRegStatusFilter(status)}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${studentRegStatusFilter === status
-                            ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         {status === 'All'
@@ -1178,8 +1064,8 @@ export function CollegeRegistrationsTab({
                         type="button"
                         onClick={() => setStudentCategoryFilter(cat)}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${studentCategoryFilter.toLowerCase() === cat.toLowerCase()
-                            ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
-                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         {cat}
@@ -1397,8 +1283,8 @@ export function CollegeRegistrationsTab({
 
           const matchesFine =
             lateFineFilter === 'all' ||
-            (lateFineFilter === 'fine' && entry.fineStatus) ||
-            (lateFineFilter === 'waived' && !entry.fineStatus);
+            (lateFineFilter === 'fine' && !entry.isWaived) ||
+            (lateFineFilter === 'waived' && entry.isWaived);
 
           const matchesTier =
             lateTierFilter === 'all' || entry.fineTier === lateTierFilter;
@@ -1411,8 +1297,9 @@ export function CollegeRegistrationsTab({
         const fineTierCount = sourceEntries.filter(e => e.fineTier === 'fine').length;
         const superFineTierCount = sourceEntries.filter(e => e.fineTier === 'super_fine').length;
         const totalFineAmountRs = filteredLateEntries.reduce((sum, e) => sum + e.fineAmount, 0);
-        const fineFlaggedEntriesCount = sourceEntries.filter(e => e.fineStatus).length;
-        const fineWaivedEntriesCount = sourceEntries.filter(e => !e.fineStatus).length;
+        const activeFineAmountRs = filteredLateEntries.filter(e => !e.isWaived).reduce((sum, e) => sum + e.fineAmount, 0);
+        const fineFlaggedEntriesCount = sourceEntries.filter(e => !e.isWaived).length;
+        const fineWaivedEntriesCount = sourceEntries.filter(e => e.isWaived).length;
 
         // CSV Export Handler
         const handleExportLateRegistrationsCsv = () => {
@@ -1440,7 +1327,7 @@ export function CollegeRegistrationsTab({
           ];
 
           const rows = filteredLateEntries.map((entry, idx) => {
-            const tierLabel = entry.fineTier === 'super_fine' ? 'Super Fine' : entry.fineTier === 'fine' ? 'Fine' : 'Override';
+            const tierLabel = entry.fineTier === 'super_fine' ? 'Super Fine' : entry.fineTier === 'fine' ? 'Fine' : 'Unlocked';
             return [
               idx + 1,
               entry.college.affl_no,
@@ -1459,7 +1346,7 @@ export function CollegeRegistrationsTab({
               entry.fineAmount,
               `"${entry.reason.replace(/"/g, '""')}"`,
               `"${entry.delayText.replace(/"/g, '""')}"`,
-              entry.fineStatus ? 'Fine Flagged' : 'Fine Waived'
+              entry.isWaived ? 'Fine Waived' : 'Active Pending'
             ].join(',');
           });
 
@@ -1495,7 +1382,7 @@ export function CollegeRegistrationsTab({
                     </Badge>
                   </div>
                   <p className="text-xs text-[var(--text-muted)]">
-                    Audit entries submitted after normal deadlines, during the late-fine window, or via administrative lock override.
+                    Audit entries submitted after normal deadlines, during the late-fine window, or via administrative clearance.
                   </p>
                 </div>
 
@@ -1506,8 +1393,8 @@ export function CollegeRegistrationsTab({
                       type="button"
                       onClick={() => setLateScope('current')}
                       className={`px-3 py-1 rounded-lg font-bold transition-all ${lateScope === 'current'
-                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
                       #{currentCol?.affl_no} {currentCol?.short_name} ({activeCollegeLateEntries.length})
@@ -1516,8 +1403,8 @@ export function CollegeRegistrationsTab({
                       type="button"
                       onClick={() => setLateScope('all')}
                       className={`px-3 py-1 rounded-lg font-bold transition-all ${lateScope === 'all'
-                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                        ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
                       All Institutions ({allFestLateEntries.length})
@@ -1557,19 +1444,19 @@ export function CollegeRegistrationsTab({
 
                 <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
                   <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-                    Fine (₹500) / Super Fine (₹1,000)
+                    Fine / Super Fine Breakdown
                   </span>
                   <div className="flex items-baseline gap-2 mt-1 font-mono">
                     <span className="text-sm font-black text-amber-600 dark:text-amber-400">
-                      {fineTierCount} × ₹500
+                      {fineTierCount} × Fine
                     </span>
                     <span className="text-[var(--text-muted)]">/</span>
                     <span className="text-sm font-black text-rose-600 dark:text-rose-400">
-                      {superFineTierCount} × ₹1,000
+                      {superFineTierCount} × Super Fine
                     </span>
                   </div>
                   <div className="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
-                    Filtered Total: ₹{totalFineAmountRs.toLocaleString('en-IN')} ({uniqueStudentsCount} students, {uniqueItemsCount} events)
+                    Total: ₹{totalFineAmountRs.toLocaleString('en-IN')} (Pending: ₹{activeFineAmountRs.toLocaleString('en-IN')} | Waived: ₹{(totalFineAmountRs - activeFineAmountRs).toLocaleString('en-IN')})
                   </div>
                 </div>
 
@@ -1579,17 +1466,18 @@ export function CollegeRegistrationsTab({
                       Late Fine Status
                     </span>
                     <div className="mt-1">
-                      {lateScope === 'current' ? (
-                        currentCol?.fine_status ? (
-                          <Badge variant="destructive" size="sm" className="font-bold text-[10px] px-1.5 py-0">
-                            Fine Flagged
+                      {lateScope === 'current' ? (() => {
+                        const summary = festService.getCollegeFineSummary(currentColAffl);
+                        return summary.hasActiveFine ? (
+                          <Badge variant="destructive" size="sm" className="font-bold text-[10px] px-1.5 py-0 font-mono">
+                            Pending: ₹{summary.netFine.toLocaleString('en-IN')}
                           </Badge>
                         ) : (
                           <Badge variant="success" size="sm" className="font-bold text-[10px] px-1.5 py-0">
-                            Fine Waived
+                            Fine Clear
                           </Badge>
-                        )
-                      ) : (
+                        );
+                      })() : (
                         <span className="font-mono font-bold text-xs text-[var(--text-primary)]">
                           {colleges.filter(c => c.fine_status).length} flagged
                         </span>
@@ -1597,19 +1485,25 @@ export function CollegeRegistrationsTab({
                     </div>
                   </div>
 
-                  {lateScope === 'current' && (
-                    <Button
-                      size="xs"
-                      variant={currentCol?.fine_status ? 'outline' : 'secondary'}
-                      onClick={() => {
-                        festService.toggleCollegeFine(currentCol.affl_no);
-                        triggerRefresh();
-                      }}
-                      className="h-7 text-[11px] px-2 font-semibold"
-                    >
-                      {currentCol?.fine_status ? 'Waive' : 'Apply'}
-                    </Button>
-                  )}
+                  {lateScope === 'current' && (() => {
+                    const summary = festService.getCollegeFineSummary(currentColAffl);
+                    return summary.hasActiveFine ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={async () => {
+                          if (window.confirm(`Waive all pending fines (₹${summary.netFine.toLocaleString('en-IN')}) for ${currentCol?.name}?`)) {
+                            await festService.waiveCollegeAllFines(currentColAffl);
+                            triggerRefresh();
+                          }
+                        }}
+                        className="h-7 text-[11px] px-2 font-semibold border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                        title="Waive all late entry and manual fines for this college"
+                      >
+                        Waive All
+                      </Button>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             </Card>
@@ -1636,17 +1530,17 @@ export function CollegeRegistrationsTab({
                         type="button"
                         onClick={() => setLateTierFilter(tier)}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${lateTierFilter === tier
-                            ? tier === 'super_fine'
-                              ? 'bg-rose-500 text-white shadow-xs'
-                              : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          ? tier === 'super_fine'
+                            ? 'bg-rose-500 text-white shadow-xs'
+                            : 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         {tier === 'all'
                           ? `All Tiers (${sourceEntries.length})`
                           : tier === 'fine'
-                            ? `Fine ₹500 (${fineTierCount})`
-                            : `Super Fine ₹1,000 (${superFineTierCount})`}
+                            ? `Fine (${fineTierCount})`
+                            : `Super Fine (${superFineTierCount})`}
                       </button>
                     ))}
                   </div>
@@ -1658,8 +1552,8 @@ export function CollegeRegistrationsTab({
                         type="button"
                         onClick={() => setLateFineFilter(fStatus)}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all ${lateFineFilter === fStatus
-                            ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         {fStatus === 'all'
@@ -1678,8 +1572,8 @@ export function CollegeRegistrationsTab({
                         type="button"
                         onClick={() => setLateCategoryFilter(cat)}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-all border ${lateCategoryFilter.toLowerCase() === cat.toLowerCase()
-                            ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
-                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--f-saffron)] text-[#090d1a] border-transparent shadow-xs'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         {cat}
@@ -1854,26 +1748,30 @@ export function CollegeRegistrationsTab({
                             <TableCell className="py-2.5 align-middle">
                               <div className="space-y-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {entry.fineTier === 'super_fine' ? (
+                                  {entry.isWaived ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                      <del className="opacity-60 mr-1">₹{entry.fineAmount.toLocaleString('en-IN')}</del> Waived
+                                    </span>
+                                  ) : entry.fineTier === 'super_fine' ? (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                                      Super Fine • ₹1,000
+                                      Super Fine • ₹{entry.fineAmount.toLocaleString('en-IN')}
                                     </span>
                                   ) : entry.fineTier === 'fine' ? (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                                      Fine • ₹500
+                                      Fine • ₹{entry.fineAmount.toLocaleString('en-IN')}
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-                                      Override • ₹0
+                                      Unlocked • ₹0
                                     </span>
                                   )}
-                                  {entry.fineStatus ? (
-                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                                      Fine Flagged
+                                  {entry.isWaived ? (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                      Waived / Free
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-                                      Fine Waived
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                      Pending
                                     </span>
                                   )}
                                 </div>
@@ -1891,7 +1789,7 @@ export function CollegeRegistrationsTab({
                                     size="xs"
                                     variant="outline"
                                     onClick={() => setSelectedStudentForDetails(stu)}
-                                    className="h-7 w-7 p-0 hover:bg-[var(--bg-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)]"
+                                    className="h-7 w-7 p-0 hover:bg-[var(--bg-subtle)] hover:text-[var(--f-saffron-text)] dark:hover:text-[var(--f-saffron)] cursor-pointer"
                                     title={`View profile for ${stu.name}`}
                                   >
                                     <Eye className="w-3.5 h-3.5" />
@@ -1900,35 +1798,35 @@ export function CollegeRegistrationsTab({
 
                                 <Button
                                   size="xs"
-                                  variant="saffron"
-                                  onClick={() => handleOpenAdminRegModal(itm, [entry.registration.chest_no])}
-                                  className="h-7 px-2 text-xs font-semibold"
-                                  title="Manage event roster"
+                                  variant="outline"
+                                  onClick={() => setViewRosterItem(itm)}
+                                  className="h-7 px-2 text-xs font-semibold cursor-pointer"
+                                  title="View event roster"
                                 >
-                                  <UserCheck className="w-3.5 h-3.5 mr-1" /> Roster
+                                  <Eye className="w-3.5 h-3.5 mr-1 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" /> Roster
                                 </Button>
 
+                                {/* Per-entry waiver toggle */}
                                 <Button
                                   size="xs"
-                                  variant={entry.fineStatus ? 'outline' : 'secondary'}
-                                  onClick={() => {
-                                    festService.toggleCollegeFine(col.affl_no);
+                                  variant={entry.isWaived ? 'secondary' : 'outline'}
+                                  onClick={async () => {
+                                    await festService.toggleLateRegistrationWaiver(
+                                      entry.id,
+                                      !entry.isWaived,
+                                      col.affl_no,
+                                      itm.item_id,
+                                      entry.registration.chest_no
+                                    );
                                     triggerRefresh();
                                   }}
-                                  className="h-7 px-2 text-[11px]"
-                                  title={entry.fineStatus ? 'Waive late registration fine' : 'Apply late registration fine'}
+                                  className={`h-7 px-2 text-[11px] font-semibold cursor-pointer ${entry.isWaived
+                                    ? 'text-[var(--text-secondary)] hover:text-rose-500'
+                                    : 'border-rose-400/40 text-rose-500 hover:bg-rose-500/10'
+                                    }`}
+                                  title={entry.isWaived ? 'Reinstate fine for this entry' : 'Waive fine for this specific entry'}
                                 >
-                                  {entry.fineStatus ? 'Waive' : 'Fine'}
-                                </Button>
-
-                                <Button
-                                  size="xs"
-                                  variant="destructive"
-                                  onClick={() => handleAdminUnregister(itm.item_id, itm.name || itm.code || 'Event')}
-                                  className="h-7 w-7 p-0"
-                                  title="Remove registration"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  {entry.isWaived ? 'Reinstate' : `Waive (₹${entry.fineAmount})`}
                                 </Button>
                               </div>
                             </TableCell>
@@ -1944,170 +1842,69 @@ export function CollegeRegistrationsTab({
         );
       })()}
 
-      {/* 7. ADMIN REGISTRATION MODAL */}
-      {selectedItemForAdminReg && (
+      {/* 7. VIEW-ONLY ROSTER MODAL (Admin Audit View) */}
+      {viewRosterItem && (
         <Modal
-          isOpen={isRegModalOpen}
-          onClose={() => setIsRegModalOpen(false)}
-          title={`Manage Roster: ${selectedItemForAdminReg.name}`}
-          description={`College #${currentCol?.affl_no} ${currentCol?.name} • Code: ${selectedItemForAdminReg.code}`}
-          maxWidth="xl"
+          isOpen={Boolean(viewRosterItem)}
+          onClose={() => setViewRosterItem(null)}
+          title={`Enrolled Roster: ${viewRosterItem.name || viewRosterItem.code}`}
+          description={`College #${currentCol?.affl_no} ${currentCol?.name} • Code: ${viewRosterItem.code || viewRosterItem.item_code}`}
+          maxWidth="lg"
         >
           {(() => {
-            const { min, max, isOpen } = getItemParticipantBounds(selectedItemForAdminReg);
-
-            const filteredCollegeStudents = collegeStudents.filter(stu => {
-              const stuName = stu.name || stu.full_name || '';
-              const stuChest = stu.chest_no || '';
-              const stuAdm = stu.admission_no != null ? String(stu.admission_no) : '';
-              const matchesSearch =
-                stuName.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
-                stuChest.toLowerCase().includes(regModalStudentSearch.toLowerCase()) ||
-                stuAdm.toLowerCase().includes(regModalStudentSearch.toLowerCase());
-              const itemPhase =
-                selectedItemForAdminReg.phase ||
-                selectedItemForAdminReg.category ||
-                '';
-              const matchesCategory =
-                regModalShowAllCategories ||
-                isCategoryMatching(stu.phase || stu.category, itemPhase);
-              return matchesSearch && matchesCategory;
+            const regsForItem = registrations.filter(
+              r => r.item_id === viewRosterItem.item_id && Number(r.college_affl_no) === currentColAffl
+            );
+            const enrolledStudents: Student[] = [];
+            regsForItem.forEach(r => {
+              const pList = r.participants && r.participants.length > 0
+                ? r.participants
+                : (r.chest_no ? [{ chest_no: r.chest_no }] : []);
+              pList.forEach((p: any) => {
+                const s = findStudentByIdentifier(collegeStudents, p.id || p.chest_no || p.admission_no, currentColAffl);
+                if (s && !enrolledStudents.some(es => es.id === s.id)) {
+                  enrolledStudents.push(s);
+                }
+              });
             });
 
-            const lock = locks.find(
-              l => l.item_id === selectedItemForAdminReg.item_id && l.college_affl_no === currentColAffl
-            );
-            const isUnlocked =
-              currentCol?.manual_lock_override || (lock ? lock.is_open : !selectedItemForAdminReg.is_locked);
-
             return (
-              <form onSubmit={handleSaveAdminReg} className="space-y-4">
-                {/* Item & College Identity banner */}
+              <div className="space-y-4">
                 <div className="p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <CategoryBadge category={selectedItemForAdminReg.phase || selectedItemForAdminReg.category} />
-                    <Badge variant={selectedItemForAdminReg.item_type === 'Single' ? 'default' : 'purple'} size="sm">
-                      {selectedItemForAdminReg.item_type}
+                    <CategoryBadge category={viewRosterItem.phase || viewRosterItem.category} />
+                    <Badge variant={viewRosterItem.item_type === 'Single' ? 'default' : 'purple'} size="sm">
+                      {viewRosterItem.item_type}
                     </Badge>
-                    <span className="text-[var(--text-secondary)] font-medium">
-                      Capacity: <strong>{isOpen ? 'Open (Min 1)' : min === max ? min : `${min} - ${max}`}</strong> participant(s)
-                    </span>
+                    <ItemModeBadge mode={viewRosterItem.mode} />
                   </div>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <span className="text-[var(--text-muted)]">Lock:</span>
-                    {isUnlocked ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <Unlock className="w-3 h-3" /> Open
-                      </span>
-                    ) : (
-                      <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                        <Lock className="w-3 h-3" /> Locked
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[var(--text-secondary)] font-mono">
+                    Total Enrolled: <strong className="text-[var(--text-primary)]">{enrolledStudents.length}</strong>
+                  </span>
                 </div>
 
-                {/* Admin Override Checkbox */}
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
-                  <input
-                    type="checkbox"
-                    id="bypassDeadlinesCheckbox"
-                    checked={bypassDeadlinesForAdminReg}
-                    onChange={e => setBypassDeadlinesForAdminReg(e.target.checked)}
-                    className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4 cursor-pointer"
-                  />
-                  <label htmlFor="bypassDeadlinesCheckbox" className="text-amber-800 dark:text-amber-300 cursor-pointer font-medium">
-                    <strong>Admin Authority Override:</strong> Bypass registration deadlines, late-fine gates, and individual lock states.
-                  </label>
-                </div>
-
-                {/* Student Filter Toolbar */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-[var(--text-primary)]">
-                    <span>Select Students from College Roster ({collegeStudents.length} available)</span>
-                    <span className="font-mono text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-bold">
-                      Selected: {selectedStudentChestNosForAdminReg.length} / {isOpen ? 'Open' : min === max ? min : `${min}-${max}`}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Search students by name or chest no..."
-                        value={regModalStudentSearch}
-                        onChange={e => setRegModalStudentSearch(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-medium transition-all"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setRegModalShowAllCategories(!regModalShowAllCategories)}
-                      className={`px-2 py-1.5 text-[11px] rounded-lg font-medium border transition-colors whitespace-nowrap ${regModalShowAllCategories
-                          ? 'bg-amber-500/15 border-amber-500/30 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-semibold'
-                          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        }`}
-                    >
-                      {regModalShowAllCategories
-                        ? 'All Categories (Showing All)'
-                        : `Filter: ${selectedItemForAdminReg.phase || selectedItemForAdminReg.category} eligible`}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Student Selection List */}
-                <div className="max-h-60 overflow-y-auto space-y-1.5 p-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
-                  {filteredCollegeStudents.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-[var(--text-muted)]">
-                      No students found matching current filters.
-                      {!regModalShowAllCategories && (
-                        <button
-                          type="button"
-                          onClick={() => setRegModalShowAllCategories(true)}
-                          className="block mx-auto mt-2 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:underline font-semibold"
-                        >
-                          Show students from all categories
-                        </button>
-                      )}
+                <div className="max-h-80 overflow-y-auto space-y-2 p-1">
+                  {enrolledStudents.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] rounded-xl">
+                      No enrolled participants found for this event.
                     </div>
                   ) : (
-                    filteredCollegeStudents.map(student => {
+                    enrolledStudents.map((student, idx) => {
                       const chestNo = getCanonicalChestNo(student);
-                      const selectionKey = student.id || getRegistrationStudentKey(student);
-                      const isSelected =
-                        selectedStudentChestNosForAdminReg.includes(selectionKey) ||
-                        (chestNo !== '—' && selectedStudentChestNosForAdminReg.includes(chestNo));
-                      const studentRegCount = calculateStudentEvents(student, registrations, items).registeredEventsCount;
-
                       return (
                         <div
-                          key={selectionKey}
-                          onClick={() => handleToggleStudentSelection(selectionKey)}
-                          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${isSelected
-                              ? 'bg-amber-500/10 border-amber-500/40 text-[var(--text-primary)]'
-                              : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
-                            }`}
+                          key={student.id || idx}
+                          className="flex items-center justify-between p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <div className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 fill-amber-500/20 text-amber-500" />
-                              ) : (
-                                <Square className="w-4 h-4 text-[var(--text-muted)]" />
-                              )}
-                            </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                              {chestNo !== '—' ? `#${chestNo}` : `CIC:${student.cic_no || student.admission_no}`}
+                            </span>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
-                                  {chestNo !== '—' ? `#${chestNo}` : `CIC ${student.cic_no || student.admission_no || '—'}`}
-                                </span>
-                                <span className="text-xs font-semibold text-[var(--text-primary)]">
-                                  {student.name}
-                                </span>
+                              <div className="font-semibold text-sm text-[var(--text-primary)]">
+                                {student.name || student.full_name}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)] mt-0.5 font-mono">
+                              <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] mt-0.5 font-mono">
                                 <span>Class: {student.class || 'N/A'}</span>
                                 <span>•</span>
                                 <span>Phase: {student.phase || student.category}</span>
@@ -2116,51 +1913,23 @@ export function CollegeRegistrationsTab({
                               </div>
                             </div>
                           </div>
-
-                          <div className="text-right">
-                            <span className="text-[11px] font-mono text-[var(--text-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
-                              {studentRegCount} event{studentRegCount === 1 ? '' : 's'}
-                            </span>
-                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
 
-                {/* Error Message Alert */}
-                {regErrorMessage && (
-                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
-                    <span>{regErrorMessage}</span>
-                  </div>
-                )}
-
-                {/* Form Actions */}
-                <div className="pt-2 flex items-center justify-between border-t border-[var(--border-subtle)]">
+                <div className="pt-2 flex justify-end border-t border-[var(--border-subtle)]">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setIsRegModalOpen(false);
-                      setSelectedItemForAdminReg(null);
-                      setRegErrorMessage(null);
-                    }}
+                    onClick={() => setViewRosterItem(null)}
                   >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="saffron"
-                    disabled={selectedStudentChestNosForAdminReg.length === 0}
-                    className="font-semibold"
-                  >
-                    Save Registration & Update Quotas
+                    Close
                   </Button>
                 </div>
-              </form>
+              </div>
             );
           })()}
         </Modal>
@@ -2191,12 +1960,15 @@ export function CollegeRegistrationsTab({
               quotaLimits.find(q => normalizeCategoryKey(q.phase) === stuCatKey) ||
               quotaLimits.find(q => normalizeCategoryKey(q.phase) === 'GENERAL') ||
               quotaLimits[0];
-            const totalMax = quota?.total_max || 4;
-            const stageMax = quota?.on_max || 2;
-            const offstageMax = quota?.off_max || 2;
+            const totalMax = quota?.total_max || 7;
+            const stageMax = quota?.on_max || 3;
+            const offstageMax = quota?.off_max || 4;
+            const groupMax = quota?.group_max || 4;
 
             const onstageCount = stats.onstageCount;
             const offstageCount = stats.offstageCount;
+            const groupCount = stats.groupCount;
+            const individualCount = stats.individualCount;
 
             return (
               <div className="space-y-4">
@@ -2230,11 +2002,11 @@ export function CollegeRegistrationsTab({
                 </div>
 
                 {/* Quota & Participation Stats */}
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                   <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
-                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Total Events</div>
+                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Ind. Total</div>
                     <div className="text-base font-black text-[var(--text-primary)] mt-0.5 font-mono">
-                      {stuItems.length} <span className="text-xs font-normal text-[var(--text-muted)]">/ {totalMax}</span>
+                      {individualCount} <span className="text-xs font-normal text-[var(--text-muted)]">/ {totalMax}</span>
                     </div>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
@@ -2247,6 +2019,12 @@ export function CollegeRegistrationsTab({
                     <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Offstage</div>
                     <div className="text-base font-black text-purple-600 dark:text-purple-400 mt-0.5 font-mono">
                       {offstageCount} <span className="text-xs font-normal text-[var(--text-muted)]">/ {offstageMax}</span>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] [box-shadow:var(--shadow-card),var(--glass-highlight)]">
+                    <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Group</div>
+                    <div className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5 font-mono">
+                      {groupCount} <span className="text-xs font-normal text-[var(--text-muted)]">/ {groupMax}</span>
                     </div>
                   </div>
                 </div>

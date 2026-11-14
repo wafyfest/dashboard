@@ -37,7 +37,6 @@ import {
 } from 'lucide-react';
 import { Item, College, ItemType, StudentCategory, EntryLock, Student, Result } from '@/lib/types/fest';
 import { LocksMatrixTab } from '../admin/tabs/LocksMatrixTab';
-import { SettingsTab } from '../admin/tabs/SettingsTab';
 import { EventDeadlinesTab } from '../admin/tabs/EventDeadlinesTab';
 import { EventsCatalogTab } from '../admin/tabs/EventsCatalogTab';
 import { CollegesTab } from '../admin/tabs/CollegesTab';
@@ -135,10 +134,6 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
   const renderCollegesCard = (hideMetrics = false) => (
     <CollegesTab
       hideMetrics={hideMetrics}
-      onManageRegistrations={(afflNo) => {
-        setSelectedCollegeAfflForReg(afflNo);
-        setActiveTab('college_registrations');
-      }}
       onOpenMatrix={() => setActiveTab('locks_matrix')}
     />
   );
@@ -305,7 +300,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
               </CardContent>
             </Card>
 
-            {/* Colleges & Overrides Section */}
+            {/* College Controls Section */}
             {renderCollegesCard(true)}
           </div>
         </div>
@@ -331,18 +326,18 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
       {/* 3.0. PRE-FEST EVENT CATALOG & DEADLINES (IN SETUP) */}
       {(activeTab === 'prefest_setup' || activeTab === 'prefest_events' || activeTab === 'special_events') && (
-        <PreFestEventsTab mode="setup" />
+        <PreFestEventsTab mode="setup" onNavigateTab={(tab) => setActiveTab(tab as AdminTab)} />
       )}
 
       {/* 3.0.1. PRE-FEST REGISTRATIONS & SUBMISSIONS (UNDER REGISTRATIONS) */}
       {activeTab === 'prefest_registrations' && (
-        <PreFestEventsTab mode="registrations" />
+        <PreFestEventsTab mode="registrations" onNavigateTab={(tab) => setActiveTab(tab as AdminTab)} />
       )}
 
       {/* 3.1. EVENT-WISE ALL COLLEGES REGISTRATIONS TAB */}
       {activeTab === 'event_registrations' && <EventRegistrationsTab />}
 
-      {/* 4. COLLEGES & OVERRIDES TAB */}
+      {/* 4. COLLEGE CONTROLS TAB */}
       {activeTab === 'colleges' && renderCollegesCard()}
 
       {/* 4.1. COLLEGE-WISE EVENT REGISTRATIONS TAB */}

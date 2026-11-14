@@ -33,7 +33,8 @@ import {
   Student,
   SpecialEventType,
   isSubmissionEvent,
-  isScreeningEvent
+  isScreeningEvent,
+  getItemParticipantBounds
 } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import {
@@ -317,49 +318,31 @@ export function PreFestEventsCollegeTab({
 
   return (
     <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)]">
-      <CardHeader className="flex flex-col gap-4 pb-4">
-        {/* ROW 1: Title & Progress Box matching Event Registration */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
-              </span>
-              <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
-                Pre-Fest Events Portal
-              </CardTitle>
-            </div>
-            <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
-              Screening preliminary videos and digital file submissions with embedded YouTube review
-            </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
+            </span>
+            <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
+              Pre-Fest Registration
+            </CardTitle>
+            <Badge variant="saffron" className="font-mono font-bold">
+              {registeredCount} / {sectionEvents.length} Enrolled ({sectionEvents.length > 0 ? Math.round((registeredCount / sectionEvents.length) * 100) : 0}%)
+            </Badge>
+            <Badge variant="outline" className="font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 font-bold">
+              {submittedLinksCount} / {registeredCount} Links
+            </Badge>
           </div>
-
-          {/* Progress / Stats Card */}
-          <div className="flex items-center gap-3 bg-[var(--bg-subtle)]/70 border border-[var(--border-subtle)] rounded-2xl px-3.5 py-2 shrink-0">
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-heading font-semibold">
-                Progress
-              </div>
-              <div className="text-xs font-mono font-bold text-[var(--text-primary)]">
-                <span className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">{registeredCount}</span> / {sectionEvents.length} Events
-              </div>
-              <div className="text-[10px] font-mono text-[var(--text-muted)] mt-0.5">
-                <span className="text-emerald-500 font-bold">{submittedLinksCount}</span> / {registeredCount} Links Uploaded
-              </div>
-            </div>
-            <div className="w-12 h-12 relative flex items-center justify-center shrink-0 border-l border-[var(--border-subtle)] pl-3">
-              <span className="font-mono text-xs font-extrabold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
-                {sectionEvents.length > 0 ? Math.round((registeredCount / sectionEvents.length) * 100) : 0}%
-              </span>
-            </div>
-          </div>
+          <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
+            Screening preliminary videos and digital file submissions with embedded YouTube review
+          </CardDescription>
         </div>
 
-        {/* ROW 2: Section Switcher & Status Badges */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 border-t border-[var(--border-subtle)]">
-          {/* Section Switcher (Screening vs Submission) */}
-          <div className="inline-flex p-1 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] shrink-0">
+        {/* Right side: Segmented Section Switcher + Refresh Button */}
+        <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="inline-flex p-1 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]">
             <button
               type="button"
               onClick={() => setActiveSection('SCREENING')}
@@ -369,7 +352,7 @@ export function PreFestEventsCollegeTab({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Screening Events ({items.filter(e => isScreeningEvent(e) || e.is_screening || (e.mode as string) === 'screening').length})
+              Screening ({items.filter(e => isScreeningEvent(e) || e.is_screening || (e.mode as string) === 'screening').length})
             </button>
             <button
               type="button"
@@ -380,32 +363,54 @@ export function PreFestEventsCollegeTab({
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Submission Events ({items.filter(e => isSubmissionEvent(e) || e.is_submission || (e.mode as string) === 'submission').length})
+              Submission ({items.filter(e => isSubmissionEvent(e) || e.is_submission || (e.mode as string) === 'submission').length})
             </button>
           </div>
 
-          {/* Schedule Status Badges */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-2 ${scheduleStatus.badgeClass}`}>
-              <span className="font-bold uppercase tracking-wider text-[9.5px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-sans">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              triggerRefresh();
+              loadPreFestData();
+              onRefresh?.();
+            }}
+            className="h-8 px-2.5 rounded-xl cursor-pointer"
+            title="Refresh Pre-Fest Events"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4 pt-4">
+        {/* Schedule & Deadline Badges */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--bg-subtle)]/60 border border-[var(--border-subtle)]">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs font-mono">
+            <div className={`px-2.5 py-1 rounded-lg border flex items-center gap-2 ${scheduleStatus.badgeClass}`}>
+              <span className="font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-sans">
                 Enrollment
               </span>
               <span className="font-semibold">{scheduleStatus.label}</span>
               <span className="text-[11px] opacity-75 font-sans">({scheduleStatus.timeRemainingText})</span>
             </div>
 
-            <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-2 ${linkScheduleStatus.badgeClass}`}>
-              <span className="font-bold uppercase tracking-wider text-[9.5px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-sans">
+            <div className={`px-2.5 py-1 rounded-lg border flex items-center gap-2 ${linkScheduleStatus.badgeClass}`}>
+              <span className="font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-sans">
                 Link Submission
               </span>
               <span className="font-semibold">{linkScheduleStatus.label}</span>
               <span className="text-[11px] opacity-75 font-sans">({linkScheduleStatus.timeRemainingText})</span>
             </div>
           </div>
+
+          <div className="text-xs font-sans text-[var(--text-secondary)]">
+            Viewing: <strong className="text-[var(--text-primary)] font-heading">{activeSection === 'SCREENING' ? 'Screening Events' : 'Digital Submissions'}</strong>
+          </div>
         </div>
 
-        {/* ROW 3: Filter & Search Toolbar matching Event Registration Tab */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1 border-t border-[var(--border-subtle)]">
+        {/* Full-width Filters Toolbar matching all other tabs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 p-3 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
           {/* Search Input */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -474,9 +479,6 @@ export function PreFestEventsCollegeTab({
             <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
         {/* Pending Links Notification Banner */}
         {pendingLinksCount > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs">
@@ -545,15 +547,25 @@ export function PreFestEventsCollegeTab({
                 matchingRegs.forEach(reg => {
                   if (reg.participants && reg.participants.length > 0) {
                     reg.participants.forEach(p => {
-                      const found = findStudentByIdentifier(students, p.id || p.chest_no || p.admission_no || '', currentCollegeAfflNo);
-                      if (found && !rosterParticipants.some(rp => rp.id === found.id)) rosterParticipants.push(found);
-                      else if (p && !rosterParticipants.some(rp => rp.id === p.id)) rosterParticipants.push(p);
+                      const found = findStudentByIdentifier(students, (p as any).cic_no || p.chest_no || p.admission_no || p.id || '', currentCollegeAfflNo);
+                      const candidate = found || p;
+                      const cKey = candidate.id || (candidate as any).cic_no || candidate.chest_no;
+                      if (!rosterParticipants.some(rp => (rp.id && rp.id === cKey) || (rp.cic_no && (candidate as any).cic_no && rp.cic_no === (candidate as any).cic_no) || (rp.chest_no && candidate.chest_no && rp.chest_no === candidate.chest_no))) {
+                        rosterParticipants.push(candidate);
+                      }
                     });
-                  } else if (reg.student) {
-                    if (!rosterParticipants.some(rp => rp.id === reg.student!.id)) rosterParticipants.push(reg.student);
-                  } else if (reg.chest_no) {
-                    const found = findStudentByIdentifier(students, reg.chest_no || '', currentCollegeAfflNo);
-                    if (found && !rosterParticipants.some(rp => rp.id === found.id)) rosterParticipants.push(found);
+                  } else {
+                    const found = findStudentByIdentifier(students, reg.cic_no || reg.chest_no || '', currentCollegeAfflNo);
+                    const candidate = found || reg.student || ({
+                      id: `reg-${reg.id || reg.chest_no || reg.cic_no}`,
+                      full_name: reg.chest_no ? `Chest #${reg.chest_no}` : (reg.cic_no ? `CIC: ${reg.cic_no}` : 'Participant'),
+                      name: reg.chest_no ? `Chest #${reg.chest_no}` : (reg.cic_no ? `CIC: ${reg.cic_no}` : 'Participant'),
+                      chest_no: reg.chest_no,
+                      cic_no: reg.cic_no,
+                    } as any);
+                    if (!rosterParticipants.some(rp => (rp.id && rp.id === candidate.id) || (rp.cic_no && candidate.cic_no && rp.cic_no === candidate.cic_no) || (rp.chest_no && candidate.chest_no && rp.chest_no === candidate.chest_no))) {
+                      rosterParticipants.push(candidate);
+                    }
                   }
                 });
 
@@ -570,6 +582,10 @@ export function PreFestEventsCollegeTab({
                 const itemType = item.point_type
                   ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
                   : (item.item_type === 'Group' ? 'Group' : 'Individual');
+                const { min: minCount, max: maxCount, isOpen: isOpenParticipants } = getItemParticipantBounds(item);
+                const registeredCount = isRegistered
+                  ? Math.max(rosterParticipants.length, matchingRegs.length, 1)
+                  : 0;
 
                 return (
                   <TableRow key={item.id} className={isRegistered ? 'bg-amber-500/[0.02]' : undefined}>
@@ -641,15 +657,17 @@ export function PreFestEventsCollegeTab({
                     {/* Registered Status */}
                     <TableCell className="text-center">
                       {isRegistered ? (
-                        <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                          1/1
-                        </span>
+                        <div className="inline-flex flex-col items-center">
+                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
+                          </span>
+                        </div>
                       ) : (
                         <span
-                          className={`font-mono font-bold text-sm ${isLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
+                          className={`font-mono font-bold text-xs ${isLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
                           title={isLocked ? lockReason : 'Not enrolled'}
                         >
-                          0/1
+                          0/{isOpenParticipants ? 'Open' : maxCount}
                         </span>
                       )}
                     </TableCell>
@@ -780,6 +798,16 @@ export function PreFestEventsCollegeTab({
                           </Button>
                         )}
                       </div>
+                      {isLocked && (
+                        <div className="mt-1">
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-medium font-sans border bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
+                            title={lockReason}
+                          >
+                            {lockReason}
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

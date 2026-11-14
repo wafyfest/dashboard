@@ -12,7 +12,8 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const LOGIN_LIMIT = 10;
+// Up to 60 attempts per 15 minutes per IP so multiple students on the same campus Wi-Fi aren't blocked
+const LOGIN_LIMIT = 60;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 interface SafeStudentSession {
@@ -25,6 +26,23 @@ interface SafeStudentSession {
   class: string | null;
   phase: string;
   chest_no: string;
+}
+
+/**
+ * Normalizes input:
+ * - Removes zero-width characters (\u200B, \u200C, \u200D, \uFEFF)
+ * - Replaces non-breaking or strange whitespace with standard space
+ * - Converts Arabic-Indic and Persian digits to standard ASCII digits
+ * - Trims leading/trailing whitespace
+ */
+function normalizeInput(str: unknown): string {
+  if (typeof str !== 'string' && typeof str !== 'number') return '';
+  return String(str)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 1776))
+    .trim();
 }
 
 export async function POST(req: NextRequest) {
@@ -55,8 +73,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const cleanCic = rawCic.trim().replace(/^ST-|^CH-/i, '');
-  const cleanPassword = rawPassword.trim();
+  const cleanCic = normalizeInput(rawCic).replace(/^ST-|^CH-/i, '');
+  const cleanPassword = normalizeInput(rawPassword);
 
   if (!cleanCic) {
     return NextResponse.json({ error: 'Please enter your CIC Number.' }, { status: 400 });
@@ -76,113 +94,136 @@ export async function POST(req: NextRequest) {
 
   if (!supabaseUrl || (!hasServiceRole && !publicKey)) {
     return NextResponse.json(
-      { error: 'Database connection error. Please verify configuration.' },
+      { error: 'Database configuration error. Please contact administrator.' },
       { status: 503 }
     );
   }
 
+  // Active client: Prefer service_role key when available, fallback to anon key
+  const activeKey = (hasServiceRole && serviceRoleKey) ? serviceRoleKey : publicKey!;
+  const supabase = createClient(supabaseUrl, activeKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
   let safeStudent: SafeStudentSession | null = null;
+  let lastDbError: any = null;
 
-  if (hasServiceRole && serviceRoleKey) {
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+  // ── Strategy 1: Atomic verify_student_login RPC (single DB round-trip with JOINs) ──
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { data, error } = await supabase.rpc('verify_student_login', {
+        p_identifier: cleanCic,
+        p_password: cleanPassword,
+      });
 
-    let student: Record<string, any> | undefined;
-    let assignedChestNo: string | null = null;
-
-    // Authenticate strictly by cic_no
-    if (/^\d+$/.test(cleanCic)) {
-      const { data: stuByCic, error: fetchError } = await adminClient
-        .from('students')
-        .select('*')
-        .eq('cic_no', parseInt(cleanCic, 10))
-        .limit(1);
-      if (fetchError) {
-        console.error('[API /api/auth/student-login] Student query error:', fetchError);
-        return NextResponse.json(
-          { error: 'Failed to verify student record. Please try again.' },
-          { status: 500 }
-        );
+      if (error) {
+        lastDbError = error;
+        console.warn(`[API /api/auth/student-login] RPC attempt ${attempt + 1} error:`, error.message);
+        if (attempt === 0) {
+          // Brief pause before single retry to absorb cold-start / connection pool blips
+          await new Promise(r => setTimeout(r, 250));
+          continue;
+        }
+      } else {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && row.id) {
+          safeStudent = {
+            id: String(row.id),
+            name: row.name,
+            cic_no: row.cic_no,
+            college_affl_no: row.college_affl_no ?? null,
+            college_name: row.college_name || '',
+            college_short_name: row.college_short_name || '',
+            class: row.class ?? null,
+            phase: row.phase,
+            chest_no: row.chest_no || '',
+          };
+        }
+        lastDbError = null;
+        break;
       }
-      student = stuByCic?.[0];
-    }
-
-    if (student && student.cic_no != null) {
-      const { data: ownChest } = await adminClient
-        .from('chest_no')
-        .select('chest_no')
-        .eq('cic_no', student.cic_no)
-        .maybeSingle();
-      if (ownChest?.chest_no) {
-        assignedChestNo = String(ownChest.chest_no);
+    } catch (err: any) {
+      lastDbError = err;
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 250));
       }
     }
-    if (student) {
-      const cicVal = student.cic_no ?? student.admission_no ?? cleanCic;
-      const storedPassword = student.password ? String(student.password).trim() : null;
-      const expectedPassword = storedPassword || `${cicVal}@${student.college_affl_no}`;
+  }
 
-      if (cleanPassword === expectedPassword) {
-        let collegeName = '';
-        let collegeShortName = '';
-        if (student.college_affl_no) {
-          const { data: colData } = await adminClient
-            .from('colleges')
-            .select('name, short_name')
-            .eq('affl_no', student.college_affl_no)
-            .maybeSingle();
-          if (colData) {
-            collegeName = colData.name || '';
-            collegeShortName = colData.short_name || '';
+  // ── Strategy 2: Direct Table Fallback (if RPC didn't verify and service role is available) ──
+  if (!safeStudent && hasServiceRole && serviceRoleKey) {
+    try {
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const numericCic = parseInt(cleanCic.replace(/\D/g, ''), 10);
+      if (!isNaN(numericCic)) {
+        const { data: stuByCic } = await adminClient
+          .from('students')
+          .select('*')
+          .eq('cic_no', numericCic)
+          .limit(1);
+
+        const student = stuByCic?.[0];
+        if (student) {
+          const cicVal = student.cic_no ?? student.admission_no ?? cleanCic;
+          const storedPassword = student.password ? String(student.password).trim() : null;
+          const expectedPassword = storedPassword || `${cicVal}@${student.college_affl_no}`;
+
+          if (cleanPassword === expectedPassword) {
+            let assignedChestNo = '';
+            if (student.cic_no != null) {
+              const { data: ownChest } = await adminClient
+                .from('chest_no')
+                .select('chest_no')
+                .eq('cic_no', student.cic_no)
+                .maybeSingle();
+              if (ownChest?.chest_no) {
+                assignedChestNo = String(ownChest.chest_no);
+              }
+            }
+
+            let collegeName = '';
+            let collegeShortName = '';
+            if (student.college_affl_no) {
+              const { data: colData } = await adminClient
+                .from('colleges')
+                .select('name, short_name')
+                .eq('affl_no', student.college_affl_no)
+                .maybeSingle();
+              if (colData) {
+                collegeName = colData.name || '';
+                collegeShortName = colData.short_name || '';
+              }
+            }
+
+            safeStudent = {
+              id: student.id,
+              name: student.name,
+              cic_no: cicVal,
+              college_affl_no: student.college_affl_no ?? null,
+              college_name: collegeName,
+              college_short_name: collegeShortName,
+              class: student.class ?? null,
+              phase: student.phase,
+              chest_no: assignedChestNo || (student.chest_no && /^\d+$/.test(String(student.chest_no)) ? String(student.chest_no) : ''),
+            };
           }
         }
-
-        safeStudent = {
-          id: student.id,
-          name: student.name,
-          cic_no: cicVal,
-          college_affl_no: student.college_affl_no ?? null,
-          college_name: collegeName,
-          college_short_name: collegeShortName,
-          class: student.class ?? null,
-          phase: student.phase,
-          chest_no: assignedChestNo || (student.chest_no && /^\d+$/.test(String(student.chest_no)) ? String(student.chest_no) : ''),
-        };
       }
+    } catch (err: any) {
+      console.error('[API /api/auth/student-login] Direct table fallback error:', err);
     }
-  } else if (publicKey) {
-    const supabase = createClient(supabaseUrl, publicKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+  }
 
-    const { data, error: rpcError } = await supabase.rpc('verify_student_login', {
-      p_identifier: cleanCic,
-      p_password: cleanPassword,
-    });
-
-    if (rpcError) {
-      console.error('[API /api/auth/student-login] RPC error:', rpcError);
-      return NextResponse.json(
-        { error: 'Failed to verify student record. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    const row = Array.isArray(data) ? data[0] : data;
-    if (row) {
-      safeStudent = {
-        id: row.id,
-        name: row.name,
-        cic_no: row.cic_no,
-        college_affl_no: row.college_affl_no ?? null,
-        college_name: row.college_name || '',
-        college_short_name: row.college_short_name || '',
-        class: row.class ?? null,
-        phase: row.phase,
-        chest_no: row.chest_no || '',
-      };
-    }
+  // If a database error prevented verification entirely
+  if (!safeStudent && lastDbError) {
+    console.error('[API /api/auth/student-login] Verification failed due to DB error:', lastDbError);
+    return NextResponse.json(
+      { error: 'Authentication service temporarily busy. Please try again in a few moments.' },
+      { status: 503 }
+    );
   }
 
   if (!safeStudent) {

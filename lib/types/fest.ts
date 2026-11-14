@@ -78,6 +78,8 @@ export interface College {
   asst_team_manager_phone?: string | null;
   asst_team_manager_whatsapp?: string | null;
   fine_status: boolean;
+  manual_fine_amount?: number;
+  fine_reason?: string | null;
   manual_lock_override: boolean;
   created_at?: string;
 }
@@ -277,7 +279,15 @@ export interface EventDeadlineSetting {
   has_super_fine?: boolean;
   super_fine_deadline?: string | null;
   super_fine_amount?: number | null;
-  /** Separate deadline for screening link (YouTube URL) submission – only for screening kind */
+  /** Multi-tier schedule for link submissions (YouTube / Drive links) */
+  link_start_time?: string | null;
+  link_no_fine_deadline?: string | null;
+  link_fine_deadline?: string | null;
+  link_fine_amount?: number | null;
+  link_has_super_fine?: boolean;
+  link_super_fine_deadline?: string | null;
+  link_super_fine_amount?: number | null;
+  /** Legacy fallback alias for final link cutoff */
   link_submission_deadline?: string | null;
   is_active: boolean;
   updated_at?: string;
@@ -290,14 +300,21 @@ export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
     event_kind: 'screening',
     display_name: 'Screening Events',
     description: 'Pre-Fest online preliminary screening competitions (Circular WSFWF_26_016).',
-    start_time: '2026-11-15T04:30:00.000Z', // 15/11/2026, 10:00 AM IST
-    no_fine_deadline: '2026-11-22T16:30:00.000Z', // 22/11/2026, 10:00 PM IST (No fine)
-    fine_deadline: '2026-11-24T16:30:00.000Z', // 24/11/2026, 10:00 PM IST (₹200 fine)
+    start_time: '2026-11-13T16:30:00.000Z',
+    no_fine_deadline: '2026-11-22T16:30:00.000Z',
+    fine_deadline: '2026-11-24T16:30:00.000Z',
     fine_amount: 200,
     has_super_fine: false,
     super_fine_deadline: null,
     super_fine_amount: null,
-    link_submission_deadline: '2026-11-24T16:30:00.000Z', // defaults to fine_deadline
+    link_start_time: '2026-11-22T16:30:00.000Z',
+    link_no_fine_deadline: '2026-11-26T16:30:00.000Z',
+    link_fine_deadline: '2026-11-28T16:30:00.000Z',
+    link_fine_amount: 100,
+    link_has_super_fine: false,
+    link_super_fine_deadline: null,
+    link_super_fine_amount: null,
+    link_submission_deadline: '2026-11-30T16:30:00.000Z',
     is_active: true,
   },
   {
@@ -312,6 +329,14 @@ export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
     has_super_fine: true,
     super_fine_deadline: '2026-11-18T16:30:00.000Z',
     super_fine_amount: 1000,
+    link_start_time: '2026-11-15T16:30:00.000Z',
+    link_no_fine_deadline: '2026-11-18T16:30:00.000Z',
+    link_fine_deadline: '2026-11-20T16:30:00.000Z',
+    link_fine_amount: 250,
+    link_has_super_fine: false,
+    link_super_fine_deadline: null,
+    link_super_fine_amount: null,
+    link_submission_deadline: '2026-11-20T16:30:00.000Z',
     is_active: true,
   },
   {
@@ -326,7 +351,8 @@ export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
     has_super_fine: true,
     super_fine_deadline: '2026-11-12T16:30:00.000Z',
     super_fine_amount: 1000,
-    is_active: true,
+    link_submission_deadline: null,
+    is_active: false,
   },
   {
     id: 'deadline-offstage',
@@ -340,7 +366,8 @@ export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
     has_super_fine: true,
     super_fine_deadline: '2026-11-12T16:30:00.000Z',
     super_fine_amount: 1000,
-    is_active: true,
+    link_submission_deadline: null,
+    is_active: false,
   },
   {
     id: 'deadline-general',
@@ -348,12 +375,13 @@ export const DEFAULT_EVENT_DEADLINES: EventDeadlineSetting[] = [
     display_name: 'General Festival Events',
     description: 'Default master schedule fallback for all standard festival events.',
     start_time: '2026-11-01T04:30:00.000Z',
-    no_fine_deadline: '2026-11-10T16:30:00.000Z',
-    fine_deadline: '2026-11-11T16:30:00.000Z',
+    no_fine_deadline: '2026-11-30T16:30:00.000Z',
+    fine_deadline: '2026-11-30T16:30:00.000Z',
     fine_amount: 500,
     has_super_fine: true,
     super_fine_deadline: '2026-11-12T16:30:00.000Z',
     super_fine_amount: 1000,
+    link_submission_deadline: null,
     is_active: true,
   },
 ];
@@ -473,6 +501,7 @@ export interface Registration {
   item_id: number;
   college_affl_no: number;
   college_id?: string;
+  cic_no?: number | string;
   chest_no: string;
   code_letter?: string | null;
   screening_status?: ScreeningStatus;
@@ -491,10 +520,13 @@ export interface LateRegistration {
   id: string;
   item_id: number;
   college_affl_no: number;
+  cic_no?: number | string;
   chest_no: string;
   late_reason: string;
   fine_tier?: FineTier | null;
   fine_amount?: number | null;
+  is_waived?: boolean;
+  waived_at?: string | null;
   effective_deadline?: string | null;
   registered_at?: string;
   created_at?: string;
@@ -757,6 +789,7 @@ export interface FestSettings {
   reg_deadline: string;
   fine_deadline: string;
   rulebook_url?: string | null;
+  volunteer_reg_locked?: boolean;
 }
 
 export type NoticePriority = 'urgent' | 'warning' | 'info' | 'success';
