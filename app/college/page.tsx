@@ -612,10 +612,11 @@ export default function CollegePortalPage() {
             <PreFestEventsCollegeTab
               currentCollegeId={currentCollegeId}
               currentCollegeAfflNo={currentCollegeAfflNo || college?.affl_no}
+              college={college}
               registrations={registrations}
               submissions={submissions}
               students={students}
-              allItems={allItems}
+              allItems={collegeEligibleItems}
               registrationStatusByItem={registrationStatusByItem}
               onOpenRegistrationModal={handleOpenRegistrationModal}
               onUnregisterRegistration={handleUnregisterRegistration}

@@ -31,9 +31,11 @@ import {
   Registration,
   SubmissionEntry,
   Student,
+  College,
   SpecialEventType,
   isSubmissionEvent,
   isScreeningEvent,
+  isItemEligibleForCollege,
   getItemParticipantBounds
 } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
@@ -55,6 +57,7 @@ function YouTubeIcon({ className = 'w-4 h-4' }: { className?: string }) {
 interface PreFestEventsCollegeTabProps {
   currentCollegeId?: string;
   currentCollegeAfflNo?: number;
+  college?: College;
   registrations: Registration[];
   submissions?: SubmissionEntry[];
   students?: Student[];
@@ -68,6 +71,7 @@ interface PreFestEventsCollegeTabProps {
 export function PreFestEventsCollegeTab({
   currentCollegeId,
   currentCollegeAfflNo,
+  college,
   registrations = [],
   submissions = [],
   students = [],
@@ -142,10 +146,20 @@ export function PreFestEventsCollegeTab({
     return evaluateLinkSubmissionDeadline(dlSetting);
   }, [activeSection, refreshKey]);
 
-  // Available catalog events from props or festService fallback
+  const registeredItemIds = useMemo(() => {
+    return new Set(registrations.map(r => r.item_id).filter(Boolean));
+  }, [registrations]);
+
+  // Available catalog events from props or festService fallback, filtered by college phase eligibility
   const items = useMemo(() => {
-    return propsItems && propsItems.length > 0 ? propsItems : festService.getItems();
-  }, [propsItems, refreshKey]);
+    const rawItems = propsItems && propsItems.length > 0 ? propsItems : festService.getItems();
+    if ((students && students.length > 0) || college) {
+      return rawItems.filter(item =>
+        isItemEligibleForCollege(item, students, college, registeredItemIds)
+      );
+    }
+    return rawItems;
+  }, [propsItems, students, college, registeredItemIds, refreshKey]);
 
   // Section events (Screening vs Submission)
   const sectionEvents = useMemo(() => {
