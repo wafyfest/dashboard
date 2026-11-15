@@ -812,16 +812,6 @@ export function PreFestEventsCollegeTab({
                           </Button>
                         )}
                       </div>
-                      {isLocked && (
-                        <div className="mt-1">
-                          <span
-                            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-medium font-sans border bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
-                            title={lockReason}
-                          >
-                            {lockReason}
-                          </span>
-                        </div>
-                      )}
                     </TableCell>
                   </TableRow>
                 );
