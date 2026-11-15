@@ -28,7 +28,9 @@ import {
   Clock,
   ChevronDown,
   X,
-  Lock
+  Lock,
+  Video,
+  ExternalLink
 } from 'lucide-react';
 import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 import { festService } from '@/lib/services/festService';
@@ -36,6 +38,7 @@ import { useFest } from '@/lib/context/FestContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge, StageStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/modal';
 
 interface CollegeDashboardTabProps {
   college?: College;
@@ -203,6 +206,7 @@ export function CollegeDashboardTab({
   replacements = [],
   onNavigateTab,
 }: CollegeDashboardTabProps) {
+  const [showUserGuide, setShowUserGuide] = useState(false);
   const { timeTick, refreshKey } = useFest();
   const deadlineSetting = useMemo(
     () => festService.getEventDeadlineSetting('general'),
@@ -492,7 +496,7 @@ export function CollegeDashboardTab({
               </div>
             </div>
 
-            <div className="shrink-0 w-full sm:w-auto">
+            <div className="shrink-0 w-full sm:w-auto flex flex-col gap-2">
               {hasRulebook ? (
                 <a
                   href={festSettings.rulebook_url || undefined}
@@ -512,6 +516,15 @@ export function CollegeDashboardTab({
                   <span>Fest Manual Unavailable</span>
                 </span>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowUserGuide(true)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] text-xs font-heading font-semibold text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                <Video className="w-3.5 h-3.5 text-[var(--f-saffron)]" />
+                <span>User Guide</span>
+              </button>
             </div>
           </div>
         </CardContent>
@@ -882,6 +895,47 @@ export function CollegeDashboardTab({
           </CardContent>
         </Card>
       </div>
+
+      {showUserGuide && (
+        <Modal
+          isOpen={showUserGuide}
+          onClose={() => setShowUserGuide(false)}
+          title="User Guide"
+          description="Watch the guide video on how to use the dashboard and manage registrations."
+          maxWidth="4xl"
+          footer={
+            <div className="flex items-center justify-between gap-3 w-full">
+              <a
+                href="https://youtu.be/xV4gJIEYDy4"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                {/* <span>Watch on YouTube</span>
+                <ExternalLink className="w-3.5 h-3.5" /> */}
+              </a>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowUserGuide(false)}
+              >
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div className="w-full aspect-video rounded-xl overflow-hidden bg-black shadow-lg border border-[var(--border-subtle)]">
+            <iframe
+              className="w-full h-full border-0"
+              src="https://www.youtube.com/embed/xV4gJIEYDy4?autoplay=1"
+              title="User Guide Video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
