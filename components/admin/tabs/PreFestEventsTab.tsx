@@ -89,11 +89,30 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
     try {
       const items = festService.getItems();
       const regs = festService.getRegistrations();
+      const preRegs = festService.getPreFestRegistrations();
       const subs = festService.getSubmissionEntries();
       const preSubs = festService.getPreFestSubmissions();
       const cols = festService.getColleges();
       const stus = festService.getStudents();
       const settings = festService.getSpecialEventSettings();
+
+      // Merge prefest_registrations into regs list for complete coverage
+      const mergedRegs = [...regs];
+      preRegs.forEach((pr: any) => {
+        const matchedItem = items.find(i => i.id === pr.event_id || Number(i.item_id) === Number(pr.event_id));
+        const itemId = matchedItem ? Number(matchedItem.item_id) : Number(pr.event_id);
+        const colAffl = Number(pr.college_affl_no);
+        const exists = mergedRegs.some(r => Number(r.college_affl_no) === colAffl && Number(r.item_id) === itemId);
+        if (!exists && itemId) {
+          mergedRegs.push({
+            id: pr.id,
+            college_affl_no: colAffl,
+            item_id: itemId,
+            chest_no: '—',
+            created_at: pr.created_at,
+          } as any);
+        }
+      });
 
       // Merge prefest_submissions into subs list for complete coverage
       const mergedSubs = [...subs];
@@ -124,7 +143,7 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
       });
 
       setEventsList(items);
-      setRegistrationsList(regs);
+      setRegistrationsList(mergedRegs);
       setSubmissionsList(mergedSubs);
       setCollegesList(cols);
       setStudentsList(stus);

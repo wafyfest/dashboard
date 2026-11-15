@@ -420,7 +420,25 @@ class FestService {
       if (collegeAfflNo) {
         regQuery = regQuery.eq('college_affl_no', collegeAfflNo);
       }
-      const { data: regData, error: regErr } = await regQuery;
+      let { data: regData, error: regErr } = await regQuery;
+
+      // Fallback to server API if client fetch failed or returned empty in browser
+      if ((regErr || !regData || (regData.length === 0 && this.isClient)) && typeof window !== 'undefined') {
+        try {
+          const apiParam = collegeAfflNo ? `?collegeAfflNo=${collegeAfflNo}` : '';
+          const res = await fetch(`/api/registrations${apiParam}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json.registrations) && json.registrations.length > 0) {
+              regData = json.registrations;
+              regErr = null;
+            }
+          }
+        } catch {
+          // Fallback handled below
+        }
+      }
+
       if (regErr) {
         console.warn('Supabase sync error (registrations):', regErr.message);
         hasError = true;
@@ -1947,6 +1965,32 @@ class FestService {
   }
 
   public async fetchRegistrationsForCollege(afflNo?: number): Promise<Registration[]> {
+    if (typeof window !== 'undefined') {
+      try {
+        const url = afflNo ? `/api/registrations?collegeAfflNo=${afflNo}` : '/api/registrations';
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.registrations)) {
+            const allStored = this.getStorage<Registration[]>('registrations', []);
+            const numAffl = afflNo ? Number(afflNo) : undefined;
+            const otherRegs = numAffl ? allStored.filter(r => Number(r.college_affl_no) !== numAffl) : [];
+            const normalizedData = json.registrations.map((r: Record<string, any>) => ({
+              ...r,
+              college_affl_no: Number(r.college_affl_no),
+              item_id: Number(r.item_id),
+              cic_no: r.cic_no ? Number(r.cic_no) : undefined,
+            }));
+            this.setStorage('registrations', numAffl ? [...otherRegs, ...normalizedData] : normalizedData);
+            this.repairLegacyRegistrations();
+            return this.getRegistrations(afflNo);
+          }
+        }
+      } catch (err) {
+        console.warn('API fetch registrations error, falling back to direct Supabase client:', err);
+      }
+    }
+
     if (supabase) {
       try {
         let query = supabase.from('registrations').select('*');
@@ -1960,6 +2004,7 @@ class FestService {
           const otherRegs = afflNo ? allStored.filter(r => Number(r.college_affl_no) !== numAffl) : [];
           const normalizedData = data.map((r: Record<string, any>) => ({ ...r, college_affl_no: Number(r.college_affl_no), item_id: Number(r.item_id) }));
           this.setStorage('registrations', afflNo ? [...otherRegs, ...normalizedData] : normalizedData);
+          this.repairLegacyRegistrations();
           return this.getRegistrations(afflNo);
         }
       } catch (err) {
@@ -2672,15 +2717,6 @@ class FestService {
 
 
   // --- Stage Controller: Code Letters & Stages ---
-  private static DEFAULT_STAGES: Stage[] = [
-    { id: 'stg-1', stage_number: 1, name: 'Stage 1: Main Auditorium (Kalam Hall)', location: 'Campus Block A - Ground Floor' },
-    { id: 'stg-2', stage_number: 2, name: 'Stage 2: Open Air Theatre (OAT)', location: 'Central Quadrangle' },
-    { id: 'stg-3', stage_number: 3, name: 'Stage 3: Mini Hall 1 (Symphony)', location: 'Fine Arts Block - Level 2' },
-    { id: 'stg-4', stage_number: 4, name: 'Stage 4: Seminar Hall 3', location: 'Administrative Wing' },
-    { id: 'stg-5', stage_number: 5, name: 'Stage 5: Conference Hall', location: 'Library Building' },
-    { id: 'stg-6', stage_number: 6, name: 'Stage 6: Exhibition Hall', location: 'Cultural Centre' },
-  ];
-
   public assignCodeLetter(
     itemIdOrRegId: number | string,
     collegeAfflNoOrCode: number | string,
@@ -2742,39 +2778,22 @@ class FestService {
     if (stages && stages.length > 0) {
       return [...stages].sort((a, b) => a.stage_number - b.stage_number);
     }
-    return FestService.DEFAULT_STAGES;
+    return [];
   }
 
   public getSchedules(): Schedule[] {
-    let schedules = this.getStorage<Schedule[]>('schedules', []);
+    const rawSchedules = this.getStorage<Schedule[]>('schedules', []);
+    // Filter out any legacy client-generated fake preview schedules
+    const schedules = (rawSchedules || []).filter(
+      s => s && s.id && !String(s.id).startsWith('sch-default-')
+    );
+
+    if (schedules.length === 0) {
+      return [];
+    }
+
     const items = this.getItems();
     const stages = this.getStages();
-
-    // If schedules table in Supabase or memory is unpopulated, supply sensible scheduling based on catalog items
-    if (!schedules || schedules.length === 0) {
-      const now = new Date();
-      // Pick onstage items or registered items first
-      const eligibleItems = items.filter(i => i.mode === 'onstage' || i.tabulation);
-      const itemsToSchedule = eligibleItems.length > 0 ? eligibleItems : items;
-
-      schedules = itemsToSchedule.slice(0, 20).map((itm, idx) => {
-        const stageNum = (idx % stages.length) + 1;
-        // Stagger times: today starting from 09:30 AM
-        const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
-        const start = new Date(baseDate.getTime() + (idx * 45) * 60000);
-        const end = new Date(start.getTime() + 40 * 60000);
-        return {
-          id: `sch-default-${itm.item_id || itm.id}`,
-          item_id: itm.item_id,
-          stage_number: stageNum,
-          starting: start.toISOString(),
-          ending: end.toISOString(),
-          scheduled_start: start.toISOString(),
-          status: (idx === 0 ? 'On_Going' : idx === 1 ? 'Starting_Soon' : 'Upcoming') as StageStatus
-        };
-      });
-      this.setStorage('schedules', schedules);
-    }
 
     return schedules.map(s => {
       const matchedStage = stages.find(st => st.stage_number === s.stage_number);

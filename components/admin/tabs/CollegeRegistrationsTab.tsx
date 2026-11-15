@@ -90,11 +90,7 @@ export function CollegeRegistrationsTab({
   const { festSettings, refreshKey, triggerRefresh } = useFest();
 
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
-  // Pre-Fest screening & submission events are managed exclusively in PreFestEventsTab
-  const items = useMemo(
-    () => festService.getItems().filter(item => !requiresPreFestSubmission(item)),
-    [refreshKey]
-  );
+  const items = useMemo(() => festService.getItems(), [refreshKey]);
   const itemMap = useMemo(() => new Map(items.map(i => [Number(i.item_id), i])), [items]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
@@ -712,7 +708,7 @@ export function CollegeRegistrationsTab({
                 </div>
 
                 <div className="flex items-center gap-1 overflow-x-auto text-xs border-l border-[var(--border-subtle)] pl-2">
-                  {(['All', 'onstage', 'offstage'] as const).map(m => (
+                  {(['All', 'onstage', 'offstage', 'screening', 'submission'] as const).map(m => (
                     <button
                       key={m}
                       type="button"
@@ -722,7 +718,7 @@ export function CollegeRegistrationsTab({
                         : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                         }`}
                     >
-                      {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : 'Off Stage'}
+                      {m === 'All' ? 'All Modes' : m === 'onstage' ? 'On Stage' : m === 'offstage' ? 'Off Stage' : m === 'screening' ? 'Screening' : 'Submission'}
                     </button>
                   ))}
                 </div>

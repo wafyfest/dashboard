@@ -61,11 +61,7 @@ interface EnrolledParticipantRow {
 export function EventRegistrationsTab() {
   const { festSettings, refreshKey, triggerRefresh } = useFest();
 
-  // Only display standard festival events here; Pre-Fest screening & submission events are strictly housed in PreFestEventsTab
-  const items = useMemo(
-    () => festService.getItems().filter(itm => !requiresPreFestSubmission(itm)),
-    [refreshKey]
-  );
+  const items = useMemo(() => festService.getItems(), [refreshKey]);
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
   const students = useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
@@ -456,7 +452,7 @@ export function EventRegistrationsTab() {
 
             {/* Mode Filter */}
             <div className="flex items-center gap-1 bg-[var(--bg-subtle)] p-1 rounded-lg border border-[var(--border-subtle)] text-xs flex-wrap">
-              {(['All', 'onstage', 'offstage'] as const).map(m => (
+              {(['All', 'onstage', 'offstage', 'screening', 'submission'] as const).map(m => (
                 <button
                   key={m}
                   type="button"
@@ -471,7 +467,11 @@ export function EventRegistrationsTab() {
                     ? 'All Modes'
                     : m === 'onstage'
                     ? 'On Stage'
-                    : 'Off Stage'}
+                    : m === 'offstage'
+                    ? 'Off Stage'
+                    : m === 'screening'
+                    ? 'Screening'
+                    : 'Submission'}
                 </button>
               ))}
             </div>

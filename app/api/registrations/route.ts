@@ -6,7 +6,33 @@ import { EventDeadlineSetting } from '@/lib/types/fest';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_ROLES = ['admin', 'convenor', 'college'];
+const ALLOWED_ROLES = ['admin', 'convenor', 'college', 'stage_controller', 'result_entry'];
+
+export async function GET(req: NextRequest) {
+  const auth = await requireServerRole(ALLOWED_ROLES);
+  if (!auth.ok) return auth.response;
+
+  try {
+    const url = new URL(req.url);
+    const collegeAfflNo = url.searchParams.get('collegeAfflNo');
+
+    let query = auth.db.from('registrations').select('*').order('created_at', { ascending: true });
+    if (auth.role === 'college') {
+      if (!auth.collegeAfflNo) {
+        return NextResponse.json({ error: 'No college affiliation associated with this account.' }, { status: 403 });
+      }
+      query = query.eq('college_affl_no', auth.collegeAfflNo);
+    } else if (collegeAfflNo) {
+      query = query.eq('college_affl_no', Number(collegeAfflNo));
+    }
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ registrations: data || [] });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || 'Failed to fetch registrations' }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   const auth = await requireServerRole(ALLOWED_ROLES);

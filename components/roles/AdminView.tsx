@@ -280,21 +280,29 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {schedules.map(sch => (
-                      <TableRow key={sch.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                        <TableCell className="font-heading font-semibold text-[var(--text-primary)]">{sch.stage?.name}</TableCell>
-                        <TableCell>
-                          <div className="font-heading font-medium text-[var(--text-primary)]">{sch.item?.name}</div>
-                          <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code}</span>
-                        </TableCell>
-                        <TableCell className="text-[var(--text-secondary)] font-mono tabular-nums text-xs">
-                          {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <StageStatusBadge status={sch.status} />
+                    {schedules.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-xs text-[var(--text-muted)] italic font-sans">
+                          No events scheduled yet. Go to Stages &amp; Schedules tab to schedule events.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      schedules.map(sch => (
+                        <TableRow key={sch.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                          <TableCell className="font-heading font-semibold text-[var(--text-primary)]">{sch.stage?.name || `Stage ${sch.stage_number}`}</TableCell>
+                          <TableCell>
+                            <div className="font-heading font-medium text-[var(--text-primary)]">{sch.item?.name || sch.item?.name_eng || `Item ${sch.item_id}`}</div>
+                            <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code || sch.item?.item_code}</span>
+                          </TableCell>
+                          <TableCell className="text-[var(--text-secondary)] font-mono tabular-nums text-xs">
+                            {sch.scheduled_start || sch.starting ? new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <StageStatusBadge status={sch.status} />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
