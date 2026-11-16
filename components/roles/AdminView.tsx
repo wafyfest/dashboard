@@ -42,6 +42,7 @@ import { EventsCatalogTab } from '../admin/tabs/EventsCatalogTab';
 import { CollegesTab } from '../admin/tabs/CollegesTab';
 import { CollegeRegistrationsTab } from '../admin/tabs/CollegeRegistrationsTab';
 import { ManageVolunteersTab } from '../admin/tabs/ManageVolunteersTab';
+import { BlockedStudentsTab } from '../admin/tabs/BlockedStudentsTab';
 import { BroadcastAlertsTab } from '../admin/tabs/BroadcastAlertsTab';
 import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
 import { EventRegistrationsTab } from '../admin/tabs/EventRegistrationsTab';
@@ -63,6 +64,7 @@ export type AdminTab =
   | 'colleges'
   | 'college_registrations'
   | 'volunteers'
+  | 'blocked_students'
   | 'announcements'
   | 'appeals'
   | 'replacements'
@@ -359,6 +361,11 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
           refreshKey={refreshKey}
           onRefresh={triggerRefresh}
         />
+      )}
+
+      {/* 4.2b. STUDENT BLOCKLIST & COMMITTEE CONTROLS TAB */}
+      {activeTab === 'blocked_students' && (
+        <BlockedStudentsTab />
       )}
 
       {/* 4.3. BROADCAST ALERTS & BULLETINS TAB */}

@@ -12,6 +12,7 @@ import {
   SubmissionEntry,
   getEffectiveStageMode,
   getItemParticipantBounds,
+  isSpecialGroupEvent,
   requiresPreFestSubmission
 } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
@@ -296,6 +297,7 @@ export function CollegeRegistrationTab({
               const itemType = item.point_type
                 ? (item.point_type.toLowerCase() === 'group' ? 'Group' : 'Individual')
                 : (item.item_type === 'Group' ? 'Group' : 'Individual');
+              const isSpecialGroup = isSpecialGroupEvent(item);
               const { min: minCount, max: maxCount, isOpen: isOpenParticipants } = getItemParticipantBounds(item);
               const fallbackStudent = (students.length > 0 && (reg?.cic_no || reg?.chest_no))
                 ? findStudentByIdentifier(students, reg.cic_no || reg.chest_no, currentCollegeAfflNo)
@@ -326,9 +328,13 @@ export function CollegeRegistrationTab({
                       <div className="text-[11px] font-sans text-[var(--text-muted)] mt-1 flex items-center gap-1.5 flex-wrap">
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          Roster:
+                          {isSpecialGroup ? 'Institutional Entry:' : 'Roster:'}
                         </span>
-                        {rosterParticipants.length > 0 ? (
+                        {isSpecialGroup ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[10.5px] font-bold text-amber-800 dark:text-amber-200 font-sans">
+                            {festService.getCollege(currentCollegeAfflNo || currentCollegeId)?.name || `College #${currentCollegeAfflNo || currentCollegeId}`}
+                          </span>
+                        ) : rosterParticipants.length > 0 ? (
                           rosterParticipants.map((p, pIdx) => {
                             const cicVal = p.cic_no || p.admission_no || p.cic_number;
                             const idLabel = cicVal ? `CIC: ${cicVal}` : getCanonicalChestNo(p);
@@ -364,16 +370,22 @@ export function CollegeRegistrationTab({
                   <TableCell className="text-center">
                     {isRegistered ? (
                       <div className="inline-flex flex-col items-center">
-                        <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
-                        </span>
+                        {isSpecialGroup ? (
+                          <span className="font-sans font-bold text-[10.5px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> College Entry
+                          </span>
+                        ) : (
+                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <span
                         className={`font-mono font-bold text-xs ${isLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
                         title={isLocked ? lockCheck.reason || 'Registration Locked' : undefined}
                       >
-                        0/{isOpenParticipants ? 'Open' : maxCount}
+                        {isSpecialGroup ? 'College Entry' : `0/${isOpenParticipants ? 'Open' : maxCount}`}
                       </span>
                     )}
                   </TableCell>

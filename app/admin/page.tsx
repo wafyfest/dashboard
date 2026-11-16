@@ -17,6 +17,7 @@ import {
   ScrollText,
   UserPlus,
   Sparkles,
+  UserX,
   Users
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
@@ -47,6 +48,7 @@ export default function AdminPage() {
     { id: 'event_registrations', label: 'Participant Rosters', icon: Layers, group: 'Registrations' },
     { id: 'prefest_registrations', label: 'Pre-Fest Registrations', icon: Sparkles, group: 'Registrations' },
     { id: 'volunteers', label: 'Volunteer Force', icon: HeartHandshake, group: 'Registrations' },
+    { id: 'blocked_students', label: 'Student Blocklist', icon: UserX, group: 'Registrations' },
 
     // Live Festival Operations
     { id: 'schedule', label: 'Stages & Schedules', icon: Calendar, group: 'Live Stage' },

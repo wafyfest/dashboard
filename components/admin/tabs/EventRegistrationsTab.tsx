@@ -37,6 +37,7 @@ import {
   isSubmissionEvent,
   isScreeningEvent,
   getItemParticipantBounds,
+  isSpecialGroupEvent,
   requiresPreFestSubmission
 } from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
@@ -93,9 +94,20 @@ export function EventRegistrationsTab() {
         map.set(itmId, []);
       }
       const col = collegeMap.get(Number(r.college_affl_no));
-      const stu =
-        findStudentByIdentifier(students, r.chest_no, r.college_affl_no) ||
-        (r.chest_no ? studentMap.get(r.chest_no.toLowerCase()) : undefined);
+      const isInstitutional = (r.chest_no && r.chest_no.startsWith('COL-')) || isSpecialGroupEvent(evt);
+      const stu = isInstitutional
+        ? ({
+            id: `col-entry-${r.college_affl_no}-${itmId}`,
+            name: col?.name || `College #${r.college_affl_no}`,
+            full_name: `${col?.name || `College #${r.college_affl_no}`} (Institutional Entry)`,
+            chest_no: r.chest_no || `COL-${r.college_affl_no}`,
+            cic_no: null as any,
+            college_affl_no: Number(r.college_affl_no),
+            class: 'College Entry',
+            phase: 'Special',
+          } as Student)
+        : (findStudentByIdentifier(students, r.chest_no, r.college_affl_no) ||
+           (r.chest_no ? studentMap.get(r.chest_no.toLowerCase()) : undefined));
 
       const lateRow = lateRegistrations.find(
         l => Number(l.item_id) === itmId && l.chest_no === r.chest_no

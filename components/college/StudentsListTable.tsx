@@ -11,7 +11,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
-import { Student, College } from '@/lib/types/fest';
+import { Student, College, isFestCommitteeBlock } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -98,7 +98,8 @@ export function StudentsListTable({
 
   // Search across student name OR CIC number through one space
   const filteredAndSorted = useMemo(() => {
-    let list = students;
+    // 1. Hide Fest Committee members completely from the college student directory
+    let list = students.filter(s => !(s.is_blocked && isFestCommitteeBlock(s.block_reason)));
 
     const query = searchQuery.trim().toLowerCase();
     if (query) {
@@ -303,6 +304,7 @@ export function StudentsListTable({
                 return (
                   <TableRow
                     key={student.id || `stu-${idx}`}
+                    className={student.is_blocked ? 'bg-rose-500/[0.04]' : undefined}
                   >
                     {/* # (Serial number) */}
                     <TableCell className="text-center font-mono font-semibold text-[var(--text-muted)] text-xs sm:text-sm">
@@ -311,8 +313,19 @@ export function StudentsListTable({
 
                     {/* Name */}
                     <TableCell>
-                      <div className="font-heading font-bold text-[var(--text-primary)] text-xs sm:text-sm uppercase tracking-wide">
-                        {student.name || student.full_name || 'N/A'}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-heading font-bold text-[var(--text-primary)] text-xs sm:text-sm uppercase tracking-wide">
+                          {student.name || student.full_name || 'N/A'}
+                        </span>
+                        {student.is_blocked && (
+                          <Badge
+                            variant="destructive"
+                            size="sm"
+                            className="text-[10px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
+                          >
+                            Blocked: {student.block_reason || 'Administrative'}
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
 
@@ -328,7 +341,9 @@ export function StudentsListTable({
 
                     {/* Category (Phase short form e.g. FD, AL, TH, PG) */}
                     <TableCell>
-                      <PhaseBadge phase={phaseCode} />
+                      <div className="flex items-center gap-1.5">
+                        <PhaseBadge phase={phaseCode} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

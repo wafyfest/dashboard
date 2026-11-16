@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint app components lib",
-    "test:schema": "node --env-file=.env.local scripts/verify-schema-integrity.mjs"
+    "test:schema": "node --env-file=.env.local scripts/verify-schema-integrity.mjs",
+    "db:backup": "node --env-file=.env.local scripts/backup-database.mjs",
+    "db:snapshot": "node --env-file=.env.local scripts/backup-database.mjs",
+    "db:restore": "node --env-file=.env.local scripts/restore-database.mjs"
   },
   "keywords": [],
   "author": "",

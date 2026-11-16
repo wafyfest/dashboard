@@ -14,6 +14,7 @@ import {
   Appeal,
   Replacement,
   Volunteer,
+  BlockedStudent,
   Announcement,
   MaxParticipation,
   LeaderboardEntry,
@@ -34,6 +35,7 @@ import {
   isScreeningEvent,
   isNonTabulationEvent,
   getItemParticipantBounds,
+  isSpecialGroupEvent,
   requiresPreFestSubmission,
   EventKind,
   EventDeadlineSetting,
@@ -93,6 +95,7 @@ class FestService {
     results: [],
     appeals: [],
     volunteers: [],
+    blocked_students: [],
     announcements: [],
     code_letters: [],
     chest_no: [],
@@ -697,6 +700,30 @@ class FestService {
                 window.localStorage.setItem('wsf_volunteers', JSON.stringify(volData));
               } catch (e) { }
             }
+          }
+        }
+      } catch (err) {
+        // Table sync deferred
+      }
+
+      // 11b. Blocked Students
+      try {
+        let blockQuery = client
+          .from('blocked_students')
+          .select('*')
+          .eq('is_active', true);
+        if (collegeAfflNo) {
+          blockQuery = blockQuery.eq('college_affl_no', collegeAfflNo);
+        }
+        const { data: blockData, error: blockErr } = await blockQuery;
+        if (!blockErr && blockData) {
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existing = this.getStorage<BlockedStudent[]>('blocked_students', []);
+            const otherBlocks = existing.filter(b => Number(b.college_affl_no) !== numAffl);
+            this.setStorage('blocked_students', [...otherBlocks, ...blockData]);
+          } else {
+            this.setStorage('blocked_students', blockData);
           }
         }
       } catch (err) {
@@ -1406,9 +1433,14 @@ class FestService {
 
   // --- Items ---
   private normalizeItemRecord(raw: Record<string, any>): Item {
-    const bounds = getItemParticipantBounds(raw as Item);
-    return {
+    const rawItem = {
       ...(raw as Item),
+      min_participants: raw.min_participants != null ? Number(raw.min_participants) : undefined,
+      max_participants: raw.max_participants != null ? Number(raw.max_participants) : undefined,
+    };
+    const bounds = getItemParticipantBounds(rawItem);
+    return {
+      ...rawItem,
       code: raw.item_code,
       name: raw.name_eng,
       item_type: (raw.point_type === 'individual' ? 'Single' : 'Group') as 'Single' | 'Group',
@@ -1475,6 +1507,8 @@ class FestService {
           tabulation: item.tabulation !== undefined ? item.tabulation : (nextCategory === 'D' ? false : items[idx].tabulation),
           point_type: item.point_type || (item.item_type === 'Group' ? 'group' : 'individual'),
           no_of_participants: nextParticipants,
+          min_participants: item.min_participants !== undefined ? item.min_participants : items[idx].min_participants,
+          max_participants: item.max_participants !== undefined ? item.max_participants : items[idx].max_participants,
           reg_deadline: item.reg_deadline !== undefined ? item.reg_deadline : items[idx].reg_deadline,
           fine_deadline: item.fine_deadline !== undefined ? item.fine_deadline : items[idx].fine_deadline,
           is_locked: item.is_locked !== undefined ? item.is_locked : items[idx].is_locked,
@@ -1913,6 +1947,16 @@ class FestService {
       }
     }
 
+    const blockedList = this.getStorage<BlockedStudent[]>('blocked_students', []);
+    const blockedMap = new Map<string, BlockedStudent>();
+    const blockedByCic = new Map<string, BlockedStudent>();
+    for (const b of blockedList) {
+      if (b.is_active !== false) {
+        if (b.student_id) blockedMap.set(String(b.student_id), b);
+        if (b.cic_no !== undefined && b.cic_no !== null) blockedByCic.set(String(b.cic_no).trim(), b);
+      }
+    }
+
     const enriched = students.map(s => {
       const cic = s.cic_no ?? s.admission_no ?? (s as any).cic_number;
       const cicKey = cic !== undefined && cic !== null ? String(cic).trim() : '';
@@ -1920,6 +1964,11 @@ class FestService {
       const existingNumericChest =
         s.chest_no && /^\d+$/.test(String(s.chest_no).trim()) ? String(s.chest_no).trim() : undefined;
       const chest = serverChest || existingNumericChest || undefined;
+
+      const blockInfo =
+        (s.id ? blockedMap.get(String(s.id)) : undefined) ||
+        (cicKey ? blockedByCic.get(cicKey) : undefined);
+
       return {
         ...s,
         name: s.name || s.full_name || '',
@@ -1931,7 +1980,11 @@ class FestService {
         phase: s.phase || (s as any).category || '',
         category: s.phase || (s as any).category || '',
         college_id: `col-${s.college_affl_no}`,
-        college: colleges.find(c => c.affl_no === s.college_affl_no)
+        college: colleges.find(c => c.affl_no === s.college_affl_no),
+        is_blocked: Boolean(blockInfo),
+        block_reason: blockInfo?.reason || null,
+        block_notes: blockInfo?.notes || null,
+        blocked_at: blockInfo?.blocked_at || null,
       };
     });
 
@@ -2282,62 +2335,71 @@ class FestService {
       collegeStudents = await this.fetchStudentsForCollege(college.affl_no);
     }
 
+    const isSpecialGroup = isSpecialGroupEvent(item);
+    const isInstitutional = isSpecialGroup || chestNosOrIds.some(v => v.startsWith('COL-') || v === 'COLLEGE');
+
     const resolvedStudents: Student[] = [];
-    const chestNos: string[] = [];
+    let chestNos: string[] = [];
 
-    for (const val of chestNosOrIds) {
-      const s = findStudentByIdentifier(collegeStudents, val, college.affl_no);
-      if (s) {
-        resolvedStudents.push(s);
-        // Prefer cic_no as primary identity for college registration RPC
-        const participantKey = s.cic_no ? String(s.cic_no) : getRegistrationStudentKey(s);
-        chestNos.push(participantKey);
-      } else {
-        console.warn(`[StudentIdentityResolver] Unable to resolve student identifier: ${val}`);
+    if (isInstitutional) {
+      chestNos = [`COL-${college.affl_no}`];
+    } else {
+      for (const val of chestNosOrIds) {
+        const s = findStudentByIdentifier(collegeStudents, val, college.affl_no);
+        if (s) {
+          resolvedStudents.push(s);
+          // Prefer cic_no as primary identity for college registration RPC
+          const participantKey = s.cic_no ? String(s.cic_no) : getRegistrationStudentKey(s);
+          chestNos.push(participantKey);
+        } else {
+          console.warn(`[StudentIdentityResolver] Unable to resolve student identifier: ${val}`);
+        }
       }
-    }
 
-    const { min: minRequired, max: maxAllowed } = getItemParticipantBounds(item);
+      const { min: minRequired, max: maxAllowed } = getItemParticipantBounds(item);
 
-    if (chestNos.length < minRequired) {
-      return {
-        success: false,
-        error: `Requires at least ${minRequired} valid participant(s). Resolved ${chestNos.length}.`
-      };
-    }
+      if (chestNos.length < minRequired) {
+        return {
+          success: false,
+          error: `Requires at least ${minRequired} valid participant(s). Resolved ${chestNos.length}.`
+        };
+      }
 
-    if (chestNos.length > maxAllowed) {
-      return {
-        success: false,
-        error: `Exceeds maximum limit of ${maxAllowed} participant(s). Resolved ${chestNos.length}.`
-      };
+      if (chestNos.length > maxAllowed) {
+        return {
+          success: false,
+          error: `Exceeds maximum limit of ${maxAllowed} participant(s). Resolved ${chestNos.length}.`
+        };
+      }
     }
 
     const quotaLimits = this.getMaxParticipation();
     const collegeRegs = this.getRegistrations(college.affl_no);
     const allItems = this.getItems();
 
-    // Validate phase eligibility & student participation quotas for this college
-    for (const student of resolvedStudents) {
-      const stuLabel =
-        getCanonicalChestNo(student) !== '—'
-          ? getCanonicalChestNo(student)
-          : `CIC ${student.cic_no || 'N/A'}`;
-      if (!bypassDeadline) {
-        const stuCat = student.category || student.phase;
-        if (!isCategoryMatching(stuCat, item.phase || item.category)) {
+    if (!isInstitutional) {
+      // Validate phase eligibility & student participation quotas for this college
+      for (const student of resolvedStudents) {
+        const stuLabel =
+          getCanonicalChestNo(student) !== '—'
+            ? getCanonicalChestNo(student)
+            : `CIC ${student.cic_no || 'N/A'}`;
+        if (!bypassDeadline) {
+          const stuCat = student.category || student.phase;
+          if (!isCategoryMatching(stuCat, item.phase || item.category)) {
+            return {
+              success: false,
+              error: `Student ${student.name || student.full_name} (${stuLabel}) [${stuCat || 'Unknown'}] is not eligible for ${item.phase || 'this'} event.`
+            };
+          }
+        }
+        const quotaCheck = checkStudentQuota(student, item, collegeRegs, allItems, quotaLimits);
+        if (!quotaCheck.allowed) {
           return {
             success: false,
-            error: `Student ${student.name || student.full_name} (${stuLabel}) [${stuCat || 'Unknown'}] is not eligible for ${item.phase || 'this'} event.`
+            error: `Student ${student.name || student.full_name} (${stuLabel}): ${quotaCheck.reason}`
           };
         }
-      }
-      const quotaCheck = checkStudentQuota(student, item, collegeRegs, allItems, quotaLimits);
-      if (!quotaCheck.allowed) {
-        return {
-          success: false,
-          error: `Student ${student.name || student.full_name} (${stuLabel}): ${quotaCheck.reason}`
-        };
       }
     }
 
@@ -3975,6 +4037,10 @@ class FestService {
     const orig = findStudentByIdentifier(students, origStudentId);
     const rep = findStudentByIdentifier(students, newStudentId);
 
+    if (rep?.is_blocked) {
+      return { success: false, error: `Cannot substitute with student ${rep.name || 'Participant'}: Student is blocked (${rep.block_reason || 'Administrative Block'}).` };
+    }
+
     // Resolve valid UUID registration ID
     let targetRegId = registrationId;
     if (!isUuid(targetRegId)) {
@@ -4725,6 +4791,114 @@ class FestService {
 
     this.notifyVolunteerChange();
     return { success: true };
+  }
+
+  // --- Blocked Students & Committee Members ---
+  public getBlockedStudents(collegeAfflNoOrId?: number | string): BlockedStudent[] {
+    const list = this.getStorage<BlockedStudent[]>('blocked_students', []);
+    const students = this.getStudents();
+    const colleges = this.getColleges();
+
+    const enriched: BlockedStudent[] = list.map(b => ({
+      ...b,
+      student: b.student || findStudentByIdentifier(students, b.student_id) || (b.cic_no ? findStudentByIdentifier(students, b.cic_no) : undefined),
+      college: b.college || colleges.find(c => c.affl_no === b.college_affl_no)
+    }));
+
+    if (!collegeAfflNoOrId) return enriched;
+    const numAffl = !isNaN(Number(collegeAfflNoOrId)) ? Number(collegeAfflNoOrId) : undefined;
+    return enriched.filter(b => numAffl === undefined || b.college_affl_no === numAffl);
+  }
+
+  public async fetchBlockedStudents(): Promise<BlockedStudent[]> {
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/admin/blocked-students');
+        if (res.ok) {
+          const json = await res.json();
+          const items: BlockedStudent[] = json.blockedStudents || [];
+          this.setStorage('blocked_students', items);
+          return this.getBlockedStudents();
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          console.warn('API returned non-ok status for blocked students:', res.status, errJson);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch blocked students:', e);
+      }
+    }
+    return this.getBlockedStudents();
+  }
+
+  public async blockStudent(data: {
+    student_id: string;
+    reason: string;
+    notes?: string | null;
+  }): Promise<{ success: boolean; error?: string; data?: BlockedStudent }> {
+    try {
+      const res = await fetch('/api/admin/blocked-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'block',
+          student_id: data.student_id,
+          reason: data.reason,
+          notes: data.notes
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        return { success: false, error: json.error || 'Failed to block student' };
+      }
+      await this.fetchBlockedStudents();
+      return { success: true, data: json.data };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error while blocking student' };
+    }
+  }
+
+  public async unblockStudent(studentId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch('/api/admin/blocked-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unblock',
+          student_id: studentId
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        return { success: false, error: json.error || 'Failed to unblock student' };
+      }
+      await this.fetchBlockedStudents();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error while unblocking student' };
+    }
+  }
+
+  public async updateBlockedStudent(studentId: string, reason: string, notes?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch('/api/admin/blocked-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          student_id: studentId,
+          reason,
+          notes
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        return { success: false, error: json.error || 'Failed to update block details' };
+      }
+      await this.fetchBlockedStudents();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error while updating block details' };
+    }
   }
 
   // --- Announcements & Bulletins ---

@@ -17,6 +17,7 @@ import {
   getEffectiveStageMode,
   isSubmissionEvent,
   isScreeningEvent,
+  isSpecialGroupEvent,
   requiresPreFestSubmission
 } from '@/lib/types/fest';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
@@ -132,15 +133,30 @@ export function CollegeParticipantsTab({
       const isGroup = itemType.toLowerCase() === 'group';
       const blindCode = r.code_letter || 'Unassigned';
 
-      const participants = (r.participants && r.participants.length > 0)
-        ? r.participants
-        : (r.student ? [r.student] : []);
+      const isInstitutional = (r.chest_no && r.chest_no.startsWith('COL-')) || isSpecialGroupEvent(r.item);
+      const participants = isInstitutional
+        ? [
+            r.student || {
+              id: `col-entry-${r.college_affl_no || collegeAfflNo}-${itemId}`,
+              name: collegeName,
+              full_name: `${collegeName} (College Entry)`,
+              chest_no: r.chest_no || `COL-${r.college_affl_no || collegeAfflNo}`,
+              cic_no: null as any,
+              college_affl_no: Number(r.college_affl_no || collegeAfflNo),
+              class: 'College Entry',
+              phase: 'Special',
+            }
+          ]
+        : ((r.participants && r.participants.length > 0)
+            ? r.participants
+            : (r.student ? [r.student] : []));
 
-      participants.forEach(p => {
-        const studentName = p.full_name || p.name || 'Unknown Student';
-        const cicNo = String(p.cic_no || p.admission_no || p.cic_number || 'N/A');
+      participants.forEach((p: any) => {
+        const isEntryInstitutional = isInstitutional || (p.chest_no && String(p.chest_no).startsWith('COL-'));
+        const studentName = isEntryInstitutional ? `${collegeName} (College Entry)` : (p.full_name || p.name || 'Unknown Student');
+        const cicNo = isEntryInstitutional ? '—' : String(p.cic_no || p.admission_no || p.cic_number || 'N/A');
         const resolvedChest = getCanonicalChestNo(p);
-        const chestNo = resolvedChest !== '—' ? resolvedChest : (p.chest_no || r.chest_no || (cicNo !== 'N/A' ? cicNo : '—'));
+        const chestNo = resolvedChest !== '—' ? resolvedChest : (p.chest_no || r.chest_no || (cicNo !== 'N/A' && cicNo !== '—' ? cicNo : '—'));
         const category = p.category || p.phase || r.item?.phase || 'General';
 
         const chestCandidates = [chestNo, p.chest_no, r.chest_no]

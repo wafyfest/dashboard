@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { StageStatus, isScreeningEvent, isNonTabulationEvent } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent, isNonTabulationEvent, isSpecialGroupEvent } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { TilePattern } from '@/components/fest/FestPattern';
 import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
@@ -356,12 +356,15 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       .map(agg => {
         const enrichedParticipants = agg.results.map(res => {
           const col = colleges.find(c => Number(c.affl_no) === Number(res.college_affl_no));
-          const stu = findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined);
+          const isInstitutional = (res.chest_no && res.chest_no.startsWith('COL-')) || isSpecialGroupEvent(agg.item);
+          const stu = !isInstitutional ? findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined) : undefined;
 
             const stuChest = stu ? getCanonicalChestNo(stu) : '';
             return {
               ...res,
-              studentName: stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`,
+              studentName: isInstitutional
+                ? `${col?.name || `College #${res.college_affl_no}`} (Institutional Entry)`
+                : (stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`),
               collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
               collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
               displayChestNo: (stuChest && stuChest !== '—') ? stuChest : (res.chest_no || '—'),

@@ -46,6 +46,22 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (payload.student_id) {
+        const { data: blocked } = await auth.db
+          .from('blocked_students')
+          .select('reason')
+          .eq('student_id', payload.student_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (blocked) {
+          return NextResponse.json(
+            { error: `Volunteer registration prohibited: Student is blocked from festival participation (${blocked.reason}).` },
+            { status: 403 }
+          );
+        }
+      }
+
       const { data, error } = await auth.db
         .from('volunteers')
         .insert(payload)

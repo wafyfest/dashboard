@@ -43,6 +43,7 @@ import {
   isSubmissionEvent,
   isScreeningEvent,
   getItemParticipantBounds,
+  isSpecialGroupEvent,
   requiresPreFestSubmission
 } from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
@@ -417,15 +418,17 @@ export function CollegeRegistrationsTab({
       if (itemRegs.length === 0) return;
 
       itemRegs.forEach(reg => {
-        const student =
-          findStudentByIdentifier(collegeStudents, reg.cic_no || reg.chest_no) ||
-          findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+        const isInstitutional = (reg.chest_no && reg.chest_no.startsWith('COL-')) || isSpecialGroupEvent(itm);
+        const student = !isInstitutional
+          ? (findStudentByIdentifier(collegeStudents, reg.cic_no || reg.chest_no) ||
+             findStudentByIdentifier(students, reg.cic_no || reg.chest_no))
+          : undefined;
 
         rows.push({
-          studentName: student?.name || student?.full_name || 'Participant',
-          cicNo: String(student?.admission_no || '—'),
-          chestNo: reg.chest_no || getCanonicalChestNo(student),
-          category: student?.phase || itm.phase || itm.category || '—',
+          studentName: isInstitutional ? `${currentCol.name} (College Entry)` : (student?.name || student?.full_name || 'Participant'),
+          cicNo: isInstitutional ? '—' : String(student?.admission_no || '—'),
+          chestNo: isInstitutional ? (reg.chest_no || `COL-${currentCol.affl_no}`) : (reg.chest_no || getCanonicalChestNo(student)),
+          category: student?.phase || itm.phase || itm.category || 'Special',
           itemName: itm.name || itm.name_eng || `Item #${itm.item_id}`,
           itemCode: itm.code || itm.item_code || `ITM-${itm.item_id}`,
           itemType: itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
@@ -891,7 +894,15 @@ export function CollegeRegistrationsTab({
                           </TableCell>
 
                           <TableCell className="py-2.5 align-middle">
-                            {isReg && registeredStudentObjects.length > 0 ? (
+                            {isReg && (isSpecialGroupEvent(item) || registeredChestNos.some(c => c.startsWith('COL-'))) ? (
+                              <div className="flex items-center gap-1.5 max-w-xs">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-800 dark:text-amber-200">
+                                  <Building2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                  <span className="truncate max-w-[200px]">{currentCol?.name || `College #${currentColAffl}`}</span>
+                                  <span className="text-[10px] opacity-75 font-mono">({registeredChestNos[0] || `COL-${currentColAffl}`})</span>
+                                </span>
+                              </div>
+                            ) : isReg && registeredStudentObjects.length > 0 ? (
                               <div className="flex items-center gap-1.5 max-w-xs">
                                 <div className="relative flex-1 min-w-[170px]">
                                   <select

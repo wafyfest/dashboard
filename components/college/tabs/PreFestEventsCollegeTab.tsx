@@ -36,7 +36,8 @@ import {
   isSubmissionEvent,
   isScreeningEvent,
   isItemEligibleForCollege,
-  getItemParticipantBounds
+  getItemParticipantBounds,
+  isSpecialGroupEvent
 } from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import {
@@ -622,27 +623,41 @@ export function PreFestEventsCollegeTab({
                       {/* Display registered participants */}
                       {isRegistered && (
                         <div className="text-[11px] font-sans text-[var(--text-muted)] mt-1.5 flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Roster:
-                          </span>
-                          {rosterParticipants.length > 0 ? (
-                            rosterParticipants.map((p, pIdx) => {
-                              const chest = getCanonicalChestNo(p);
-                              const idLabel = chest !== '—' ? `#${chest}` : `CIC: ${p.admission_no || p.cic_no || (p as any).cic_number || 'N/A'}`;
-                              return (
-                                <span
-                                  key={p.id || pIdx}
-                                  className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] font-sans"
-                                >
-                                  {p.full_name || p.name} <span className="ml-1 text-[var(--text-muted)] font-mono text-[9.5px]">({idLabel})</span>
-                                </span>
-                              );
-                            })
+                          {isSpecialGroupEvent(item) ? (
+                            <>
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Institutional Entry:
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[10.5px] font-bold text-amber-800 dark:text-amber-200 font-sans">
+                                {(currentCollegeAfflNo ? festService.getCollege(currentCollegeAfflNo) : currentCollegeId ? festService.getCollege(currentCollegeId) : undefined)?.name || `College #${currentCollegeAfflNo || currentCollegeId || 'Entry'}`}
+                              </span>
+                            </>
                           ) : (
-                            <span className="text-[var(--text-secondary)] font-mono text-[10.5px]">
-                              {matchingRegs[0]?.chest_no ? `Chest #${matchingRegs[0].chest_no}` : 'Enrolled'}
-                            </span>
+                            <>
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Roster:
+                              </span>
+                              {rosterParticipants.length > 0 ? (
+                                rosterParticipants.map((p, pIdx) => {
+                                  const chest = getCanonicalChestNo(p);
+                                  const idLabel = chest !== '—' ? `#${chest}` : `CIC: ${p.admission_no || p.cic_no || (p as any).cic_number || 'N/A'}`;
+                                  return (
+                                    <span
+                                      key={p.id || pIdx}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] font-sans"
+                                    >
+                                      {p.full_name || p.name} <span className="ml-1 text-[var(--text-muted)] font-mono text-[9.5px]">({idLabel})</span>
+                                    </span>
+                                  );
+                                })
+                              ) : (
+                                <span className="text-[var(--text-secondary)] font-mono text-[10.5px]">
+                                  {matchingRegs[0]?.chest_no ? `Chest #${matchingRegs[0].chest_no}` : 'Enrolled'}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
@@ -672,16 +687,22 @@ export function PreFestEventsCollegeTab({
                     <TableCell className="text-center">
                       {isRegistered ? (
                         <div className="inline-flex flex-col items-center">
-                          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
-                          </span>
+                          {isSpecialGroupEvent(item) ? (
+                            <span className="font-sans font-bold text-[10.5px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              College Entry
+                            </span>
+                          ) : (
+                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span
                           className={`font-mono font-bold text-xs ${isLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
                           title={isLocked ? lockReason : 'Not enrolled'}
                         >
-                          0/{isOpenParticipants ? 'Open' : maxCount}
+                          {isSpecialGroupEvent(item) ? 'Not Enrolled' : `0/${isOpenParticipants ? 'Open' : maxCount}`}
                         </span>
                       )}
                     </TableCell>

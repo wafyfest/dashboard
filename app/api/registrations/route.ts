@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireServerRole } from '@/lib/serverAuth';
 import { evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
-import { EventDeadlineSetting } from '@/lib/types/fest';
+import { EventDeadlineSetting, isSpecialGroupEvent } from '@/lib/types/fest';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
         );
       }
       const [eventRes, settingsRes, collegeRes, cellRes, deadlineRes] = await Promise.all([
-        auth.db.from('events').select('id, item_id, item_code, reg_deadline, fine_deadline, is_locked, is_screening, is_submission, mode').eq('item_id', itemId).maybeSingle(),
+        auth.db.from('events').select('id, item_id, item_code, reg_deadline, fine_deadline, is_locked, is_screening, is_submission, mode, min_participants, max_participants, no_of_participants, name_eng, point_type, phase, category').eq('item_id', itemId).maybeSingle(),
         auth.db.from('fest_settings').select('reg_deadline, fine_deadline').limit(1).maybeSingle(),
         auth.db.from('colleges').select('id, affl_no, manual_lock_override').eq('affl_no', collegeAfflNo).maybeSingle(),
         auth.db.from('entry_locks').select('is_open, updated_at').eq('item_id', itemId).eq('college_affl_no', collegeAfflNo).maybeSingle(),
@@ -243,9 +243,66 @@ export async function POST(req: NextRequest) {
       const dbClient = (auth as any).sessionDb || auth.db;
 
       if (action === 'register') {
-        const chestNos = Array.isArray(body?.chestNos)
+        let chestNos = Array.isArray(body?.chestNos)
           ? body.chestNos.map((c: unknown) => String(c ?? '').trim()).filter(Boolean)
           : [];
+
+        const isSpecialGroup = isSpecialGroupEvent(eventRes.data);
+        const isInstitutionalEntry = isSpecialGroup || chestNos.some((c: string) => c.startsWith('COL-') || c === 'COLLEGE');
+
+        if (isInstitutionalEntry) {
+          // For Special Group Events, register under the College institutional identifier
+          chestNos = [`COL-${collegeAfflNo}`];
+        } else {
+          // Validate participant count against event min/max bounds for standard events
+          const minReq = eventRes.data.min_participants ?? eventRes.data.no_of_participants ?? 1;
+          const maxReq = eventRes.data.max_participants ?? eventRes.data.no_of_participants ?? (eventRes.data.no_of_participants == null ? 50 : 1);
+
+          if (chestNos.length < minReq) {
+            return NextResponse.json(
+              { error: `Registration rejected: ${eventRes.data.name_eng || 'This event'} requires at least ${minReq} participants (submitted ${chestNos.length}).` },
+              { status: 400 }
+            );
+          }
+
+          if (chestNos.length > maxReq) {
+            return NextResponse.json(
+              { error: `Registration rejected: ${eventRes.data.name_eng || 'This event'} allows at most ${maxReq} participants (submitted ${chestNos.length}).` },
+              { status: 400 }
+            );
+          }
+
+          // Pre-validate against blocked_students
+          if (chestNos.length > 0) {
+            const { data: blockedList } = await auth.db
+              .from('blocked_students')
+              .select('student_id, cic_no, reason, students(name)')
+              .eq('is_active', true)
+              .eq('college_affl_no', collegeAfflNo);
+
+            if (blockedList && blockedList.length > 0) {
+              const numericLookups = chestNos
+                .filter((c: string) => /^\d+$/.test(c))
+                .map((c: string) => Number(c));
+
+              for (const b of (blockedList as any[])) {
+                const match = chestNos.some((cn: string) =>
+                  cn === String(b.cic_no) ||
+                  cn === b.student_id ||
+                  cn === `ST-${b.cic_no}` ||
+                  numericLookups.includes(Number(b.cic_no))
+                );
+                if (match) {
+                  const studentName = (b.students as any)?.name || 'Participant';
+                  return NextResponse.json(
+                    { error: `Registration rejected: Student "${studentName}" (CIC: ${b.cic_no}) is blocked from festival participation (${b.reason}).` },
+                    { status: 403 }
+                  );
+                }
+              }
+            }
+          }
+        }
 
         let dbRows: any = null;
         let rpcError: any = null;

@@ -161,12 +161,8 @@ export default function StudentLoginPage() {
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-amber-500/40 transition-all duration-150 [box-shadow:var(--shadow-card),var(--glass-highlight)] backdrop-blur-md cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--f-saffron)] focus-visible:outline-none group"
-            title={
-              theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
-            }
-            aria-label={
-              theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
-            }
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             <div className="w-4 h-4 flex items-center justify-center transition-transform duration-500 group-hover:rotate-45">
               {theme === "dark" ? (

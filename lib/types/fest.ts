@@ -112,6 +112,36 @@ export interface Student {
   password?: string | null;
   created_at?: string;
   college?: College;
+  is_blocked?: boolean;
+  block_reason?: string | null;
+  block_notes?: string | null;
+  blocked_at?: string | null;
+}
+
+export interface BlockedStudent {
+  id: string;
+  student_id: string;
+  cic_no: number | string;
+  college_affl_no: number;
+  reason: string;
+  notes?: string | null;
+  is_active: boolean;
+  blocked_by?: string | null;
+  blocked_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  student?: Student;
+  college?: College;
+}
+
+export function isFestCommitteeBlock(reason?: string | null): boolean {
+  if (!reason) return false;
+  const r = reason.trim().toLowerCase();
+  return r.includes('fest committee') || r.includes('committee') || r === 'fest_committee';
+}
+
+export function isStudentBlocked(student?: Partial<Student> | null): boolean {
+  return Boolean(student?.is_blocked);
 }
 
 export function formatStudentCategory(phaseOrCat?: string | null): string {
@@ -175,6 +205,25 @@ export function isSpecialEvent(
 }
 
 /**
+ * Returns true for Special Group Events (e.g. SE090 Campaign Setting, SE091 Moral Video Making)
+ * which are registered as an institutional delegation under the College Name.
+ */
+export function isSpecialGroupEvent(
+  item?: {
+    phase?: string | null;
+    category?: string | null;
+    item_code?: string | null;
+    code?: string | null;
+    point_type?: string | null;
+    item_type?: string | null;
+  } | null
+): boolean {
+  if (!item) return false;
+  const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+  return isGroup && isSpecialEvent(item);
+}
+
+/**
  * Returns true when an event is excluded from official championship points tabulation
  * (e.g. Category D / SE090-SE093 with tabulation = false).
  */
@@ -200,17 +249,19 @@ export function getItemParticipantBounds(
   } | null
 ): { min: number; max: number; isOpen: boolean } {
   if (!item) return { min: 1, max: 1, isOpen: false };
-  if (item.no_of_participants == null) {
+  if (item.no_of_participants == null && item.max_participants == null) {
     return {
       min: item.min_participants ?? 1,
       max: item.max_participants ?? OPEN_PARTICIPANTS_MAX,
       isOpen: true,
     };
   }
-  const exact = Math.max(1, Number(item.no_of_participants) || 1);
+  const fallback = Math.max(1, Number(item.no_of_participants) || 1);
+  const min = Math.max(1, Number(item.min_participants ?? fallback));
+  const max = Math.max(min, Number(item.max_participants ?? fallback));
   return {
-    min: item.min_participants ?? exact,
-    max: item.max_participants ?? exact,
+    min,
+    max,
     isOpen: false,
   };
 }
@@ -478,8 +529,8 @@ export interface Item {
   point_type: PointType;
   item_type?: 'Single' | 'Group'; // alias
   no_of_participants: number | null;
-  min_participants?: number; // alias
-  max_participants?: number; // alias
+  min_participants?: number | null; // alias
+  max_participants?: number | null; // alias
   reg_deadline?: string | null;
   fine_deadline?: string | null;
   l_star: boolean;

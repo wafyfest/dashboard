@@ -23,6 +23,7 @@ import {
   HeartHandshake,
   Search,
   CheckCircle2,
+  Ban,
   Clock,
   UserCheck,
   UserPlus,
@@ -49,7 +50,8 @@ import {
   College,
   Volunteer,
   isAliyaOrPgPhase,
-  getStudentVolunteerPhase
+  getStudentVolunteerPhase,
+  isFestCommitteeBlock
 } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
 
@@ -233,6 +235,9 @@ export function CollegeVolunteersTab({
   // Scoped to Aliya & PG phase students for this college
   const eligibleStudents = useMemo(() => {
     return students.filter(s => {
+      // Must not be a Fest Committee member (completely hidden from registration)
+      if (s.is_blocked && isFestCommitteeBlock(s.block_reason)) return false;
+
       // Must match this college
       const isThisCollege =
         s.college_affl_no === collegeAfflNo ||
@@ -273,7 +278,7 @@ export function CollegeVolunteersTab({
   ), [volunteerMap]);
 
   const availableStudents = useMemo(() => {
-    return eligibleStudents.filter(s => !getStudentVolunteer(s));
+    return eligibleStudents.filter(s => !s.is_blocked && !getStudentVolunteer(s));
   }, [eligibleStudents, getStudentVolunteer]);
 
   const selectedAvailableStudents = useMemo(() => {
@@ -1007,6 +1012,7 @@ export function CollegeVolunteersTab({
                   volunteerMap.get(student.id) ||
                   (student.cic_no ? volunteerMap.get(String(student.cic_no)) : undefined);
                 const isRegistered = !!vol;
+                const isBlocked = Boolean(student.is_blocked);
                 const isSelected = selectedStudentIds.has(student.id);
                 const studentPhase = getStudentVolunteerPhase(
                   student.phase || student.category,
@@ -1017,18 +1023,31 @@ export function CollegeVolunteersTab({
                 return (
                   <TableRow
                     key={student.id || idx}
-                    className={`hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] ${isRegistered ? 'bg-emerald-500/5 dark:bg-emerald-500/5' : ''
-                      }`}
+                    className={`hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)] ${
+                      isRegistered
+                        ? 'bg-emerald-500/5 dark:bg-emerald-500/5'
+                        : isBlocked
+                        ? 'bg-rose-500/[0.04]'
+                        : ''
+                    }`}
                   >
                     {/* Checkbox */}
                     <TableCell className="text-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        disabled={isRegistered || isVolunteerRegLocked}
+                        disabled={isRegistered || isVolunteerRegLocked || isBlocked}
                         onChange={e => toggleSelectedStudent(student.id, e.target.checked)}
                         className="rounded border-[var(--border-medium)] text-[var(--f-saffron)] focus:ring-[var(--f-saffron)] accent-amber-500 w-3.5 h-3.5 disabled:opacity-30 cursor-pointer"
-                        title={isVolunteerRegLocked ? 'Registration is locked' : isRegistered ? 'Already registered' : 'Select for batch registration'}
+                        title={
+                          isBlocked
+                            ? `Student is blocked: ${student.block_reason || 'Administrative'}`
+                            : isVolunteerRegLocked
+                            ? 'Registration is locked'
+                            : isRegistered
+                            ? 'Already registered'
+                            : 'Select for batch registration'
+                        }
                       />
                     </TableCell>
 
@@ -1043,14 +1062,27 @@ export function CollegeVolunteersTab({
                         <div
                           className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 border ${isPg
                             ? 'bg-amber-500/15 text-amber-900 dark:text-amber-300 border-amber-500/30'
+                            : isBlocked
+                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30'
                             : 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-subtle)]'
                             }`}
                         >
                           {(student.name || student.full_name || 'S').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-heading text-[var(--text-primary)] flex items-center gap-1.5">
-                            {student.name || student.full_name}
+                          <div className="text-xs font-bold font-heading text-[var(--text-primary)] flex items-center gap-1.5 flex-wrap">
+                            <span className={isBlocked ? 'line-through decoration-rose-500/50 text-rose-900 dark:text-rose-300' : undefined}>
+                              {student.name || student.full_name}
+                            </span>
+                            {isBlocked && (
+                              <Badge
+                                variant="destructive"
+                                size="sm"
+                                className="text-[9.5px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
+                              >
+                                Blocked: {student.block_reason || 'Administrative'}
+                              </Badge>
+                            )}
                           </div>
                           {(student.admission_no || student.cic_no || student.cic_number) && (
                             <div className="mt-0.5">
@@ -1076,6 +1108,11 @@ export function CollegeVolunteersTab({
                         <Badge variant="success" size="sm" className="flex items-center gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           Registered Volunteer
+                        </Badge>
+                      ) : isBlocked ? (
+                        <Badge variant="destructive" size="sm" className="flex items-center gap-1.5 bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                          <Ban className="w-3 h-3" />
+                          Blocked from Duty
                         </Badge>
                       ) : (
                         <Badge variant="outline" size="sm" className="flex items-center gap-1.5 text-[var(--text-muted)]">
@@ -1152,13 +1189,21 @@ export function CollegeVolunteersTab({
                       ) : (
                         <Button
                           size="xs"
-                          variant="saffron"
-                          disabled={isVolunteerRegLocked}
-                          onClick={() => handleOpenRegister(student)}
+                          variant={isBlocked ? "outline" : "saffron"}
+                          disabled={isVolunteerRegLocked || isBlocked}
+                          onClick={() => !isBlocked && handleOpenRegister(student)}
                           className="font-heading font-bold text-xs disabled:opacity-50"
-                          title={isVolunteerRegLocked ? 'Volunteer registration is locked by fest administration' : 'Register volunteer'}
+                          title={
+                            isBlocked
+                              ? `Student is blocked from participation: ${student.block_reason || 'Administrative'}`
+                              : isVolunteerRegLocked
+                              ? 'Volunteer registration is locked by fest administration'
+                              : 'Register volunteer'
+                          }
                         >
-                          {isVolunteerRegLocked ? (
+                          {isBlocked ? (
+                            'Blocked'
+                          ) : isVolunteerRegLocked ? (
                             <>
                               <Lock className="w-3.5 h-3.5 mr-1" />
                               Locked

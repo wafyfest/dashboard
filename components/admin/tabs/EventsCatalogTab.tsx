@@ -65,6 +65,8 @@ export function EventsCatalogTab() {
     is_screening: boolean;
     item_type: 'Single' | 'Group';
     no_of_participants: number | null;
+    min_participants?: number | null;
+    max_participants?: number | null;
   }>({
     code: '',
     name_eng: '',
@@ -76,7 +78,9 @@ export function EventsCatalogTab() {
     is_submission: false,
     is_screening: false,
     item_type: 'Single',
-    no_of_participants: 1
+    no_of_participants: 1,
+    min_participants: 1,
+    max_participants: 1
   });
 
   // Unique phases dynamically extracted
@@ -168,7 +172,9 @@ export function EventsCatalogTab() {
       is_submission: false,
       is_screening: false,
       item_type: 'Single',
-      no_of_participants: 1
+      no_of_participants: 1,
+      min_participants: 1,
+      max_participants: 1
     });
     setFormError(null);
     setIsItemModalOpen(true);
@@ -189,7 +195,9 @@ export function EventsCatalogTab() {
       is_submission: isSubmissionEvent(item),
       is_screening: isScreeningEvent(item),
       item_type: (item.point_type === 'group' || item.item_type === 'Group') ? 'Group' : 'Single',
-      no_of_participants: item.no_of_participants ?? null
+      no_of_participants: item.no_of_participants ?? null,
+      min_participants: item.min_participants ?? item.no_of_participants ?? null,
+      max_participants: item.max_participants ?? item.no_of_participants ?? null
     });
     setFormError(null);
     setIsItemModalOpen(true);
@@ -229,7 +237,19 @@ export function EventsCatalogTab() {
         no_of_participants:
           editingItem.no_of_participants == null
             ? null
-            : Math.max(1, Number(editingItem.no_of_participants) || 1)
+            : Math.max(1, Number(editingItem.no_of_participants) || 1),
+        min_participants:
+          editingItem.no_of_participants == null
+            ? null
+            : (editingItem.item_type === 'Group'
+                ? Math.max(1, Number(editingItem.min_participants ?? editingItem.no_of_participants) || 1)
+                : Math.max(1, Number(editingItem.no_of_participants) || 1)),
+        max_participants:
+          editingItem.no_of_participants == null
+            ? null
+            : (editingItem.item_type === 'Group'
+                ? Math.max(1, Number(editingItem.max_participants ?? editingItem.no_of_participants) || 1)
+                : Math.max(1, Number(editingItem.no_of_participants) || 1))
       };
 
       const res = await festService.saveItem(payload);
@@ -757,13 +777,66 @@ export function EventsCatalogTab() {
                 <div className="w-full px-3 py-2 text-xs border border-dashed border-[var(--border-medium)] rounded-lg bg-[var(--bg-subtle)]/60 text-[var(--text-secondary)] font-mono">
                   Open Limit (NULL — Colleges can register multiple participants)
                 </div>
+              ) : editingItem.item_type === 'Group' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+                      Min Participants
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={editingItem.min_participants ?? editingItem.no_of_participants ?? 1}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10) || 1;
+                        setEditingItem({
+                          ...editingItem,
+                          min_participants: val,
+                          no_of_participants: Math.max(val, editingItem.max_participants ?? editingItem.no_of_participants ?? val)
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+                      Max Participants
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={editingItem.max_participants ?? editingItem.no_of_participants ?? 1}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10) || 1;
+                        setEditingItem({
+                          ...editingItem,
+                          max_participants: val,
+                          no_of_participants: val
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono"
+                      required
+                    />
+                  </div>
+                </div>
               ) : (
                 <input
                   type="number"
                   min={1}
                   max={50}
                   value={editingItem.no_of_participants}
-                  onChange={e => setEditingItem({ ...editingItem, no_of_participants: parseInt(e.target.value, 10) || 1 })}
+                  onChange={e => {
+                    const val = parseInt(e.target.value, 10) || 1;
+                    setEditingItem({
+                      ...editingItem,
+                      no_of_participants: val,
+                      min_participants: val,
+                      max_participants: val
+                    });
+                  }}
                   className="w-full px-3 py-2 text-xs border border-[var(--border-subtle)] rounded-lg bg-[var(--bg-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-mono"
                   required
                 />

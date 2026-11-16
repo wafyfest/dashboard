@@ -47,5 +47,9 @@ skills-lock.json
 temp_pg
 
 
+# supabase backups
+supabase/backups/backup_*
+supabase/backups/snapshot_*
+
 tests
 .taste-skill

@@ -39,7 +39,9 @@ import {
   getItemParticipantBounds,
   formatParticipantQuotaLabel,
   isSpecialEvent,
-  getEffectiveStageMode
+  isSpecialGroupEvent,
+  getEffectiveStageMode,
+  isFestCommitteeBlock
 } from '@/lib/types/fest';
 import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
@@ -101,6 +103,7 @@ export function CollegeView() {
   });
 
   const eligibleSubstituteStudents = students.filter(s => {
+    if (s.is_blocked) return false;
     if (!replacementForm.registrationId) return true;
     const selReg = registrations.find(r => r.id === replacementForm.registrationId);
     if (!selReg) return true;
@@ -161,6 +164,11 @@ export function CollegeView() {
   // Filtered students for registration modal
   const filteredModalStudents = React.useMemo(() => {
     return students.filter(s => {
+      // 1. Fest Committee members are completely omitted from event registration modals
+      if (s.is_blocked && isFestCommitteeBlock(s.block_reason)) {
+        return false;
+      }
+
       // Phase filter
       if (regModalPhaseFilter !== 'All') {
         const sCat = s.category || s.phase;
@@ -194,6 +202,7 @@ export function CollegeView() {
   const regModalMeta = React.useMemo(() => {
     if (!selectedItemForReg) return null;
     const targetItemId = Number(selectedItemForReg.item_id || selectedItemForReg.id);
+    const isSpecialGroup = isSpecialGroupEvent(selectedItemForReg);
     const { min: minPart, max: maxPart, isOpen: isOpenPart } = getItemParticipantBounds(selectedItemForReg);
     const matchingEventRegs = registrations.filter(
       r => Number(r.item_id) === targetItemId || String(r.item_id) === String(selectedItemForReg.id)
@@ -204,9 +213,13 @@ export function CollegeView() {
         currentlyRegisteredStudents.push(s);
       }
     });
-    const isAlreadyRegistered = matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0;
+    const isAlreadyRegistered = isSpecialGroup
+      ? matchingEventRegs.length > 0
+      : (matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0);
+
     return {
       targetItemId,
+      isSpecialGroup,
       minPart,
       maxPart,
       isOpenPart,
@@ -255,10 +268,15 @@ export function CollegeView() {
     e.preventDefault();
     if (!selectedItemForReg) return;
 
+    const isSpecialGroup = isSpecialGroupEvent(selectedItemForReg);
+    const participantPayload = isSpecialGroup
+      ? [`COL-${currentCollegeAfflNo || college?.affl_no}`]
+      : selectedStudentIds;
+
     const res = await festService.registerCollegeForItem(
       currentCollegeAfflNo || currentCollegeId,
       selectedItemForReg.item_id || selectedItemForReg.id,
-      selectedStudentIds
+      participantPayload
     );
 
     if (!res.success) {
@@ -875,14 +893,20 @@ export function CollegeView() {
         onClose={() => setIsRegisterModalOpen(false)}
         onSubmit={handleConfirmRegistration}
         title={
-          regModalMeta?.isAlreadyRegistered
-            ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
-            : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+          regModalMeta?.isSpecialGroup
+            ? (regModalMeta.isAlreadyRegistered
+                ? `Edit Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+                : `Register Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
+            : (regModalMeta?.isAlreadyRegistered
+                ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+                : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
         }
         description={
-          selectedItemForReg?.no_of_participants == null
-            ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
-            : `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg.no_of_participants} participant(s)`
+          regModalMeta?.isSpecialGroup
+            ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Special Group Event • Registered under College Name`
+            : selectedItemForReg?.no_of_participants == null
+              ? `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Open Entry (Min 1 participant)`
+              : `Event Code: ${selectedItemForReg?.item_code || selectedItemForReg?.code} | Required: ${selectedItemForReg.no_of_participants} participant(s)`
         }
         maxWidth="2xl"
         footer={
@@ -891,7 +915,19 @@ export function CollegeView() {
               {/* Status & Secondary Destructive Action */}
               <div className="flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {selectedStudentIds.length < regModalMeta.minPart ? (
+                  {regModalMeta.isSpecialGroup ? (
+                    regModalMeta.isAlreadyRegistered ? (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-sans font-semibold text-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                        <span>Registered under {college?.name || `College #${currentCollegeAfflNo}`}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-sans font-medium text-xs">
+                        <Building2 className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                        <span>Ready to register as institutional entry</span>
+                      </span>
+                    )
+                  ) : selectedStudentIds.length < regModalMeta.minPart ? (
                     <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-sans font-medium text-xs">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
                       <span>Need at least {regModalMeta.minPart} participant(s) selected</span>
@@ -932,9 +968,15 @@ export function CollegeView() {
                   type="submit"
                   variant="saffron"
                   className="font-heading font-bold min-w-[140px]"
-                  disabled={selectedStudentIds.length < regModalMeta.minPart || selectedStudentIds.length > regModalMeta.maxPart}
+                  disabled={
+                    regModalMeta.isSpecialGroup
+                      ? false
+                      : (selectedStudentIds.length < regModalMeta.minPart || selectedStudentIds.length > regModalMeta.maxPart)
+                  }
                 >
-                  {regModalMeta.isAlreadyRegistered ? 'Update Registration' : 'Confirm Registration'}
+                  {regModalMeta.isSpecialGroup
+                    ? (regModalMeta.isAlreadyRegistered ? 'Update College Entry' : 'Register College Entry')
+                    : (regModalMeta.isAlreadyRegistered ? 'Update Registration' : 'Confirm Registration')}
                 </Button>
               </div>
             </div>
@@ -942,7 +984,65 @@ export function CollegeView() {
         }
       >
         {selectedItemForReg && regModalMeta && (() => {
-          const { minPart, maxPart, isOpenPart, currentlyRegisteredStudents, isAlreadyRegistered } = regModalMeta;
+          const { minPart, maxPart, isOpenPart, currentlyRegisteredStudents, isAlreadyRegistered, isSpecialGroup } = regModalMeta;
+
+          if (isSpecialGroup) {
+            return (
+              <div className="space-y-4">
+                <div className="bg-[var(--bg-subtle)]/75 p-3 rounded-xl border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div>
+                    <span className="font-semibold text-[var(--text-secondary)] font-heading">Category: </span>
+                    <CategoryBadge category={selectedItemForReg.phase || selectedItemForReg.category || 'Special'} />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-[var(--text-secondary)] font-heading">Type / Mode: </span>
+                    <ItemTypeBadge
+                      type="Group"
+                      mode={selectedItemForReg.mode}
+                      isSubmission={isSubmissionEvent(selectedItemForReg)}
+                      isScreening={isScreeningEvent(selectedItemForReg)}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-medium)] shadow-xs space-y-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold font-heading text-[var(--text-primary)]">
+                          {college?.name || `College #${currentCollegeAfflNo}`}
+                        </h4>
+                        <Badge variant="outline" size="sm" className="font-mono text-[10px]">
+                          Affl #{currentCollegeAfflNo || college?.affl_no}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] font-sans leading-relaxed">
+                        This special group event is registered directly under your institution as an official collective delegation. Individual student names are not required.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[var(--border-subtle)]/60 flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-muted)] font-medium">Registration Status:</span>
+                    {isAlreadyRegistered ? (
+                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        Registered as College Entry
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        Ready to Register
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div className="space-y-4">
@@ -1105,6 +1205,7 @@ export function CollegeView() {
                   ) : (
                     filteredModalStudents.map(s => {
                       const isSelected = selectedStudentIds.includes(s.id);
+                      const isBlocked = Boolean(s.is_blocked);
                       const sCat = s.category || s.phase;
                       const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                       const isCategoryMatch = isCategoryMatching(sCat, itemCat);
@@ -1112,8 +1213,8 @@ export function CollegeView() {
                       const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits, students);
                       const isAlreadyInEvent = quotaCheck.isAlreadyRegisteredInItem;
                       const isQuotaComplete = !quotaCheck.allowed;
-                      const isFaded = !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
-                      const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                      const isFaded = isBlocked || !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                      const isDisabled = isBlocked || (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
 
                       const isItemSpecial = isSpecialEvent(selectedItemForReg);
                       const itemStageMode = getEffectiveStageMode(selectedItemForReg);
@@ -1168,11 +1269,22 @@ export function CollegeView() {
                       return (
                         <label
                           key={s.id}
-                          className={`flex items-center justify-between p-2.5 text-xs transition-colors ${isFaded
-                            ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
-                            : 'hover:bg-[var(--bg-subtle)]/60 cursor-pointer'
-                            }`}
-                          title={!isCategoryMatch ? 'Category does not match event requirement' : (!isAlreadyInEvent && isQuotaComplete ? quotaCheck.reason : undefined)}
+                          className={`flex items-center justify-between p-2.5 text-xs transition-colors ${
+                            isBlocked
+                              ? 'bg-rose-500/[0.04] border-l-2 border-l-rose-500 cursor-not-allowed select-none opacity-85'
+                              : isFaded
+                              ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
+                              : 'hover:bg-[var(--bg-subtle)]/60 cursor-pointer'
+                          }`}
+                          title={
+                            isBlocked
+                              ? `Student is blocked from registration: ${s.block_reason || 'Administrative Block'}`
+                              : !isCategoryMatch
+                              ? 'Category does not match event requirement'
+                              : !isAlreadyInEvent && isQuotaComplete
+                              ? quotaCheck.reason
+                              : undefined
+                          }
                         >
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">
                             <input
@@ -1180,6 +1292,7 @@ export function CollegeView() {
                               checked={isSelected}
                               disabled={isDisabled}
                               onChange={e => {
+                                if (isBlocked) return;
                                 if (e.target.checked) {
                                   if (selectedStudentIds.length >= maxPart) {
                                     alert(`Maximum participant limit (${maxPart}) reached for this event.`);
@@ -1194,13 +1307,23 @@ export function CollegeView() {
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-heading font-bold text-[var(--text-primary)] truncate">
+                                <span className={`font-heading font-bold truncate ${isBlocked ? 'text-rose-900 dark:text-rose-300 line-through decoration-rose-500/50' : 'text-[var(--text-primary)]'}`}>
                                   {s.full_name || s.name}
                                 </span>
-                                {isQuotaComplete && !isSelected && !isAlreadyInEvent && (
-                                  <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
-                                    {quotaCheck.reason}
+                                {isBlocked ? (
+                                  <Badge
+                                    variant="destructive"
+                                    size="sm"
+                                    className="text-[10px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
+                                  >
+                                    Blocked: {s.block_reason || 'Administrative'}
                                   </Badge>
+                                ) : (
+                                  isQuotaComplete && !isSelected && !isAlreadyInEvent && (
+                                    <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5">
+                                      {quotaCheck.reason}
+                                    </Badge>
+                                  )
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono mt-0.5 flex-wrap">

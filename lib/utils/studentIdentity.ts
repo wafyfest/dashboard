@@ -1,4 +1,4 @@
-import { Student, Registration, Item, College, MaxParticipation, normalizeCategoryKey, isSpecialEvent, getEffectiveStageMode } from '../types/fest';
+import { Student, Registration, Item, College, MaxParticipation, normalizeCategoryKey, isSpecialEvent, isSpecialGroupEvent, getEffectiveStageMode } from '../types/fest';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -395,6 +395,34 @@ export function normalizeRegistration(
 
   // Resolve main student for this registration row
   const student = findStudentByIdentifier(students, registration.cic_no || registration.chest_no, colAffl);
+
+  // Institutional / College-level delegation registration resolution
+  const isInstitutional =
+    String(registration.chest_no || '').startsWith('COL-') ||
+    Boolean(item && isSpecialGroupEvent(item));
+
+  if (!student && isInstitutional) {
+    const collegeName = college?.name || `College #${colAffl}`;
+    const institutionalStudent: Student = {
+      id: `col-entry-${colAffl}-${itmId}`,
+      name: collegeName,
+      full_name: `${collegeName} (College Entry)`,
+      chest_no: registration.chest_no || `COL-${colAffl}`,
+      cic_no: null as any,
+      college_affl_no: colAffl,
+      class: 'College Entry',
+      phase: 'Special',
+    } as Student;
+
+    return {
+      ...registration,
+      chest_no: registration.chest_no || `COL-${colAffl}`,
+      item: item || registration.item,
+      college: college || registration.college,
+      student: institutionalStudent,
+      participants: [institutionalStudent],
+    };
+  }
 
   // Group event participant aggregation
   let participants: Student[] = [];
