@@ -125,6 +125,21 @@ export async function POST(req: NextRequest) {
           reg_deadline: cleanRow.no_fine_deadline,
           fine_deadline: cleanRow.fine_deadline,
         }).or('is_screening.eq.true,mode.eq.screening');
+      } else if (payload.event_kind === 'submission') {
+        await auth.db.from('events').update({
+          reg_deadline: cleanRow.no_fine_deadline,
+          fine_deadline: cleanRow.fine_deadline,
+        }).or('is_submission.eq.true,mode.eq.submission');
+      } else if (payload.event_kind === 'onstage') {
+        await auth.db.from('events').update({
+          reg_deadline: cleanRow.no_fine_deadline,
+          fine_deadline: cleanRow.fine_deadline,
+        }).eq('mode', 'onstage').eq('is_screening', false);
+      } else if (payload.event_kind === 'offstage') {
+        await auth.db.from('events').update({
+          reg_deadline: cleanRow.no_fine_deadline,
+          fine_deadline: cleanRow.fine_deadline,
+        }).eq('mode', 'offstage').eq('is_screening', false).eq('is_submission', false);
       }
       if (payload.event_kind === 'screening' || payload.event_kind === 'submission') {
         const eventType = payload.event_kind.toUpperCase();

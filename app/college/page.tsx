@@ -64,6 +64,7 @@ export default function CollegePortalPage() {
 
   useEffect(() => {
     setIsMounted(true);
+
   }, []);
 
   // Navigation Items
@@ -718,11 +719,11 @@ export default function CollegePortalPage() {
           title={
             regModalMeta?.isSpecialGroup
               ? (regModalMeta.isAlreadyRegistered
-                  ? `Edit Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
-                  : `Register Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
+                ? `Edit Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+                : `Register Institutional Entry: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
               : (regModalMeta?.isAlreadyRegistered
-                  ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
-                  : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
+                ? `Edit Registration: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`
+                : `Register: ${selectedItemForReg?.name_eng || selectedItemForReg?.name}`)
           }
           description={
             regModalMeta?.isSpecialGroup
