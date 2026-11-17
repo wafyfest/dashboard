@@ -631,8 +631,12 @@ export function CollegeView() {
                           <span className="font-mono text-[10px] text-[var(--text-muted)]">{sch.item?.code}</span>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-xs sm:text-sm text-[var(--text-primary)]">{sch.stage?.name}</div>
-                          <span className="text-[11px] text-[var(--text-muted)]">{sch.stage?.location}</span>
+                          <div className="font-medium text-xs sm:text-sm text-[var(--text-primary)]">
+                            {sch.stage?.name || (isSubmissionEvent(sch.item) ? 'Digital Submission' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage' : 'TBA')}
+                          </div>
+                          <span className="text-[11px] text-[var(--text-muted)]">
+                            {sch.stage?.location || (isSubmissionEvent(sch.item) ? 'Online' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage Venue' : '')}
+                          </span>
                         </TableCell>
                         <TableCell className="font-mono tabular-nums text-xs text-[var(--text-secondary)]">
                           {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -25,6 +25,8 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.test
+.env.live
 env.download
 
 # vercel
@@ -50,6 +52,10 @@ temp_pg
 # supabase backups
 supabase/backups/backup_*
 supabase/backups/snapshot_*
+supabase/backups/*.json
 
 tests
 .taste-skill
+
+.env.live
+.env.test

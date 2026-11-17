@@ -19,7 +19,7 @@ import {
   Calendar,
   Award
 } from 'lucide-react';
-import { StageStatus, isScreeningEvent } from '@/lib/types/fest';
+import { StageStatus, isScreeningEvent, isSubmissionEvent, getEffectiveStageMode } from '@/lib/types/fest';
 import { TilePattern } from '@/components/fest/FestPattern';
 
 export type StageControllerTab = 'relay' | 'blind_allotment' | 'all_schedules';
@@ -470,8 +470,12 @@ export function StageControllerView({ activeTab: controlledTab, onTabChange }: S
                     return (
                       <TableRow key={sch.id} className={isCurrentStage ? 'bg-amber-500/5' : ''}>
                         <TableCell>
-                          <div className="font-bold text-[var(--text-primary)]">{stage?.name}</div>
-                          <span className="text-[11px] text-[var(--text-muted)]">{stage?.location}</span>
+                          <div className="font-bold text-[var(--text-primary)]">
+                            {stage?.name || (isSubmissionEvent(sch.item) ? 'Digital Submission' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage' : 'Unassigned')}
+                          </div>
+                          {stage?.location && (
+                            <span className="text-[11px] text-[var(--text-muted)]">{stage.location}</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="font-mono text-xs font-bold text-[var(--text-muted)]">{sch.item?.code}</div>

@@ -2078,8 +2078,11 @@ export function CollegeRegistrationsTab({
                                   {sched ? (
                                     <div>
                                       <span className="font-semibold text-[var(--text-primary)]">
-                                        Stage {sched.stage_number}
-                                        {sched.stage?.name ? ` (${sched.stage.name})` : ''}
+                                        {sched.stage_number ? (
+                                          <>Stage {sched.stage_number}{sched.stage?.name ? ' (' + sched.stage.name + ')' : ''}</>
+                                        ) : (
+                                          <>{isSubmissionEvent(item) ? 'Digital Submission' : 'Off-Stage'}</>
+                                        )}
                                       </span>
                                       <div className="text-[10px] text-[var(--text-muted)] font-mono">
                                         {sched.starting

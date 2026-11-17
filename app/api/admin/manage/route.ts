@@ -73,8 +73,28 @@ export async function POST(req: NextRequest) {
       if (!schedulePayload || typeof schedulePayload !== 'object') {
         return NextResponse.json({ error: 'Invalid schedule payload.' }, { status: 400 });
       }
+
+      // Check if event is off-stage or submission event (cannot be allocated a stage venue)
+      const { data: itemData } = await auth.db
+        .from('events')
+        .select('mode, is_submission')
+        .eq('item_id', itemId)
+        .maybeSingle();
+
+      const isOffstageOrSubmission = itemData && (
+        itemData.mode === 'offstage' ||
+        itemData.mode === 'submission' ||
+        itemData.is_submission === true
+      );
+
+      const resolvedStageNumber = isOffstageOrSubmission
+        ? null
+        : (schedulePayload.stage_number !== null && schedulePayload.stage_number !== undefined && !Number.isNaN(Number(schedulePayload.stage_number)))
+          ? Number(schedulePayload.stage_number)
+          : null;
+
       const cleanSchedule = {
-        stage_number: Number(schedulePayload.stage_number),
+        stage_number: resolvedStageNumber,
         starting: schedulePayload.starting,
         ending: schedulePayload.ending ?? null,
         status: schedulePayload.status ?? 'Upcoming',

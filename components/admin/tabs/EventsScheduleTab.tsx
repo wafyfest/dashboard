@@ -6,7 +6,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Badge, CategoryBadge, StageStatusBadge, ScreeningBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { Item, Stage, Schedule, StageStatus, isScreeningEvent } from '@/lib/types/fest';
+import { Item, Stage, Schedule, StageStatus, isScreeningEvent, getEffectiveStageMode, isSubmissionEvent, isStageVenueApplicable } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
 import {
@@ -40,7 +40,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
   // Edit Schedule Modal State
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [editForm, setEditForm] = useState<{
-    stageNumber: number;
+    stageNumber: number | null;
     startDate: string;
     startTime: string;
     endDate: string;
@@ -100,9 +100,19 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
 
       // Stage filter
       if (selectedStageFilter !== 'all') {
-        const targetStageNum = parseInt(selectedStageFilter, 10);
-        if (!sch || sch.stage_number !== targetStageNum) {
-          return false;
+        if (selectedStageFilter === 'offstage_submission') {
+          if (isStageVenueApplicable(item)) {
+            return false;
+          }
+        } else if (selectedStageFilter === 'unassigned_stage') {
+          if (!isStageVenueApplicable(item) || sch?.stage_number) {
+            return false;
+          }
+        } else {
+          const targetStageNum = parseInt(selectedStageFilter, 10);
+          if (!isStageVenueApplicable(item) || !sch || sch.stage_number !== targetStageNum) {
+            return false;
+          }
         }
       }
 
@@ -130,16 +140,19 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
   const handleOpenEditModal = (item: Item) => {
     const sch = scheduleByItemId.get(Number(item.item_id || item.id));
     const now = new Date();
+    const isStageApplicable = isStageVenueApplicable(item);
 
     let startDateStr = now.toISOString().slice(0, 10);
     let startTimeStr = '09:30';
     let endDateStr = now.toISOString().slice(0, 10);
     let endTimeStr = '10:15';
-    let stageNum = stages[0]?.stage_number || 1;
+    let stageNum: number | null = isStageApplicable ? (stages[0]?.stage_number || 1) : null;
     let currentStatus: StageStatus = 'Upcoming';
 
     if (sch) {
-      stageNum = sch.stage_number || stageNum;
+      if (isStageApplicable) {
+        stageNum = sch.stage_number || stageNum;
+      }
       currentStatus = (sch.status as StageStatus) || 'Upcoming';
 
       if (sch.starting) {
@@ -179,6 +192,11 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
 
     setIsSaving(true);
     try {
+      const isStageApplicable = isStageVenueApplicable(editingItem);
+      const resolvedStageNumber = isStageApplicable && editForm.stageNumber
+        ? Number(editForm.stageNumber)
+        : null;
+
       // Build ISO starting and ending strings
       const startingIso = new Date(`${editForm.startDate}T${editForm.startTime}:00`).toISOString();
       const endingIso = editForm.endDate && editForm.endTime
@@ -187,7 +205,7 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
 
       const res = await festService.saveSchedule({
         item_id: Number(editingItem.item_id || editingItem.id),
-        stage_number: editForm.stageNumber,
+        stage_number: resolvedStageNumber,
         starting: startingIso,
         ending: endingIso,
         status: editForm.status
@@ -289,12 +307,14 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                 onChange={e => setSelectedStageFilter(e.target.value)}
                 className="w-full px-3 py-1.5 text-xs font-sans bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] cursor-pointer appearance-none pr-8 transition-all"
               >
-                <option value="all">All Stages ({stages.length})</option>
+                <option value="all">All Venues & Stages ({stages.length})</option>
                 {stages.map(st => (
                   <option key={st.stage_number} value={st.stage_number}>
                     Stage {st.stage_number}: {st.name}
                   </option>
                 ))}
+                <option value="offstage_submission">Off-Stage & Submission (No Stage Venue)</option>
+                <option value="unassigned_stage">Unassigned On-Stage</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -389,7 +409,11 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                         <CategoryBadge category={item.phase || item.category || 'General'} />
                       </TableCell>
                       <TableCell>
-                        {sch ? (
+                        {!isStageVenueApplicable(item) ? (
+                          <span className="inline-flex items-center text-[11px] font-sans font-medium px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
+                            N/A ({isSubmissionEvent(item) ? 'Submission' : 'Off-Stage'})
+                          </span>
+                        ) : sch?.stage_number ? (
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono tabular-nums text-xs font-bold px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                               Stage {sch.stage_number}
@@ -450,29 +474,45 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
         isOpen={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
         title={`Edit Schedule: ${editingItem?.name_eng || editingItem?.name}`}
-        description={`Event Code: ${editingItem?.item_code || editingItem?.code} · Category: ${editingItem?.phase || editingItem?.category}`}
+        description={`Event Code: ${editingItem?.item_code || editingItem?.code} · Category: ${editingItem?.phase || editingItem?.category} · Mode: ${isSubmissionEvent(editingItem) ? 'Submission Event' : getEffectiveStageMode(editingItem) === 'onstage' ? 'On Stage' : 'Off Stage'}`}
         maxWidth="lg"
       >
         {editingItem && (
           <form onSubmit={handleSaveSchedule} className="space-y-4">
-            {/* Stage Selector */}
-            <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                Assigned Stage Venue
-              </label>
-              <select
-                value={editForm.stageNumber}
-                onChange={e => setEditForm({ ...editForm, stageNumber: parseInt(e.target.value, 10) })}
-                className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium transition-all"
-                required
-              >
-                {stages.map(st => (
-                  <option key={st.stage_number} value={st.stage_number}>
-                    Stage {st.stage_number}: {st.name} ({st.location || 'Campus'})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Stage Selector or Disabled Banner */}
+            {isStageVenueApplicable(editingItem) ? (
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  Assigned Stage Venue
+                </label>
+                <select
+                  value={editForm.stageNumber || stages[0]?.stage_number || 1}
+                  onChange={e => setEditForm({ ...editForm, stageNumber: parseInt(e.target.value, 10) })}
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-medium)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--f-saffron)]/40 focus:border-[var(--f-saffron)] font-medium transition-all"
+                  required
+                >
+                  {stages.map(st => (
+                    <option key={st.stage_number} value={st.stage_number}>
+                      Stage {st.stage_number}: {st.name} ({st.location || 'Campus'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between text-xs gap-3">
+                <div>
+                  <span className="font-semibold text-[var(--text-secondary)] block">Stage Venue Allocation</span>
+                  <span className="text-[11px] text-[var(--text-muted)] font-sans">
+                    {isSubmissionEvent(editingItem)
+                      ? 'Digital/Submission event — stage venue allocation is not applicable.'
+                      : 'Off-stage event — conducted off-stage (no stage venue allocated).'}
+                  </span>
+                </div>
+                <span className="text-[11px] font-sans font-semibold px-2.5 py-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] shrink-0">
+                  Not Applicable
+                </span>
+              </div>
+            )}
 
             {/* Starting Date & Time */}
             <div className="grid grid-cols-2 gap-3">

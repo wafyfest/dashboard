@@ -316,6 +316,19 @@ export function requiresPreFestSubmission(
   return isSubmissionEvent(item) || isScreeningEvent(item);
 }
 
+/**
+ * Returns true if an event is conducted on a live physical stage and is eligible for stage venue allocation.
+ * Off-stage events and submission events cannot be allocated a stage venue.
+ */
+export function isStageVenueApplicable(
+  item?: { mode?: string | null; is_submission?: boolean | null } | null
+): boolean {
+  if (!item) return false;
+  if (isSubmissionEvent(item)) return false;
+  if (getEffectiveStageMode(item) === 'offstage') return false;
+  return true;
+}
+
 export type EventKind = 'screening' | 'submission' | 'onstage' | 'offstage' | 'general';
 
 export interface EventDeadlineSetting {
@@ -685,8 +698,8 @@ export interface Stage {
 export interface Schedule {
   id: string;
   item_id: number;
-  stage_number: number;
-  stage_id?: string;
+  stage_number?: number | null;
+  stage_id?: string | null;
   starting: string;
   scheduled_start?: string; // alias
   ending?: string | null;

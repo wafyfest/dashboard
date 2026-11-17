@@ -32,6 +32,7 @@ import {
   isCategoryMatching,
   getEffectiveStageMode,
   isSubmissionEvent,
+  isStageVenueApplicable,
   isScreeningEvent,
   isNonTabulationEvent,
   getItemParticipantBounds,
@@ -2858,12 +2859,16 @@ class FestService {
     const stages = this.getStages();
 
     return schedules.map(s => {
-      const matchedStage = stages.find(st => st.stage_number === s.stage_number);
+      const item = items.find(i => i.item_id === s.item_id);
+      const isApplicable = isStageVenueApplicable(item);
+      const validStageNumber = isApplicable && s.stage_number ? s.stage_number : null;
+      const matchedStage = validStageNumber ? stages.find(st => st.stage_number === validStageNumber) : undefined;
       return {
         ...s,
+        stage_number: validStageNumber,
         scheduled_start: s.starting,
-        stage_id: matchedStage?.id || `stg-${s.stage_number}`,
-        item: items.find(i => i.item_id === s.item_id),
+        stage_id: matchedStage?.id || (validStageNumber ? `stg-${validStageNumber}` : undefined),
+        item,
         stage: matchedStage
       };
     });
@@ -2896,13 +2901,17 @@ class FestService {
 
   public async saveSchedule(data: {
     item_id: number;
-    stage_number: number;
+    stage_number?: number | null;
     starting: string;
     ending?: string;
     status?: StageStatus;
   }): Promise<{ success: boolean; schedule?: Schedule; error?: string }> {
     const numItemId = Number(data.item_id);
-    const numStage = Number(data.stage_number);
+    const item = this.getItem(numItemId);
+    const isApplicable = isStageVenueApplicable(item);
+    const numStage = isApplicable && data.stage_number !== null && data.stage_number !== undefined && !Number.isNaN(Number(data.stage_number))
+      ? Number(data.stage_number)
+      : null;
     const statusVal = data.status || 'Upcoming';
     const nowIso = new Date().toISOString();
 

@@ -35,7 +35,7 @@ import {
   Layers,
   UserPlus
 } from 'lucide-react';
-import { Item, College, ItemType, StudentCategory, EntryLock, Student, Result } from '@/lib/types/fest';
+import { Item, College, ItemType, StudentCategory, EntryLock, Student, Result, isSubmissionEvent, getEffectiveStageMode } from '@/lib/types/fest';
 import { LocksMatrixTab } from '../admin/tabs/LocksMatrixTab';
 import { EventDeadlinesTab } from '../admin/tabs/EventDeadlinesTab';
 import { EventsCatalogTab } from '../admin/tabs/EventsCatalogTab';
@@ -291,7 +291,7 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
                     ) : (
                       schedules.map(sch => (
                         <TableRow key={sch.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                          <TableCell className="font-heading font-semibold text-[var(--text-primary)]">{sch.stage?.name || `Stage ${sch.stage_number}`}</TableCell>
+                          <TableCell className="font-heading font-semibold text-[var(--text-primary)]">{sch.stage?.name || (sch.stage_number ? `Stage ${sch.stage_number}` : (isSubmissionEvent(sch.item) ? 'Digital Submission' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage' : 'Unassigned'))}</TableCell>
                           <TableCell>
                             <div className="font-heading font-medium text-[var(--text-primary)]">{sch.item?.name || sch.item?.name_eng || `Item ${sch.item_id}`}</div>
                             <span className="text-[10px] text-[var(--text-muted)] font-mono">{sch.item?.code || sch.item?.item_code}</span>

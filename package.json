@@ -10,7 +10,13 @@
     "test:schema": "node --env-file=.env.local scripts/verify-schema-integrity.mjs",
     "db:backup": "node --env-file=.env.local scripts/backup-database.mjs",
     "db:snapshot": "node --env-file=.env.local scripts/backup-database.mjs",
-    "db:restore": "node --env-file=.env.local scripts/restore-database.mjs"
+    "db:restore": "node --env-file=.env.local scripts/restore-database.mjs",
+    "db:status": "node scripts/db-env-manager.mjs status",
+    "use:test": "node scripts/db-env-manager.mjs use-test",
+    "use:live": "node scripts/db-env-manager.mjs use-live",
+    "test:sync": "node scripts/db-env-manager.mjs sync-test",
+    "auth:sync": "node scripts/db-env-manager.mjs sync-auth",
+    "live:deploy": "node scripts/db-env-manager.mjs deploy-live"
   },
   "keywords": [],
   "author": "",

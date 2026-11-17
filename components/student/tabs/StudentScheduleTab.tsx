@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { StageStatusBadge, ScreeningBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Calendar, GraduationCap, Clock, MapPin, Radio } from 'lucide-react';
-import { Student, Schedule, Registration, isScreeningEvent } from '@/lib/types/fest';
+import { Student, Schedule, Registration, isScreeningEvent, isSubmissionEvent, getEffectiveStageMode } from '@/lib/types/fest';
 
 interface StudentScheduleTabProps {
   loggedInStudent: any;
@@ -101,7 +101,7 @@ export function StudentScheduleTab({
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-subtle)] text-xs">
                   <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
                     <MapPin className="w-3.5 h-3.5 text-[var(--f-saffron)] shrink-0" />
-                    <span className="truncate font-sans">{sch.stage?.name || 'TBA'}</span>
+                    <span className="truncate font-sans">{sch.stage?.name || (isSubmissionEvent(sch.item) ? 'Digital Submission' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage' : 'TBA')}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[var(--text-secondary)] font-mono justify-end">
                     <Clock className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
@@ -180,8 +180,12 @@ export function StudentScheduleTab({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium text-[var(--text-primary)] font-sans">{sch.stage?.name}</div>
-                      <span className="text-[11px] text-[var(--text-muted)] font-sans">{sch.stage?.location}</span>
+                      <div className="font-medium text-[var(--text-primary)] font-sans">
+                        {sch.stage?.name || (isSubmissionEvent(sch.item) ? 'Digital Submission' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage' : 'TBA')}
+                      </div>
+                      <span className="text-[11px] text-[var(--text-muted)] font-sans">
+                        {sch.stage?.location || (isSubmissionEvent(sch.item) ? 'Online' : getEffectiveStageMode(sch.item) === 'offstage' ? 'Off-Stage Venue' : '')}
+                      </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-[var(--text-secondary)]">
                       {new Date(sch.scheduled_start || sch.starting).toLocaleTimeString([], {

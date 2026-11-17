@@ -77,10 +77,10 @@ export function CollegeScheduleTab({ schedules, registrations }: CollegeSchedule
                     </TableCell>
                     <TableCell>
                       <div className="font-heading font-semibold text-[var(--text-primary)] text-xs sm:text-sm">
-                        {sch.stage?.name}
+                        {sch.stage?.name || (isSubmissionEvent(sch.item) ? 'Digital Submission' : 'Off-Stage')}
                       </div>
                       <span className="text-[11px] font-sans text-[var(--text-secondary)]">
-                        {sch.stage?.location}
+                        {sch.stage?.location || (isSubmissionEvent(sch.item) ? 'Online' : 'Off-Stage Venue')}
                       </span>
                     </TableCell>
                     <TableCell className="font-mono font-semibold text-[var(--text-secondary)] text-xs sm:text-sm tabular-nums">
