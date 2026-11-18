@@ -192,7 +192,13 @@ export function LocksMatrixTab() {
                 const msg = next
                   ? 'Lock volunteer registration for all colleges?\n\nColleges will no longer be able to register, edit, or remove volunteers.'
                   : 'Unlock volunteer registration for all colleges?\n\nColleges will be able to register and manage their volunteers.';
-                if (!window.confirm(msg)) return;
+                const confirmed = await (window as any).showThemedConfirm?.({
+                  title: next ? 'Lock Volunteer Registration' : 'Unlock Volunteer Registration',
+                  message: msg,
+                  type: 'warning',
+                  confirmText: next ? 'Lock Registration' : 'Unlock Registration',
+                }) ?? window.confirm(msg);
+                if (!confirmed) return;
                 await festService.setVolunteerRegistrationLocked(next);
                 startTransition(() => {
                   triggerRefresh();

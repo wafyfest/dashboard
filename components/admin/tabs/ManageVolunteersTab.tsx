@@ -353,7 +353,14 @@ export function ManageVolunteersTab({
       ? 'Are you sure you want to LOCK volunteer registration for all colleges?\n\nColleges will no longer be able to add, edit, or remove volunteers.'
       : 'Are you sure you want to UNLOCK volunteer registration for all colleges?\n\nColleges will be able to register and manage their volunteers.';
 
-    if (!window.confirm(confirmMessage)) return;
+    const confirmed = await (window as any).showThemedConfirm?.({
+      title: nextLocked ? 'Lock Volunteer Registration' : 'Unlock Volunteer Registration',
+      message: confirmMessage,
+      type: 'warning',
+      confirmText: nextLocked ? 'Lock Registration' : 'Unlock Registration',
+    }) ?? window.confirm(confirmMessage);
+
+    if (!confirmed) return;
 
     setIsTogglingLock(true);
     try {
@@ -431,7 +438,14 @@ export function ManageVolunteersTab({
     const student = vol.student || students.find(s => s.id === vol.student_id);
     const name = student?.name || student?.full_name || 'this scholar';
 
-    if (!confirm(`Are you sure you want to remove "${name}" from the fest volunteer roster?`)) {
+    const confirmed = await (window as any).showThemedConfirm?.({
+      title: 'Remove Volunteer',
+      message: `Are you sure you want to remove "${name}" from the fest volunteer roster?`,
+      type: 'error',
+      confirmText: 'Remove Volunteer',
+    }) ?? confirm(`Are you sure you want to remove "${name}" from the fest volunteer roster?`);
+
+    if (!confirmed) {
       return;
     }
 
@@ -507,7 +521,14 @@ export function ManageVolunteersTab({
   // Batch Delete
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} selected volunteers from the roster?`)) {
+    const confirmed = await (window as any).showThemedConfirm?.({
+      title: 'Delete Volunteers',
+      message: `Delete ${selectedIds.size} selected volunteers from the roster?`,
+      type: 'error',
+      confirmText: 'Delete Selected',
+    }) ?? confirm(`Delete ${selectedIds.size} selected volunteers from the roster?`);
+
+    if (!confirmed) {
       return;
     }
     setIsSubmitting(true);

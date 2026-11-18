@@ -8,6 +8,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Badge, CategoryBadge, AppealStatusBadge, StageStatusBadge, ItemModeBadge, ItemTypeBadge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Modal } from '../ui/modal';
+import { useThemedAlert } from '../ui';
 import {
   Building2,
   Users,
@@ -51,6 +52,7 @@ import { CollegeVolunteersTab } from '../college/tabs/CollegeVolunteersTab';
 
 export function CollegeView() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, timeTick } = useFest();
+  const { showConfirm } = useThemedAlert();
   const [activeTab, setActiveTab] = useState<'students' | 'registration' | 'admit_cards' | 'schedules' | 'appeals' | 'replacements' | 'volunteers'>('registration');
 
   // Modal states
@@ -291,7 +293,13 @@ export function CollegeView() {
   const handleUnregisterRegistration = async (item: Item) => {
     const itemId = item.item_id || item.id;
     const itemName = item.name_eng || item.name;
-    if (!confirm(`Are you sure you want to remove/unregister your entry for "${itemName}"?`)) {
+    const confirmed = await showConfirm({
+      title: 'Unregister Event Entry',
+      message: `Are you sure you want to remove/unregister your entry for "${itemName}"?`,
+      type: 'warning',
+      confirmText: 'Unregister Entry',
+    });
+    if (!confirmed) {
       return;
     }
     const res = await festService.unregisterCollegeForItem(

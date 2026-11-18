@@ -3,6 +3,7 @@ import { Outfit, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { FestProvider } from '@/lib/context/FestContext';
 import AnalyticsTracker from '@/components/analytics/AnalyticsTracker';
+import { ThemedAlertProvider } from '@/components/ui/ThemedAlertProvider';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -104,7 +105,9 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col antialiased bg-[var(--bg-page)] text-[var(--text-primary)] selection:bg-neutral-900 selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-150">
         <AnalyticsTracker />
         <FestProvider>
-          {children}
+          <ThemedAlertProvider>
+            {children}
+          </ThemedAlertProvider>
         </FestProvider>
       </body>
     </html>

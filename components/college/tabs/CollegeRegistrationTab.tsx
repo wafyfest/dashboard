@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -195,39 +196,37 @@ export function CollegeRegistrationTab({
           </div>
 
           {/* Status Filter */}
-          <div className="relative">
-            <select
+          <div className="min-w-[160px]">
+            <Select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as any)}
-              className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-2 pr-7 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="py-1.5 font-semibold"
             >
               <option value="All">All Status (Enrolled & Pending)</option>
               <option value="enrolled">Enrolled Only</option>
               <option value="not_enrolled">Pending Enrolment</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
 
           {/* Stage Mode Filter */}
-          <div className="relative">
-            <select
+          <div className="min-w-[140px]">
+            <Select
               value={selectedMode}
               onChange={(e) => setSelectedMode(e.target.value as any)}
-              className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-2 pr-7 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="py-1.5 font-semibold"
             >
               <option value="All">All Stage Modes</option>
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
 
           {/* Category Filter */}
-          <div className="relative">
-            <select
+          <div className="min-w-[150px]">
+            <Select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-2 pr-7 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="py-1.5 font-semibold"
             >
               <option value="All Categories">All Categories</option>
               {categoryOptions.map(cat => (
@@ -235,8 +234,7 @@ export function CollegeRegistrationTab({
                   {cat.replace(/_/g, ' ')}
                 </option>
               ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
         </div>
 

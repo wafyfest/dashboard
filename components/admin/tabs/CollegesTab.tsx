@@ -4,7 +4,9 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
+import { useThemedAlert } from '@/components/ui';
 import {
   Table,
   TableHeader,
@@ -46,6 +48,7 @@ type SortType = 'affl_asc' | 'affl_desc' | 'name_asc';
 
 export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabProps) {
   const { refreshKey, triggerRefresh } = useFest();
+  const { showConfirm } = useThemedAlert();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [sortBy, setSortBy] = useState<SortType>('affl_asc');
@@ -173,7 +176,13 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
 
   const handleWaiveAll = async (afflNo: number, collegeName: string, netAmount: number) => {
     const amountLabel = netAmount > 0 ? ` (₹${netAmount.toLocaleString('en-IN')})` : '';
-    if (window.confirm(`Waive all pending fines${amountLabel} for #${afflNo} ${collegeName}?`)) {
+    const confirmed = await showConfirm({
+      title: 'Waive Institutional Fines',
+      message: `Waive all pending fines${amountLabel} for #${afflNo} ${collegeName}?`,
+      type: 'warning',
+      confirmText: 'Waive Fines',
+    });
+    if (confirmed) {
       setIsProcessing(true);
       try {
         await festService.waiveCollegeAllFines(afflNo);
@@ -190,11 +199,13 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
 
   const handleRevokeAllOverrides = async () => {
     if (metrics.overrideCount === 0) return;
-    if (
-      window.confirm(
-        `Lock all ${metrics.overrideCount} currently unlocked colleges back to standard lock rules?`
-      )
-    ) {
+    const confirmed = await showConfirm({
+      title: 'Lock Overrides',
+      message: `Lock all ${metrics.overrideCount} currently unlocked colleges back to standard lock rules?`,
+      type: 'warning',
+      confirmText: 'Lock All',
+    });
+    if (confirmed) {
       setIsProcessing(true);
       try {
         const revoked = await festService.revokeAllCollegeLockOverrides();
@@ -361,17 +372,16 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
           </div>
 
           {/* Sort Selector */}
-          <div className="flex items-center gap-1 bg-[var(--bg-subtle)] px-2.5 py-1 rounded-xl border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-            <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
-            <select
+          <div className="min-w-[170px]">
+            <Select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as SortType)}
-              className="bg-transparent text-[var(--text-primary)] font-medium text-xs focus:outline-none cursor-pointer"
+              className="py-1 text-xs"
             >
-              <option value="affl_asc" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Affl # Ascending</option>
-              <option value="affl_desc" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Affl # Descending</option>
-              <option value="name_asc" className="bg-[var(--bg-surface)] text-[var(--text-primary)]">Name (A → Z)</option>
-            </select>
+              <option value="affl_asc">Affl # Ascending</option>
+              <option value="affl_desc">Affl # Descending</option>
+              <option value="name_asc">Name (A → Z)</option>
+            </Select>
           </div>
 
           {/* Bulk Lock All (Only shown if any colleges are unlocked) */}

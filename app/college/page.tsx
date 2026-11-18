@@ -47,6 +47,7 @@ import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, is
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { useThemedAlert } from '@/components/ui';
 
 import { CollegeDashboardTab } from '@/components/college/tabs/CollegeDashboardTab';
 import { CollegeRegistrationTab } from '@/components/college/tabs/CollegeRegistrationTab';
@@ -59,6 +60,7 @@ import { PreFestEventsCollegeTab } from '@/components/college/tabs/PreFestEvents
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth, timeTick } = useFest();
+  const { showConfirm } = useThemedAlert();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -466,7 +468,13 @@ export default function CollegePortalPage() {
   const handleUnregisterRegistration = async (item: Item) => {
     const itemId = item.item_id || item.id;
     const itemName = item.name_eng || item.name;
-    if (!confirm(`Are you sure you want to remove/unregister your entry for "${itemName}"?`)) {
+    const confirmed = await showConfirm({
+      title: 'Unregister Event Entry',
+      message: `Are you sure you want to remove/unregister your entry for "${itemName}"?`,
+      type: 'warning',
+      confirmText: 'Unregister Entry',
+    });
+    if (!confirmed) {
       return;
     }
     setIsSubmittingReg(true);

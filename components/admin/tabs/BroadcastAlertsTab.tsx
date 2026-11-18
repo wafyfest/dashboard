@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useThemedAlert } from '@/components/ui';
 import {
   BellRing,
   Send,
@@ -58,6 +59,7 @@ export function BroadcastAlertsTab({
   refreshKey,
   onRefresh
 }: BroadcastAlertsTabProps) {
+  const { showConfirm } = useThemedAlert();
   const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
     festService.getAnnouncements()
   );
@@ -142,7 +144,13 @@ export function BroadcastAlertsTab({
 
   // Handle Delete / Revoke
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to stop and delete this broadcast notification? It will disappear from all screens.')) {
+    const confirmed = await showConfirm({
+      title: 'Delete Broadcast Notification',
+      message: 'Are you sure you want to stop and delete this broadcast notification? It will disappear from all screens.',
+      type: 'error',
+      confirmText: 'Delete Notification',
+    });
+    if (!confirmed) {
       return;
     }
 

@@ -22,6 +22,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { BlockedStudent, Student, College, isFestCommitteeBlock } from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
@@ -445,24 +446,24 @@ export function BlockedStudentsTab() {
 
           {/* Reason Filter */}
           <div>
-            <select
+            <Select
               value={selectedReasonFilter}
               onChange={e => setSelectedReasonFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-rose-500/50"
+              className="py-1.5 text-xs font-medium"
             >
               <option value="all">All Blocking Reasons</option>
               <option value="committee">Fest Committee (Hidden from reg)</option>
               <option value="disciplinary">Disciplinary & Malpractice</option>
               <option value="other">Other Administrative Blocks</option>
-            </select>
+            </Select>
           </div>
 
           {/* College Filter */}
           <div>
-            <select
+            <Select
               value={selectedCollegeFilter}
               onChange={e => setSelectedCollegeFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-rose-500/50"
+              className="py-1.5 text-xs font-medium"
             >
               <option value="all">All Colleges / Affiliations</option>
               {colleges.map(c => (
@@ -470,7 +471,7 @@ export function BlockedStudentsTab() {
                   #{c.affl_no} - {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
       </Card>

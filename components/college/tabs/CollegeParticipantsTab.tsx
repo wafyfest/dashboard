@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemTypeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -345,11 +346,11 @@ export function CollegeParticipantsTab({
         {/* Toolbar: Category Filter + Item Code Filter + Search + PDF Export */}
         <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           {/* Category Filter Dropdown */}
-          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
-            <select
+          <div className="flex-1 sm:flex-initial min-w-[150px]">
+            <Select
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="py-1.5 font-sans font-semibold text-xs"
             >
               <option value="All Categories">All Categories</option>
               {categoryOptions.map(cat => (
@@ -357,16 +358,15 @@ export function CollegeParticipantsTab({
                   {cat.replace(/_/g, ' ')}
                 </option>
               ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
 
           {/* Item Code Filter Dropdown */}
-          <div className="relative flex-1 sm:flex-initial min-w-[140px]">
-            <select
+          <div className="flex-1 sm:flex-initial min-w-[150px]">
+            <Select
               value={selectedItemCode}
               onChange={e => setSelectedItemCode(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-mono"
+              className="py-1.5 font-mono font-semibold text-xs"
             >
               <option value="All Item Codes">All Event Codes</option>
               {itemCodeOptions.map(opt => (
@@ -374,24 +374,22 @@ export function CollegeParticipantsTab({
                   {opt.code} ({opt.name.slice(0, 16)})
                 </option>
               ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
 
           {/* Stage Mode Filter Dropdown */}
-          <div className="relative flex-1 sm:flex-initial min-w-[130px]">
-            <select
+          <div className="flex-1 sm:flex-initial min-w-[140px]">
+            <Select
               value={selectedMode}
               onChange={e => setSelectedMode(e.target.value)}
-              className="appearance-none w-full bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
+              className="py-1.5 font-sans font-semibold text-xs"
             >
               <option value="All Modes">All Stage Modes</option>
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
               <option value="submission">Submission</option>
               <option value="screening">Screening</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </Select>
           </div>
 
           {/* Search Input */}

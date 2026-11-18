@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import {
   Award,
@@ -523,18 +524,18 @@ export function CollegeRegistrationsTab({
 
           {/* College Switcher & Action Toolbar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-            <div className="relative w-full sm:w-64 lg:w-72">
-              <select
+            <div className="w-full sm:w-64 lg:w-72">
+              <Select
                 value={activeCollegeAffl}
                 onChange={e => handleCollegeChange(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] font-semibold focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 cursor-pointer transition-all"
+                className="py-1.5 text-xs font-semibold"
               >
                 {colleges.map(c => (
-                  <option key={c.affl_no} value={c.affl_no} className="bg-[var(--bg-surface)] text-[var(--text-primary)]">
+                  <option key={c.affl_no} value={c.affl_no}>
                     #{c.affl_no} - {c.short_name} ({c.name})
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -1499,7 +1500,13 @@ export function CollegeRegistrationsTab({
                         size="xs"
                         variant="outline"
                         onClick={async () => {
-                          if (window.confirm(`Waive all pending fines (₹${summary.netFine.toLocaleString('en-IN')}) for ${currentCol?.name}?`)) {
+                          const confirmed = await (window as any).showThemedConfirm?.({
+                            title: 'Waive College Fines',
+                            message: `Waive all pending fines (₹${summary.netFine.toLocaleString('en-IN')}) for ${currentCol?.name}?`,
+                            type: 'warning',
+                            confirmText: 'Waive All',
+                          }) ?? confirm(`Waive all pending fines (₹${summary.netFine.toLocaleString('en-IN')}) for ${currentCol?.name}?`);
+                          if (confirmed) {
                             await festService.waiveCollegeAllFines(currentColAffl);
                             triggerRefresh();
                           }

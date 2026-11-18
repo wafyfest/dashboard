@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import {
   HeartHandshake,
@@ -418,11 +419,16 @@ export function CollegeVolunteersTab({
       (student.cic_no ? volunteerMap.get(String(student.cic_no)) : null);
     if (!vol) return;
 
-    if (
-      !confirm(
-        `Are you sure you want to remove "${student.name || student.full_name}" from the fest volunteer list?`
-      )
-    ) {
+    const confirmed = await (window as any).showThemedConfirm?.({
+      title: 'Remove Volunteer',
+      message: `Are you sure you want to remove "${student.name || student.full_name}" from the fest volunteer list?`,
+      type: 'error',
+      confirmText: 'Remove Volunteer',
+    }) ?? confirm(
+      `Are you sure you want to remove "${student.name || student.full_name}" from the fest volunteer list?`
+    );
+
+    if (!confirmed) {
       return;
     }
 
@@ -917,12 +923,11 @@ export function CollegeVolunteersTab({
           </div>
 
           {/* Duty Filter Dropdown */}
-          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-            <Filter className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <select
+          <div className="min-w-[160px]">
+            <Select
               value={dutyFilter}
               onChange={e => setDutyFilter(e.target.value)}
-              className="bg-transparent text-[var(--text-primary)] font-medium text-xs focus:outline-none cursor-pointer max-w-[160px] truncate"
+              className="py-1 text-xs font-medium"
             >
               <option value="all">All Duties</option>
               {VOLUNTEER_DUTIES.map(d => (
@@ -930,7 +935,7 @@ export function CollegeVolunteersTab({
                   {d}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 
