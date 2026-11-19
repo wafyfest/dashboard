@@ -104,6 +104,31 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     return Array.from(set);
   }, [items]);
 
+  // Global status counts across all festival events
+  const globalStatusCounts = useMemo(() => {
+    let unscored = 0;
+    let scoredDraft = 0;
+    let published = 0;
+
+    items.forEach(itm => {
+      const itmResults = allResults.filter(r => Number(r.item_id) === Number(itm.item_id));
+      if (itmResults.some(r => Boolean(r.published))) {
+        published++;
+      } else if (itmResults.length > 0) {
+        scoredDraft++;
+      } else {
+        unscored++;
+      }
+    });
+
+    return {
+      total: items.length,
+      unscored,
+      scoredDraft,
+      published,
+    };
+  }, [items, allResults]);
+
   // Master multi-criteria filter helper
   const matchesItemFilters = (
     item: Item | undefined,
@@ -553,6 +578,21 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
                   {activeTab === 'result-publishing' && 'Result Publishing Registry'}
                   {activeTab === 'result-verification' && 'Result Verification & Standings'}
                 </h2>
+                {/* Live Status Counts Pill Summary */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    Total: {globalStatusCounts.total}
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/30">
+                    Unscored: {globalStatusCounts.unscored}
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                    Draft: {globalStatusCounts.scoredDraft}
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    Published: {globalStatusCounts.published}
+                  </span>
+                </div>
               </div>
             </div>
 

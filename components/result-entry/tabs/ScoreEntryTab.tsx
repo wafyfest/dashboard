@@ -14,7 +14,9 @@ import {
   Lock,
   Trophy,
   Edit,
-  Pencil
+  Pencil,
+  Clock,
+  Layers,
 } from 'lucide-react';
 import { Item, Schedule, StageStatus, isScreeningEvent, isNonTabulationEvent, getEffectiveStageMode } from '@/lib/types/fest';
 import { ScoreEntryModal } from '../ScoreEntryModal';
@@ -70,6 +72,29 @@ export function ScoreEntryTab({
   const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unscored' | 'scored' | 'published'>('all');
 
+  const statusCounts = useMemo(() => {
+    let unscored = 0;
+    let scoredDraft = 0;
+    let published = 0;
+
+    items.forEach(i => {
+      if (i.isPublished) {
+        published++;
+      } else if (i.isScored) {
+        scoredDraft++;
+      } else {
+        unscored++;
+      }
+    });
+
+    return {
+      total: items.length,
+      unscored,
+      scoredDraft,
+      published,
+    };
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     return items.filter(({ item, isScored, isPublished }) => {
       if (localSearch.trim()) {
@@ -92,6 +117,101 @@ export function ScoreEntryTab({
 
   return (
     <div className="space-y-6">
+      {/* 4 Interactive Status Metric KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* 1. Total Events */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            statusFilter === 'all'
+              ? 'border-amber-500/60 bg-amber-500/10 [box-shadow:0_0_15px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/50'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] [box-shadow:var(--shadow-card)]'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">Total Events</span>
+            <Layers className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-heading font-black text-[var(--text-primary)] font-mono">
+              {statusCounts.total}
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">Events</span>
+          </div>
+          <span className="text-[11px] text-[var(--text-muted)] mt-1 block">Full competition catalog</span>
+        </button>
+
+        {/* 2. Unscored / Pending */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter('unscored')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            statusFilter === 'unscored'
+              ? 'border-slate-400 bg-slate-500/10 [box-shadow:0_0_15px_rgba(148,163,184,0.15)] ring-1 ring-slate-400'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] [box-shadow:var(--shadow-card)]'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">Unscored / Pending</span>
+            <Clock className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-heading font-black text-[var(--text-primary)] font-mono">
+              {statusCounts.unscored}
+            </span>
+            <span className="text-[11px] text-[var(--text-muted)]">Awaiting</span>
+          </div>
+          <span className="text-[11px] text-[var(--text-muted)] mt-1 block">No score entered yet</span>
+        </button>
+
+        {/* 3. Scored (Draft) */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter('scored')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            statusFilter === 'scored'
+              ? 'border-purple-500/60 bg-purple-500/10 [box-shadow:0_0_15px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/50'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] [box-shadow:var(--shadow-card)]'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-purple-400">Scored (Draft)</span>
+            <Sparkles className="w-4 h-4 text-purple-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-heading font-black text-purple-500 dark:text-purple-400 font-mono">
+              {statusCounts.scoredDraft}
+            </span>
+            <span className="text-[11px] text-purple-400/80">Draft</span>
+          </div>
+          <span className="text-[11px] text-[var(--text-muted)] mt-1 block">Ready for publishing</span>
+        </button>
+
+        {/* 4. Published (Live) */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter('published')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            statusFilter === 'published'
+              ? 'border-emerald-500/60 bg-emerald-500/10 [box-shadow:0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/50'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] [box-shadow:var(--shadow-card)]'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-500">Published (Live)</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-heading font-black text-emerald-600 dark:text-emerald-400 font-mono">
+              {statusCounts.published}
+            </span>
+            <span className="text-[11px] text-emerald-500/80">Live</span>
+          </div>
+          <span className="text-[11px] text-[var(--text-muted)] mt-1 block">Visible to public & colleges</span>
+        </button>
+      </div>
+
       {/* Main Events List */}
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
@@ -131,46 +251,46 @@ export function ScoreEntryTab({
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors cursor-pointer ${
                 statusFilter === 'all'
-                  ? 'bg-amber-500 text-black shadow-xs'
+                  ? 'bg-amber-500 text-black shadow-xs font-bold'
                   : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              All
+              All ({statusCounts.total})
             </button>
             <button
               onClick={() => setStatusFilter('unscored')}
-              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors cursor-pointer ${
                 statusFilter === 'unscored'
-                  ? 'bg-amber-500 text-black shadow-xs'
+                  ? 'bg-slate-300 dark:bg-slate-700 text-[var(--text-primary)] shadow-xs font-bold'
                   : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Unscored
+              Unscored ({statusCounts.unscored})
             </button>
             <button
               onClick={() => setStatusFilter('scored')}
-              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors cursor-pointer ${
                 statusFilter === 'scored'
-                  ? 'bg-amber-500 text-black shadow-xs'
+                  ? 'bg-purple-600 text-white shadow-xs font-bold'
                   : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Scored (Draft)
+              Draft ({statusCounts.scoredDraft})
             </button>
             <button
               onClick={() => setStatusFilter('published')}
-              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+              className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors cursor-pointer ${
                 statusFilter === 'published'
-                  ? 'bg-amber-500 text-black shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
                   : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              Published
+              Published ({statusCounts.published})
             </button>
           </div>
         </div>
