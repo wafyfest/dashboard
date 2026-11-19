@@ -59,6 +59,65 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Valid ids and status are required.' }, { status: 400 });
       }
 
+      // Submission-gated rule: qualification requires an uploaded submission/video link
+      if (status === 'qualified') {
+        const { data: targetRegs, error: fetchErr } = await auth.db
+          .from('registrations')
+          .select('id, item_id, college_affl_no, chest_no')
+          .in('id', ids);
+
+        if (fetchErr) {
+          return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+        }
+
+        if (targetRegs && targetRegs.length > 0) {
+          for (const reg of targetRegs) {
+            const { data: subEntry } = await auth.db
+              .from('submission_entries')
+              .select('id, file_url')
+              .eq('item_id', reg.item_id)
+              .or(`college_affl_no.eq.${reg.college_affl_no},chest_no.eq.${reg.chest_no}`)
+              .not('file_url', 'is', null)
+              .limit(1)
+              .maybeSingle();
+
+            let hasValidSub = Boolean(subEntry?.file_url && subEntry.file_url.trim());
+
+            if (!hasValidSub) {
+              const { data: evRow } = await auth.db
+                .from('events')
+                .select('id')
+                .eq('item_id', reg.item_id)
+                .maybeSingle();
+
+              if (evRow?.id) {
+                const { data: pfSub } = await auth.db
+                  .from('prefest_submissions')
+                  .select('id, youtube_url')
+                  .eq('event_id', evRow.id)
+                  .eq('college_affl_no', reg.college_affl_no)
+                  .not('youtube_url', 'is', null)
+                  .limit(1)
+                  .maybeSingle();
+
+                if (pfSub?.youtube_url && pfSub.youtube_url.trim()) {
+                  hasValidSub = true;
+                }
+              }
+            }
+
+            if (!hasValidSub) {
+              return NextResponse.json(
+                {
+                  error: 'Cannot qualify participant: A video or submission link has not been uploaded yet.',
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+
       const updatePayload: Record<string, unknown> = {
         screening_status: status,
         screening_updated_at: body?.nowIso || new Date().toISOString(),

@@ -21,7 +21,8 @@ import {
   Clock,
   Lock,
   CheckCircle2,
-  Building2
+  Building2,
+  Trophy
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -32,18 +33,22 @@ import { Modal } from '@/components/ui/modal';
 import {
   Item,
   Student,
+  LeaderboardEntry,
   isCategoryMatching,
   isItemEligibleForCollege,
   normalizeCategoryKey,
   isSubmissionEvent,
   isScreeningEvent,
   requiresPreFestSubmission,
+  getEventKind,
   getItemParticipantBounds,
   isSpecialEvent,
   isSpecialGroupEvent,
-  getEffectiveStageMode
+  getEffectiveStageMode,
+  isFestCommitteeBlock
 } from '@/lib/types/fest';
 import { registrationContainsStudent, checkStudentQuota, getCanonicalChestNo, isSameStudent, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
+import { evaluateLinkSubmissionDeadline } from '@/lib/utils/istDate';
 import { StudentsListTable } from '@/components/college/StudentsListTable';
 import { AdmitCardTable } from '@/components/college/AdmitCardTable';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -57,6 +62,7 @@ import { CollegeAppealsTab } from '@/components/college/tabs/CollegeAppealsTab';
 import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplacementsTab';
 import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
 import { PreFestEventsCollegeTab } from '@/components/college/tabs/PreFestEventsCollegeTab';
+import { CollegeResultsTab } from '@/components/college/tabs/CollegeResultsTab';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth, timeTick } = useFest();
@@ -78,6 +84,7 @@ export default function CollegePortalPage() {
     { id: 'students', label: 'Students', icon: UserCheck },
     { id: 'volunteers', label: 'Volunteers', icon: HeartHandshake },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
+    { id: 'results', label: 'Results', icon: Trophy },
     { id: 'admit_card', label: 'Admit Card', icon: Contact },
     { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
     { id: 'replacements', label: 'Replacements', icon: UserPlus }
@@ -127,6 +134,25 @@ export default function CollegePortalPage() {
     () => festService.getStudents(currentCollegeId),
     [currentCollegeId, refreshKey]
   );
+
+  const publishedCollegeResults = useMemo(() => {
+    const affl = Number(currentCollegeAfflNo || college?.affl_no);
+    if (!affl) return [];
+    const allResults = festService.getResults();
+    return allResults.filter(
+      r => Boolean(r.published) && Number(r.college_affl_no) === affl
+    );
+  }, [currentCollegeAfflNo, college?.affl_no, refreshKey]);
+
+  const leaderboard = useMemo(
+    () => festService.getLeaderboard(),
+    [refreshKey]
+  );
+
+  useEffect(() => {
+    festService.fetchLeaderboard();
+    festService.fetchResults();
+  }, [refreshKey]);
 
   // Safety net: if portal mounts before authenticated sync ran for this college (e.g. client navigation), sync immediately
   useEffect(() => {
@@ -222,11 +248,16 @@ export default function CollegePortalPage() {
       if (seen.has(id)) continue;
       seen.add(id);
       if (requiresPreFestSubmission(r.item) && !submittedItemIds.has(id)) {
-        missing++;
+        const kind = r.item ? getEventKind(r.item) : 'screening';
+        const dlSetting = festService.getEventDeadlineSetting(kind);
+        const evalRes = evaluateLinkSubmissionDeadline(dlSetting);
+        if (evalRes.canSubmitLink) {
+          missing++;
+        }
       }
     }
     return missing;
-  }, [registrations, submissions]);
+  }, [registrations, submissions, refreshKey]);
 
   // Dynamic filtering for Replacement Modal
   const currentEventRegisteredStudents = useMemo(() => {
@@ -251,6 +282,7 @@ export default function CollegePortalPage() {
     );
 
     return students.filter(s => {
+      if (s.is_blocked) return false;
       if (enrolledIds.has(s.id)) return false;
       if (selItem) {
         const itemCategory = selItem.phase || selItem.category;
@@ -325,6 +357,11 @@ export default function CollegePortalPage() {
   const filteredModalStudents = useMemo(() => {
     return students
       .filter(s => {
+        // 1. Fest Committee members are completely omitted from event registration modals
+        if (s.is_blocked && isFestCommitteeBlock(s.block_reason)) {
+          return false;
+        }
+
         const isSelected = selectedStudentIds.has(s.id);
 
         // Phase filter: preserve selected participants regardless of filter
@@ -602,6 +639,7 @@ export default function CollegePortalPage() {
               schedules={schedules}
               appeals={appeals}
               replacements={replacements}
+              leaderboard={leaderboard}
               onNavigateTab={setActiveTab}
             />
           )}
@@ -678,6 +716,24 @@ export default function CollegePortalPage() {
             <CollegeScheduleTab
               schedules={schedules}
               registrations={registrations}
+            />
+          )}
+
+          {/* TAB: RESULTS */}
+          {activeTab === 'results' && (
+            <CollegeResultsTab
+              college={college}
+              collegeAfflNo={currentCollegeAfflNo || college?.affl_no || 0}
+              results={publishedCollegeResults}
+              registrations={registrations}
+              students={students}
+              allItems={allItems}
+              leaderboard={leaderboard}
+              onRefresh={() => {
+                festService.fetchLeaderboard();
+                festService.fetchResults();
+                triggerRefresh();
+              }}
             />
           )}
 
@@ -926,8 +982,13 @@ export default function CollegePortalPage() {
                               }`}
                           >
                             <div>
-                              <div className="font-heading font-semibold text-[11.5px] leading-tight">
-                                {curStudent.full_name || curStudent.name}
+                              <div className="font-heading font-semibold text-[11.5px] leading-tight flex items-center gap-1.5 flex-wrap">
+                                <span>{curStudent.full_name || curStudent.name}</span>
+                                {curStudent.is_blocked && (
+                                  <Badge variant="destructive" size="sm" className="text-[9px] py-0 px-1 font-bold">
+                                    Blocked: {curStudent.block_reason || 'Administrative'}
+                                  </Badge>
+                                )}
                               </div>
                               <div className="text-[10px] font-mono text-[var(--text-muted)] flex items-center gap-1.5">
                                 <span>Chest: {chest}</span>
@@ -1105,6 +1166,7 @@ export default function CollegePortalPage() {
                     ) : (
                       filteredModalStudents.map(s => {
                         const isSelected = selectedStudentIds.has(s.id);
+                        const isBlocked = Boolean(s.is_blocked);
                         const sCat = s.category || s.phase;
                         const itemCat = selectedItemForReg.phase || selectedItemForReg.category;
                         const isCategoryMatch = isCategoryMatching(sCat, itemCat);
@@ -1112,8 +1174,8 @@ export default function CollegePortalPage() {
                         const quotaCheck = checkStudentQuota(s, selectedItemForReg, registrations, allItems, quotaLimits, students);
                         const isAlreadyInEvent = quotaCheck.isAlreadyRegisteredInItem;
                         const isQuotaComplete = !quotaCheck.allowed;
-                        const isFaded = !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
-                        const isDisabled = (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                        const isFaded = isBlocked || !isCategoryMatch || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
+                        const isDisabled = isBlocked || (!isCategoryMatch && !isSelected) || (!isSelected && !isAlreadyInEvent && isQuotaComplete);
 
                         const isItemSpecial = isSpecialEvent(selectedItemForReg);
                         const isItemGroup = selectedItemForReg.point_type === 'group' || selectedItemForReg.item_type === 'Group';
@@ -1186,7 +1248,13 @@ export default function CollegePortalPage() {
                               ? 'opacity-40 bg-[var(--bg-subtle)]/50 cursor-not-allowed select-none'
                               : 'hover:bg-[var(--bg-hover)] cursor-pointer'
                               }`}
-                            title={!isCategoryMatch ? 'Category does not match event requirement' : (!isAlreadyInEvent && isQuotaComplete ? quotaCheck.reason : undefined)}
+                            title={
+                              isBlocked
+                                ? `Student is blocked from festival participation: ${s.block_reason || 'Administrative Block'}`
+                                : !isCategoryMatch
+                                  ? 'Category does not match event requirement'
+                                  : (!isAlreadyInEvent && isQuotaComplete ? quotaCheck.reason : undefined)
+                            }
                           >
                             <div className="flex items-center gap-2.5 min-w-0 pr-2">
                               <input
@@ -1194,6 +1262,7 @@ export default function CollegePortalPage() {
                                 checked={isSelected}
                                 disabled={isDisabled}
                                 onChange={e => {
+                                  if (isBlocked) return;
                                   const checked = e.target.checked;
                                   if (checked) {
                                     if (selectedStudentIds.size >= maxPart) {
@@ -1213,14 +1282,18 @@ export default function CollegePortalPage() {
                               />
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-heading font-bold text-[var(--text-primary)] truncate">
+                                  <span className={`font-heading font-bold truncate ${isBlocked ? 'text-rose-900 dark:text-rose-300 line-through decoration-rose-500/50' : 'text-[var(--text-primary)]'}`}>
                                     {s.full_name || s.name}
                                   </span>
-                                  {isQuotaComplete && !isSelected && !isAlreadyInEvent && (
+                                  {isBlocked ? (
+                                    <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                                      Blocked: {s.block_reason || 'Administrative'}
+                                    </Badge>
+                                  ) : isQuotaComplete && !isSelected && !isAlreadyInEvent ? (
                                     <Badge variant="destructive" size="sm" className="text-[10px] py-0 px-1.5 font-sans">
                                       {quotaCheck.reason}
                                     </Badge>
-                                  )}
+                                  ) : null}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono mt-0.5 flex-wrap">
                                   <span>Chest: {getCanonicalChestNo(s)}</span>

@@ -12,7 +12,7 @@ import { ResultEntryView, ResultEntryTab } from '@/components/roles/ResultEntryV
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function ResultEntryPage() {
-  const [activeTab, setActiveTab] = useState<ResultEntryTab>('event-status');
+  const [activeTab, setActiveTab] = useState<ResultEntryTab>('score-entry');
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {

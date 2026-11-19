@@ -336,12 +336,23 @@ export function CollegeRegistrationTab({
                           rosterParticipants.map((p, pIdx) => {
                             const cicVal = p.cic_no || p.admission_no || p.cic_number;
                             const idLabel = cicVal ? `CIC: ${cicVal}` : getCanonicalChestNo(p);
+                            const matchedStudent = findStudentByIdentifier(students, cicVal || p.chest_no || p.id, currentCollegeAfflNo);
+                            const isBlocked = Boolean(matchedStudent?.is_blocked || p.is_blocked);
                             return (
                               <span
                                 key={p.id || pIdx}
-                                className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] font-sans"
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10.5px] font-medium font-sans ${
+                                  isBlocked
+                                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                                    : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                                }`}
                               >
                                 {p.full_name || p.name} <span className="ml-1 text-[var(--text-muted)] font-mono text-[9.5px]">({idLabel})</span>
+                                {isBlocked && (
+                                  <Badge variant="destructive" size="sm" className="ml-1.5 text-[8.5px] py-0 px-1 font-bold">
+                                    Blocked
+                                  </Badge>
+                                )}
                               </span>
                             );
                           })

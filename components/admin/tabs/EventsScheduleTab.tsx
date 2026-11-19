@@ -225,13 +225,21 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
     }
   };
 
-  // Inline quick status updater
+  // Inline quick status updater with optimistic state
+  const [optimisticStatusMap, setOptimisticStatusMap] = useState<Map<number, StageStatus>>(() => new Map());
+
   const handleQuickStatusChange = async (itemId: number, newStatus: StageStatus) => {
+    setOptimisticStatusMap(prev => new Map(prev).set(itemId, newStatus));
     try {
       await festService.updateScheduleStatus(itemId, newStatus);
       showToast(`Status updated to ${newStatus.replace(/_/g, ' ')}`);
       triggerRefresh();
     } catch (err: any) {
+      setOptimisticStatusMap(prev => {
+        const next = new Map(prev);
+        next.delete(itemId);
+        return next;
+      });
       alert(err.message || 'Error updating status');
     }
   };
@@ -382,9 +390,10 @@ export function EventsScheduleTab({ items, stages, schedules }: EventsScheduleTa
                 </TableRow>
               ) : (
                 filteredRows.map((item, idx) => {
-                  const sch = scheduleByItemId.get(Number(item.item_id || item.id));
+                  const itemIdNum = Number(item.item_id || item.id);
+                  const sch = scheduleByItemId.get(itemIdNum);
                   const stageObj = stages.find(st => st.stage_number === sch?.stage_number);
-                  const currentStatus = (sch?.status as StageStatus) || 'Upcoming';
+                  const currentStatus = optimisticStatusMap.get(itemIdNum) || (sch?.status as StageStatus) || 'Upcoming';
 
                   return (
                     <TableRow key={item.id} className="hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)] transition-colors">

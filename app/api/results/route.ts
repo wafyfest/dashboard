@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       }
 
       const isAlreadyPublished = existingResults?.some(r => r.published === true);
-      if (isAlreadyPublished && auth.role !== 'admin') {
+      if (isAlreadyPublished && auth.role !== 'admin' && auth.role !== 'result_entry') {
         return NextResponse.json(
           { error: 'Forbidden: Results for this event have been officially published and write-locked.' },
           { status: 403 }
@@ -59,10 +59,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: delErr.message }, { status: 500 });
       }
 
+      const shouldPublish = body?.publish !== undefined ? Boolean(body.publish) : false;
+
       if (payloads.length > 0) {
         const cleanPayloads = payloads.map((r: Record<string, unknown>) => {
-          const letter = String(r.code_letter ?? '').trim().toUpperCase();
-          const meta = letterMap.get(letter);
+          const rawLetter = String(r.code_letter ?? '').trim().toUpperCase();
+          const letter = rawLetter && rawLetter !== 'NULL' && rawLetter !== 'UNDEFINED' ? rawLetter : null;
+          const meta = letter ? letterMap.get(letter) : null;
           const collegeAfflNo = meta?.college_affl_no != null
             ? Number(meta.college_affl_no)
             : (r.college_affl_no != null ? Number(r.college_affl_no) : null);
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest) {
             grade: String(r.grade || 'None'),
             rank: cleanRank,
             points: Number(r.points) || 0,
-            published: false,
+            published: r.published !== undefined ? Boolean(r.published) : shouldPublish,
             best_in_fest: Boolean(r.best_in_fest),
           };
         });
@@ -98,9 +101,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'publish') {
-      if (auth.role !== 'admin') {
+      if (auth.role !== 'admin' && auth.role !== 'result_entry' && auth.role !== 'convenor') {
         return NextResponse.json(
-          { error: 'Forbidden: only Chief Tabulation Officer (admin) can publish official results.' },
+          { error: 'Forbidden: only tabulation officers (admin / result_entry) can publish official results.' },
           { status: 403 }
         );
       }

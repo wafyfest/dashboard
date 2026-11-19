@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemModeBadge, ItemTypeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/modal';
 import {
   Award,
   Users,
@@ -24,7 +25,9 @@ import {
   Filter,
   Phone,
   Copy,
-  Check
+  Check,
+  Play,
+  Video
 } from 'lucide-react';
 import {
   Item,
@@ -46,6 +49,7 @@ import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studen
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 import { getEventKind } from '@/lib/types/fest';
+import { getYouTubeEmbedUrl, isValidYouTubeUrl } from '@/lib/utils/youtube';
 
 interface EnrolledParticipantRow {
   id: string;
@@ -196,6 +200,10 @@ export function EventRegistrationsTab() {
     if (isGroup && p.registration.college_affl_no) {
       return submissionLookup.byCollege.get(`${itmId}:college:${p.registration.college_affl_no}`);
     }
+    if (p.registration.college_affl_no) {
+      const byCol = submissionLookup.byCollege.get(`${itmId}:college:${p.registration.college_affl_no}`);
+      if (byCol) return byCol;
+    }
     return undefined;
   };
 
@@ -205,6 +213,13 @@ export function EventRegistrationsTab() {
     target: EnrolledParticipantRow,
     status: ScreeningStatus
   ) => {
+    if (status === 'qualified') {
+      const sub = findSubmissionForParticipant(item, target);
+      if (!sub?.file_url || !sub.file_url.trim()) {
+        alert('Cannot qualify participant: Video or submission link has not been uploaded yet.');
+        return;
+      }
+    }
     const isGroup = item.point_type === 'group' || item.item_type === 'Group';
     const matchingRows = isGroup
       ? participants.filter(x => Number(x.registration.college_affl_no) === Number(target.registration.college_affl_no))
@@ -226,6 +241,70 @@ export function EventRegistrationsTab() {
       }
     } finally {
       setUpdatingScreeningKey(null);
+    }
+  };
+
+  interface ScreeningModalTarget {
+    item: Item;
+    target: EnrolledParticipantRow;
+    matchingParticipants: EnrolledParticipantRow[];
+    submission: SubmissionEntry;
+    currentStatus: ScreeningStatus;
+    remarks: string;
+  }
+
+  const [screeningModalTarget, setScreeningModalTarget] = useState<ScreeningModalTarget | null>(null);
+  const [selectedModalStatus, setSelectedModalStatus] = useState<ScreeningStatus>('qualified');
+  const [modalRemarks, setModalRemarks] = useState<string>('');
+  const [isSavingDecision, setIsSavingDecision] = useState<boolean>(false);
+
+  const openScreeningModal = (
+    item: Item,
+    participants: EnrolledParticipantRow[],
+    target: EnrolledParticipantRow,
+    submission: SubmissionEntry
+  ) => {
+    const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+    const matchingRows = isGroup
+      ? participants.filter(x => Number(x.registration.college_affl_no) === Number(target.registration.college_affl_no))
+      : [target];
+    const currStatus = (target.registration.screening_status as ScreeningStatus) || 'pending';
+    setScreeningModalTarget({
+      item,
+      target,
+      matchingParticipants: matchingRows,
+      submission,
+      currentStatus: currStatus,
+      remarks: target.registration.screening_remarks || '',
+    });
+    setSelectedModalStatus(currStatus === 'pending' ? 'qualified' : currStatus);
+    setModalRemarks(target.registration.screening_remarks || '');
+  };
+
+  const handleSaveModalDecision = async () => {
+    if (!screeningModalTarget) return;
+    const regIds = screeningModalTarget.matchingParticipants
+      .map(x => x.registration.id)
+      .filter(Boolean);
+
+    if (regIds.length === 0) return;
+
+    setIsSavingDecision(true);
+    try {
+      const res = await festService.updateScreeningStatus({
+        registrationIds: regIds,
+        itemId: Number(screeningModalTarget.item.item_id),
+        status: selectedModalStatus,
+        remarks: modalRemarks.trim() || undefined,
+      });
+      if (!res.success) {
+        alert(res.error || 'Failed to update screening status');
+      } else {
+        setScreeningModalTarget(null);
+        triggerRefresh();
+      }
+    } finally {
+      setIsSavingDecision(false);
     }
   };
 
@@ -937,46 +1016,42 @@ export function EventRegistrationsTab() {
                                     )}
 
                                     {/* Screening Shortlist Decision */}
-                                    {isScreeningEvent(item) && (
-                                      <TableCell className="py-2.5 align-middle text-center">
-                                        <div className="flex flex-col items-center gap-1.5">
-                                          <ScreeningStatusBadge status={screenStatus} size="sm" />
-                                          <div className="inline-flex items-center gap-1">
-                                            <button
-                                              type="button"
-                                              disabled={updatingScreeningKey !== null || screenStatus === 'qualified'}
-                                              onClick={() => handleSetScreeningStatus(item, participants, p, 'qualified')}
-                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 cursor-pointer inline-flex items-center gap-0.5"
-                                              title="Mark Qualified for Finals"
-                                            >
-                                              <CheckCircle2 className="w-2.5 h-2.5" />
-                                              Qualify
-                                            </button>
-                                            <button
-                                              type="button"
-                                              disabled={updatingScreeningKey !== null || screenStatus === 'eliminated'}
-                                              onClick={() => handleSetScreeningStatus(item, participants, p, 'eliminated')}
-                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-rose-500/35 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 cursor-pointer inline-flex items-center gap-0.5"
-                                              title="Mark Not Shortlisted"
-                                            >
-                                              <XCircle className="w-2.5 h-2.5" />
-                                              Eliminate
-                                            </button>
-                                            {screenStatus !== 'pending' && (
+                                    {isScreeningEvent(item) && (() => {
+                                      const hasValidSub = Boolean(subEntry?.file_url && subEntry.file_url.trim());
+                                      return (
+                                        <TableCell className="py-2.5 align-middle text-center">
+                                          {hasValidSub ? (
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <ScreeningStatusBadge status={screenStatus} size="sm" />
                                               <button
                                                 type="button"
-                                                disabled={updatingScreeningKey !== null}
-                                                onClick={() => handleSetScreeningStatus(item, participants, p, 'pending')}
-                                                className="p-1 rounded text-[10px] border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40 cursor-pointer"
-                                                title="Reset to Pending Screening"
+                                                onClick={() => openScreeningModal(item, participants, p, subEntry!)}
+                                                className="px-2 py-0.5 rounded text-[10.5px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 cursor-pointer inline-flex items-center gap-1 transition-colors shadow-xs"
+                                                title="Open screening review & decision window"
                                               >
-                                                <RotateCcw className="w-2.5 h-2.5" />
+                                                {screenStatus === 'pending' ? (
+                                                  <>
+                                                    <Play className="w-2.5 h-2.5 fill-current" />
+                                                    <span>Review & Decide</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <span>Change Decision</span>
+                                                  </>
+                                                )}
                                               </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </TableCell>
-                                    )}
+                                            </div>
+                                          ) : (
+                                            <div className="flex flex-col items-center gap-0.5">
+                                              <ScreeningStatusBadge status={screenStatus} size="sm" />
+                                              <span className="text-[10px] text-[var(--text-muted)] italic font-sans" title="Awaiting college submission upload">
+                                                Awaiting link
+                                              </span>
+                                            </div>
+                                          )}
+                                        </TableCell>
+                                      );
+                                    })()}
 
                                     {/* Registered Date */}
                                     <TableCell className="py-2.5 align-middle text-right pr-4 font-mono text-[11px] text-[var(--text-muted)]">
@@ -1007,6 +1082,246 @@ export function EventRegistrationsTab() {
           })
         )}
       </div>
+
+      {/* Screening Evaluation & Decision Modal */}
+      {screeningModalTarget && (
+        <Modal
+          isOpen={Boolean(screeningModalTarget)}
+          onClose={() => !isSavingDecision && setScreeningModalTarget(null)}
+          title={`Screening Decision: ${screeningModalTarget.item.item_code || screeningModalTarget.item.code || screeningModalTarget.item.item_id}`}
+          description={`${screeningModalTarget.item.name_eng || screeningModalTarget.item.name} (${screeningModalTarget.item.phase || 'General'})`}
+          maxWidth="2xl"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSavingDecision}
+                onClick={() => setScreeningModalTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSavingDecision}
+                onClick={handleSaveModalDecision}
+                className={
+                  selectedModalStatus === 'qualified'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : selectedModalStatus === 'eliminated'
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white'
+                }
+              >
+                {isSavingDecision ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </span>
+                ) : (
+                  <span>
+                    Confirm {selectedModalStatus === 'qualified' ? 'Qualification' : selectedModalStatus === 'eliminated' ? 'Elimination' : 'Pending'}
+                  </span>
+                )}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            {/* Candidate & Institution Info Box */}
+            <div className="p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/70 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wide">
+                    {screeningModalTarget.item.point_type === 'group' || screeningModalTarget.item.item_type === 'Group'
+                      ? 'Group Team'
+                      : 'Candidate'}
+                  </div>
+                  <div className="font-heading font-bold text-sm text-[var(--text-primary)] truncate">
+                    {screeningModalTarget.matchingParticipants
+                      .map(m => m.student?.name || m.student?.full_name || 'Participant')
+                      .join(', ')}
+                  </div>
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] flex items-center gap-2 mt-0.5">
+                    <span>
+                      Chest:{' '}
+                      {screeningModalTarget.matchingParticipants
+                        .map(m => m.registration.chest_no || (m.student ? getCanonicalChestNo(m.student) : '—'))
+                        .join(', ')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wide">College</div>
+                  <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
+                    #{screeningModalTarget.target.college?.affl_no || screeningModalTarget.target.registration.college_affl_no}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)] max-w-[200px] truncate">
+                    {screeningModalTarget.target.college?.short_name || screeningModalTarget.target.college?.name || 'College'}
+                  </div>
+                </div>
+              </div>
+
+              {(screeningModalTarget.item.point_type === 'group' || screeningModalTarget.item.item_type === 'Group') && (
+                <div className="text-[10.5px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                  Notice: This is a group event. Your decision applies to all {screeningModalTarget.matchingParticipants.length} enrolled members of this college team.
+                </div>
+              )}
+            </div>
+
+            {/* Video Submission Preview Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-semibold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-indigo-500" />
+                  Submitted Performance Video
+                </span>
+                {screeningModalTarget.submission.file_url && (
+                  <a
+                    href={screeningModalTarget.submission.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    <span>Open link</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {screeningModalTarget.submission.file_url && isValidYouTubeUrl(screeningModalTarget.submission.file_url) ? (
+                <div className="relative w-full pb-[56.25%] bg-black rounded-lg overflow-hidden border border-[var(--border-subtle)] shadow-xs">
+                  <iframe
+                    src={getYouTubeEmbedUrl(screeningModalTarget.submission.file_url) || ''}
+                    title="YouTube video player"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full border-0"
+                  />
+                </div>
+              ) : screeningModalTarget.submission.file_url ? (
+                <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-center space-y-2">
+                  <p className="text-xs text-[var(--text-secondary)]">External performance link uploaded:</p>
+                  <a
+                    href={screeningModalTarget.submission.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open Submission in New Tab
+                  </a>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-center text-[var(--text-muted)] italic">
+                  No submission URL available
+                </div>
+              )}
+            </div>
+
+            {/* Decision Selection Radio Cards */}
+            <div className="space-y-1.5">
+              <label className="font-heading font-semibold text-xs text-[var(--text-primary)]">
+                Screening Verdict
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Qualify Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('qualified')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'qualified'
+                      ? 'border-emerald-500 bg-emerald-500/15 text-emerald-950 dark:text-emerald-100 ring-1 ring-emerald-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-emerald-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'qualified'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Qualify</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Shortlist as finalist for the stage competition
+                    </div>
+                  </div>
+                </button>
+
+                {/* Eliminate Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('eliminated')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'eliminated'
+                      ? 'border-rose-500 bg-rose-500/15 text-rose-950 dark:text-rose-100 ring-1 ring-rose-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-rose-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <XCircle
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'eliminated'
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Eliminate</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Mark as not shortlisted for stage finals
+                    </div>
+                  </div>
+                </button>
+
+                {/* Reset to Pending Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('pending')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'pending'
+                      ? 'border-amber-500 bg-amber-500/15 text-amber-950 dark:text-amber-100 ring-1 ring-amber-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-amber-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <RotateCcw
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'pending'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Pending</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Leave under review / decide later
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Optional Remarks Textarea */}
+            <div className="space-y-1">
+              <label className="font-heading font-semibold text-xs text-[var(--text-primary)] flex items-center justify-between">
+                <span>Evaluation Notes / Remarks (Optional)</span>
+                <span className="text-[10px] font-normal text-[var(--text-muted)] font-mono">Visible to organizers</span>
+              </label>
+              <textarea
+                value={modalRemarks}
+                onChange={e => setModalRemarks(e.target.value)}
+                placeholder="e.g. Scored 84/100, clear pitch and rhythm, recommended for finals..."
+                rows={2}
+                className="w-full text-xs p-2 rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

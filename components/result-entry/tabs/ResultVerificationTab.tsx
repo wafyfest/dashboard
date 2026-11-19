@@ -106,7 +106,6 @@ export function ResultVerificationTab({ verificationList }: ResultVerificationTa
                       <TableHead>College / Institution</TableHead>
                       <TableHead>Chest No</TableHead>
                       <TableHead className="text-center">Blind Code</TableHead>
-                      <TableHead className="text-center">Mark (%)</TableHead>
                       <TableHead className="text-center">Grade</TableHead>
                       <TableHead className="text-right">Points Got</TableHead>
                     </TableRow>
@@ -150,12 +149,13 @@ export function ResultVerificationTab({ verificationList }: ResultVerificationTa
                           {p.displayChestNo}
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] font-mono font-extrabold text-xs">
-                            {p.code_letter}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-xs font-semibold text-[var(--text-primary)]">
-                          {p.mark_percentage}%
+                          {p.code_letter ? (
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[var(--f-saffron-text)] font-mono font-extrabold text-xs">
+                              {p.code_letter}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-mono text-[var(--text-muted)]">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           <span className="font-bold text-xs text-[var(--text-primary)]">

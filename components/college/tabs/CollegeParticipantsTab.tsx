@@ -6,7 +6,6 @@ import { Select } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge, CategoryBadge, ItemTypeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { SubmissionLinkModal, SubmissionLinkTarget } from '@/components/college/SubmissionLinkModal';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import {
@@ -18,11 +17,10 @@ import {
   getEffectiveStageMode,
   isSubmissionEvent,
   isScreeningEvent,
-  isSpecialGroupEvent,
-  requiresPreFestSubmission
+  isSpecialGroupEvent
 } from '@/lib/types/fest';
 import { getCanonicalChestNo } from '@/lib/utils/studentIdentity';
-import { Search, Users, ArrowUpDown, ChevronDown, RotateCcw, FileText, Link2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Search, Users, ArrowUpDown, ChevronDown, RotateCcw, FileText, ExternalLink } from 'lucide-react';
 import { formatPdfItemMode, generateParticipantsListPdf } from '@/lib/utils/participantsListPdf';
 
 interface CollegeParticipantsTabProps {
@@ -47,7 +45,6 @@ interface ParticipantRow {
   itemMode?: string;
   itemIsSubmission?: boolean;
   itemIsScreening?: boolean;
-  needsPreFestLink: boolean;
   submissionEntry?: SubmissionEntry;
   screeningStatus?: ScreeningStatus;
   screeningRemarks?: string | null;
@@ -91,9 +88,6 @@ export function CollegeParticipantsTab({
   const [selectedMode, setSelectedMode] = useState('All Modes');
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Submission / Screening link modal state
-  const [linkModalTarget, setLinkModalTarget] = useState<SubmissionLinkTarget | null>(null);
-
   const submissions = React.useMemo(
     () => festService.getSubmissionEntries(collegeAfflNo),
     [collegeAfflNo, refreshKey]
@@ -130,27 +124,26 @@ export function CollegeParticipantsTab({
       const itemMode = r.item?.mode;
       const itemIsSubmission = isSubmissionEvent(r.item);
       const itemIsScreening = isScreeningEvent(r.item);
-      const needsPreFestLink = requiresPreFestSubmission(r.item);
       const isGroup = itemType.toLowerCase() === 'group';
       const blindCode = r.code_letter || 'Unassigned';
 
       const isInstitutional = (r.chest_no && r.chest_no.startsWith('COL-')) || isSpecialGroupEvent(r.item);
       const participants = isInstitutional
         ? [
-            r.student || {
-              id: `col-entry-${r.college_affl_no || collegeAfflNo}-${itemId}`,
-              name: collegeName,
-              full_name: `${collegeName} (College Entry)`,
-              chest_no: r.chest_no || `COL-${r.college_affl_no || collegeAfflNo}`,
-              cic_no: null as any,
-              college_affl_no: Number(r.college_affl_no || collegeAfflNo),
-              class: 'College Entry',
-              phase: 'Special',
-            }
-          ]
+          r.student || {
+            id: `col-entry-${r.college_affl_no || collegeAfflNo}-${itemId}`,
+            name: collegeName,
+            full_name: `${collegeName} (College Entry)`,
+            chest_no: r.chest_no || `COL-${r.college_affl_no || collegeAfflNo}`,
+            cic_no: null as any,
+            college_affl_no: Number(r.college_affl_no || collegeAfflNo),
+            class: 'College Entry',
+            phase: 'Special',
+          }
+        ]
         : ((r.participants && r.participants.length > 0)
-            ? r.participants
-            : (r.student ? [r.student] : []));
+          ? r.participants
+          : (r.student ? [r.student] : []));
 
       participants.forEach((p: any) => {
         const isEntryInstitutional = isInstitutional || (p.chest_no && String(p.chest_no).startsWith('COL-'));
@@ -192,7 +185,6 @@ export function CollegeParticipantsTab({
             itemMode,
             itemIsSubmission,
             itemIsScreening,
-            needsPreFestLink,
             submissionEntry: subEntry,
             screeningStatus: r.screening_status || 'pending',
             screeningRemarks: r.screening_remarks || null,
@@ -435,29 +427,6 @@ export function CollegeParticipantsTab({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {(() => {
-          const pendingSlots = new Set<string>();
-          participantRows.forEach(p => {
-            if (p.needsPreFestLink && !p.submissionEntry?.file_url) {
-              const slot = p.itemType.toLowerCase() === 'group'
-                ? `${p.itemId}:GROUP`
-                : `${p.itemId}:${p.chestNo}`;
-              pendingSlots.add(slot);
-            }
-          });
-          if (pendingSlots.size === 0) return null;
-          return (
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>
-                  <strong>{pendingSlots.size}</strong> pre-fest submission / screening {pendingSlots.size === 1 ? 'entry still needs' : 'entries still need'} a video or file URL. Click <strong>Submit Link</strong> on the row below.
-                </span>
-              </div>
-            </div>
-          );
-        })()}
-
         <Table containerClassName="rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
           <TableHeader>
             <TableRow>
@@ -479,7 +448,7 @@ export function CollegeParticipantsTab({
               <TableHead className="whitespace-nowrap">Code</TableHead>
               <TableHead className="whitespace-nowrap text-center">Type / Mode</TableHead>
               <TableHead className="whitespace-nowrap text-center">Blind Code</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Screening &amp; Link</TableHead>
+              <TableHead className="whitespace-nowrap text-center">Screening Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -548,69 +517,35 @@ export function CollegeParticipantsTab({
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center gap-1">
-                      {p.itemIsScreening && (
-                        <ScreeningStatusBadge status={p.screeningStatus} size="sm" />
-                      )}
-                      {p.needsPreFestLink ? (
-                        <div className="flex flex-col items-center gap-1">
-                          {p.submissionEntry?.file_url ? (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${p.submissionEntry.status === 'late'
-                                ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                : p.submissionEntry.status === 'fine'
-                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                }`}
+                      {p.itemIsScreening ? (
+                        <>
+                          <ScreeningStatusBadge status={p.screeningStatus} size="sm" />
+                          {p.submissionEntry?.file_url && (
+                            <a
+                              href={p.submissionEntry.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                              title={p.submissionEntry.file_url}
                             >
-                              {p.submissionEntry.status === 'late'
-                                ? 'Submitted (Late)'
-                                : p.submissionEntry.status === 'fine'
-                                  ? 'Submitted (Late Fine)'
-                                  : 'Submitted On Time'}
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-                              Link Needed
-                            </span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              View Link
+                            </a>
                           )}
-                          <div className="inline-flex items-center gap-1.5">
-                            {p.submissionEntry?.file_url && (
-                              <a
-                                href={p.submissionEntry.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
-                                title={p.submissionEntry.file_url}
-                              >
-                                <ExternalLink className="w-2.5 h-2.5" />
-                                View
-                              </a>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setLinkModalTarget({
-                                  collegeAfflNo,
-                                  chestNo: p.chestNo,
-                                  studentName: p.studentName,
-                                  itemId: p.itemId,
-                                  itemCode: p.itemCode,
-                                  itemName: p.itemName,
-                                  isScreening: p.itemIsScreening,
-                                  existingUrl: p.submissionEntry?.file_url || null,
-                                })
-                              }
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold border border-[var(--border-medium)] bg-[var(--bg-subtle)] hover:border-[var(--f-saffron)] text-[var(--text-primary)] cursor-pointer transition-colors"
-                            >
-                              <Link2 className="w-2.5 h-2.5 text-[var(--f-saffron-text)]" />
-                              {p.submissionEntry?.file_url ? 'Edit Link' : 'Submit Link'}
-                            </button>
-                          </div>
-                        </div>
+                        </>
+                      ) : p.itemIsSubmission && p.submissionEntry?.file_url ? (
+                        <a
+                          href={p.submissionEntry.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                          title={p.submissionEntry.file_url}
+                        >
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          View File
+                        </a>
                       ) : (
-                        !p.itemIsScreening && (
-                          <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                        )
+                        <span className="text-[11px] text-[var(--text-muted)]">—</span>
                       )}
                     </div>
                   </TableCell>
@@ -620,13 +555,6 @@ export function CollegeParticipantsTab({
           </TableBody>
         </Table>
       </CardContent>
-
-      {/* Pre-Fest Screening / Submission Link Modal */}
-      <SubmissionLinkModal
-        target={linkModalTarget}
-        onClose={() => setLinkModalTarget(null)}
-        onSaved={triggerRefresh}
-      />
     </Card>
   );
 }

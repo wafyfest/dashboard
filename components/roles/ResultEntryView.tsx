@@ -13,8 +13,20 @@ import {
   Filter,
   CheckCircle2,
   RefreshCw,
+  Layers,
+  Users,
+  RotateCcw,
 } from 'lucide-react';
-import { StageStatus, isScreeningEvent, isNonTabulationEvent, isSpecialGroupEvent } from '@/lib/types/fest';
+import {
+  Item,
+  StageStatus,
+  isScreeningEvent,
+  isSubmissionEvent,
+  isNonTabulationEvent,
+  isSpecialGroupEvent,
+  getEffectiveStageMode,
+  normalizeCategoryKey,
+} from '@/lib/types/fest';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { TilePattern } from '@/components/fest/FestPattern';
 import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
@@ -47,6 +59,25 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   // State: Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<string>('all');
+  const [selectedMode, setSelectedMode] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    selectedPhase !== 'all' ||
+    selectedMode !== 'all' ||
+    selectedType !== 'all' ||
+    selectedStatus !== 'all'
+  );
+
+  const resetAllFilters = () => {
+    setSearchQuery('');
+    setSelectedPhase('all');
+    setSelectedMode('all');
+    setSelectedType('all');
+    setSelectedStatus('all');
+  };
 
   // State: Score Entry Console
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
@@ -60,15 +91,75 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     setTimeout(() => setActionSuccessMessage(null), 3000);
   };
 
-  // Distinct phases for filtering
+  // Distinct canonical phases for filtering
   const distinctPhases = useMemo(() => {
-    const set = new Set<string>();
+    const defaultPhases = ['Foundation', 'Thamheediyya', 'Aliya', 'PG', 'General', 'Special', 'Special - Foundation'];
+    const set = new Set<string>(defaultPhases);
     items.forEach(i => {
-      if (i.phase) set.add(i.phase);
-      else if (i.category) set.add(i.category);
+      const p = i.phase || i.category;
+      if (p && !['A', 'B', 'C', 'D'].includes(p.trim().toUpperCase())) {
+        set.add(p);
+      }
     });
-    return Array.from(set).sort();
+    return Array.from(set);
   }, [items]);
+
+  // Master multi-criteria filter helper
+  const matchesItemFilters = (
+    item: Item | undefined,
+    query: string,
+    phase: string,
+    mode: string,
+    type: string,
+    statusFilter: string,
+    isScored?: boolean,
+    isPublished?: boolean
+  ) => {
+    if (!item) return false;
+
+    // 1. Search Query
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      const code = (item.item_code || item.code || '').toLowerCase();
+      const eng = (item.name_eng || item.name || '').toLowerCase();
+      const mal = (item.name_mal || '').toLowerCase();
+      if (!code.includes(q) && !eng.includes(q) && !mal.includes(q)) {
+        return false;
+      }
+    }
+
+    // 2. Phase Filter
+    if (phase !== 'all') {
+      const itemPhase = item.phase || item.category || 'General';
+      if (normalizeCategoryKey(itemPhase) !== normalizeCategoryKey(phase)) {
+        return false;
+      }
+    }
+
+    // 3. Event Mode Filter (onstage, offstage, screening, submission)
+    if (mode !== 'all') {
+      if (mode === 'screening' && !isScreeningEvent(item)) return false;
+      if (mode === 'submission' && !isSubmissionEvent(item)) return false;
+      if (mode === 'onstage' && getEffectiveStageMode(item) !== 'onstage') return false;
+      if (mode === 'offstage' && getEffectiveStageMode(item) !== 'offstage') return false;
+    }
+
+    // 4. Participation Type Filter (single vs group)
+    if (type !== 'all') {
+      const isGroup = item.point_type === 'group' || item.item_type === 'Group';
+      if (type === 'group' && !isGroup) return false;
+      if (type === 'single' && isGroup) return false;
+    }
+
+    // 5. Scoring / Publishing Status Filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'published' && !isPublished) return false;
+      if (statusFilter === 'scored' && (!isScored || isPublished)) return false;
+      if (statusFilter === 'pending' && isScored) return false;
+    }
+
+    return true;
+  };
 
   // Initial live sync for results and points matrix
   useEffect(() => {
@@ -98,32 +189,27 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       .map(item => {
         const sch = schedules.find(s => Number(s.item_id) === Number(item.item_id));
         const stage = stages.find(st => Number(st.stage_number) === Number(sch?.stage_number));
+        const eventResults = allResults.filter(r => Number(r.item_id) === Number(item.item_id));
+        const isScored = eventResults.length > 0;
+        const isPublished = eventResults.some(r => Boolean(r.published));
         return {
           item,
           schedule: sch,
           stage,
           status: sch?.status || 'Upcoming',
+          isScored,
+          isPublished,
         };
       })
-      .filter(({ item }) => {
-        const query = searchQuery.trim().toLowerCase();
-        const matchesQuery =
-          !query ||
-          (item.item_code || item.code || '').toLowerCase().includes(query) ||
-          (item.name_eng || item.name || '').toLowerCase().includes(query) ||
-          (item.name_mal || '').toLowerCase().includes(query);
-
-        const itemPhase = item.phase || item.category || 'General';
-        const matchesPhase = selectedPhase === 'all' || itemPhase.toLowerCase() === selectedPhase.toLowerCase();
-
-        return matchesQuery && matchesPhase;
-      })
+      .filter(({ item, isScored, isPublished }) =>
+        matchesItemFilters(item, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus, isScored, isPublished)
+      )
       .sort((a, b) => {
         const codeA = a.item.item_code || a.item.code || '';
         const codeB = b.item.item_code || b.item.code || '';
         return codeA.localeCompare(codeB);
       });
-  }, [items, schedules, stages, searchQuery, selectedPhase]);
+  }, [items, schedules, stages, allResults, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus]);
 
   const handleUpdateEventStatus = async (itemId: number, newStatus: StageStatus) => {
     try {
@@ -161,20 +247,11 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           status: sch?.status || 'Upcoming',
         };
       })
-      .filter(({ item }) => {
-        const query = searchQuery.trim().toLowerCase();
-        const matchesQuery =
-          !query ||
-          (item.item_code || item.code || '').toLowerCase().includes(query) ||
-          (item.name_eng || item.name || '').toLowerCase().includes(query);
-
-        const itemPhase = item.phase || item.category || 'General';
-        const matchesPhase = selectedPhase === 'all' || itemPhase.toLowerCase() === selectedPhase.toLowerCase();
-
-        return matchesQuery && matchesPhase;
-      })
+      .filter(({ item, isScored, isPublished }) =>
+        matchesItemFilters(item, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus, isScored, isPublished)
+      )
       .sort((a, b) => (a.item.item_code || '').localeCompare(b.item.item_code || ''));
-  }, [items, schedules, allRegistrations, allCodeLetters, allResults, searchQuery, selectedPhase]);
+  }, [items, schedules, allRegistrations, allCodeLetters, allResults, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus]);
 
   const selectedScoringItem = items.find(i => Number(i.item_id) === Number(selectedEventId));
   const isSelectedEventPublished = useMemo(() => {
@@ -195,35 +272,103 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     ]).then(([participantsData, fetchedResults]) => {
       if (isCancelled) return;
 
+      const isOffStage = selectedScoringItem ? getEffectiveStageMode(selectedScoringItem) === 'offstage' : false;
       const codeLetters = festService.getCodeLetters(selectedEventId);
       const existingResults = (fetchedResults || []).filter(r => Number(r.item_id) === Number(selectedEventId));
 
-      // Build rows for each assigned code letter
-      const distinctLetters = Array.from(
-        new Set(codeLetters.map(cl => (cl.code_letter || '').trim().toUpperCase()).filter(Boolean))
-      ).sort();
+      let initialRows: ScoreEntryRow[] = [];
 
-      const initialRows: ScoreEntryRow[] = distinctLetters.map(letter => {
-        const existing = existingResults.find(r => (r.code_letter || '').trim().toUpperCase() === letter);
-        const matchingCode = codeLetters.find(c => (c.code_letter || '').trim().toUpperCase() === letter);
+      if (!isOffStage && codeLetters.length > 0) {
+        // ON-STAGE: Build rows for each assigned blind code letter
+        const distinctLetters = Array.from(
+          new Set(codeLetters.map(cl => (cl.code_letter || '').trim().toUpperCase()).filter(Boolean))
+        ).sort();
 
-        const marks = existing?.mark_percentage !== null && existing?.mark_percentage !== undefined ? Number(existing.mark_percentage) : 75;
-        const grade = existing?.grade || (marks >= 90 ? 'A+' : marks >= 80 ? 'A' : marks >= 70 ? 'B' : 'C');
-        const rank = existing?.rank ? Number(existing.rank) : null;
-        const pts = isNonTabulationEvent(selectedScoringItem)
-          ? 0
-          : existing?.points !== null && existing?.points !== undefined
-            ? Number(existing.points)
-            : festService.calculatePoints(selectedScoringItem?.phase, selectedScoringItem?.category, grade, rank, selectedScoringItem?.tabulation);
+        initialRows = distinctLetters.map(letter => {
+          const existing = existingResults.find(r => (r.code_letter || '').trim().toUpperCase() === letter);
+          const matchingCode = codeLetters.find(c => (c.code_letter || '').trim().toUpperCase() === letter);
+          const cleanChest = existing?.chest_no || matchingCode?.chest_no || undefined;
+          const stu = cleanChest ? findStudentByIdentifier(students, cleanChest) : undefined;
+          const col = matchingCode?.college_affl_no ? colleges.find(c => Number(c.affl_no) === Number(matchingCode.college_affl_no)) : undefined;
 
-        return {
-          code_letter: letter,
-          mark_percentage: marks,
-          grade,
-          rank,
-          points: pts,
-        };
-      });
+          const marks = existing?.mark_percentage !== null && existing?.mark_percentage !== undefined ? Number(existing.mark_percentage) : 0;
+          const grade = existing?.grade || 'None';
+          const rank = existing?.rank ? Number(existing.rank) : null;
+          const pts = isNonTabulationEvent(selectedScoringItem)
+            ? 0
+            : existing?.points !== null && existing?.points !== undefined
+              ? Number(existing.points)
+              : festService.calculatePoints(selectedScoringItem?.phase, selectedScoringItem?.category, grade, rank, selectedScoringItem?.tabulation);
+
+          return {
+            code_letter: letter,
+            chest_no: cleanChest,
+            college_affl_no: matchingCode?.college_affl_no || existing?.college_affl_no || undefined,
+            studentName: stu?.full_name || stu?.name,
+            collegeName: col?.name,
+            collegeCode: col?.short_name || col?.code,
+            mark_percentage: marks,
+            grade,
+            rank,
+            points: pts,
+          };
+        });
+      } else {
+        // OFF-STAGE: Build rows directly from registered participants / chest numbers
+        const regs = (participantsData?.registrations || allRegistrations).filter(
+          r => Number(r.item_id) === Number(selectedEventId) &&
+            (!isScreeningEvent(selectedScoringItem) || r.screening_status === 'qualified')
+        );
+
+        // Deduplicate by chest_no (or college_affl_no for special group items)
+        const seen = new Set<string>();
+        const uniqueRegs = regs.filter(r => {
+          const key = (r.chest_no || '').trim().toUpperCase() || `col-${r.college_affl_no}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        // Sort unique registrations by numeric or string chest number
+        uniqueRegs.sort((a, b) => {
+          const chestA = parseInt((a.chest_no || '').replace(/\D/g, ''), 10);
+          const chestB = parseInt((b.chest_no || '').replace(/\D/g, ''), 10);
+          if (!isNaN(chestA) && !isNaN(chestB)) return chestA - chestB;
+          return (a.chest_no || '').localeCompare(b.chest_no || '');
+        });
+
+        initialRows = uniqueRegs.map(reg => {
+          const cleanChest = (reg.chest_no || '').trim().toUpperCase();
+          const existing = existingResults.find(r =>
+            (cleanChest && (r.chest_no || '').trim().toUpperCase() === cleanChest) ||
+            (Number(r.college_affl_no) === Number(reg.college_affl_no) && isSpecialGroupEvent(selectedScoringItem))
+          );
+          const stu = reg.student || (cleanChest ? findStudentByIdentifier(students, cleanChest, reg.college_affl_no) : undefined);
+          const col = reg.college || colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
+
+          const marks = existing?.mark_percentage !== null && existing?.mark_percentage !== undefined ? Number(existing.mark_percentage) : 0;
+          const grade = existing?.grade || 'None';
+          const rank = existing?.rank ? Number(existing.rank) : null;
+          const pts = isNonTabulationEvent(selectedScoringItem)
+            ? 0
+            : existing?.points !== null && existing?.points !== undefined
+              ? Number(existing.points)
+              : festService.calculatePoints(selectedScoringItem?.phase, selectedScoringItem?.category, grade, rank, selectedScoringItem?.tabulation);
+
+          return {
+            code_letter: existing?.code_letter || '',
+            chest_no: cleanChest || undefined,
+            college_affl_no: Number(reg.college_affl_no),
+            studentName: stu?.full_name || stu?.name || (isSpecialGroupEvent(selectedScoringItem) ? col?.name : undefined),
+            collegeName: col?.name,
+            collegeCode: col?.short_name || col?.code,
+            mark_percentage: marks,
+            grade,
+            rank,
+            points: pts,
+          };
+        });
+      }
 
       setScoreRows(initialRows);
       setIsLoadingEventData(false);
@@ -243,8 +388,6 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
     field: 'mark_percentage' | 'grade' | 'rank',
     value: any
   ) => {
-    if (isSelectedEventPublished) return;
-
     setScoreRows(prev => {
       const updated = [...prev];
       const target = { ...updated[index] };
@@ -252,8 +395,10 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       if (field === 'mark_percentage') {
         const num = Math.min(100, Math.max(0, parseFloat(value) || 0));
         target.mark_percentage = num;
-        if (!target.grade || target.grade === 'Auto') {
-          target.grade = num >= 90 ? 'A+' : num >= 80 ? 'A' : num >= 70 ? 'B' : 'C';
+        if (!target.grade || target.grade === 'Auto' || target.grade === 'None') {
+          if (num > 0) {
+            target.grade = num >= 90 ? 'A+' : num >= 80 ? 'A' : num >= 70 ? 'B' : 'C';
+          }
         }
       } else if (field === 'grade') {
         target.grade = value;
@@ -277,15 +422,16 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   const handleSaveScores = async () => {
     if (!selectedEventId) return;
     if (scoreRows.length === 0) {
-      alert('No code letters available to score.');
+      alert('No participants or code letters available to score.');
       return;
     }
 
     setIsSubmittingScores(true);
     try {
-      const res = await festService.submitResultEntry(selectedEventId, scoreRows);
+      const res = await festService.submitResultEntry(selectedEventId, scoreRows, false);
       if (res.success) {
-        showTemporaryMessage('Scores successfully saved and recorded to the database!');
+        showTemporaryMessage('Scores successfully saved as draft! Go to the Result Publishing tab to publish.');
+        setSelectedEventId(null);
         triggerRefresh();
       } else {
         alert(res.error || 'Failed to save scores');
@@ -302,19 +448,11 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   // -------------------------------------------------------------
   const filteredPublishingList = useMemo(() => {
     return aggregatedResults.filter(agg => {
-      const query = searchQuery.trim().toLowerCase();
-      const item = agg.item;
-      const matchesQuery =
-        !query ||
-        (item?.item_code || item?.code || '').toLowerCase().includes(query) ||
-        (item?.name_eng || item?.name || '').toLowerCase().includes(query);
-
-      const itemPhase = item?.phase || item?.category || 'General';
-      const matchesPhase = selectedPhase === 'all' || itemPhase.toLowerCase() === selectedPhase.toLowerCase();
-
-      return matchesQuery && matchesPhase;
+      const isScored = agg.results.length > 0;
+      const isPublished = agg.is_published;
+      return matchesItemFilters(agg.item, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus, isScored, isPublished);
     });
-  }, [aggregatedResults, searchQuery, selectedPhase]);
+  }, [aggregatedResults, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus]);
 
   const handleTogglePublish = async (itemId: number, currentPublishedState: boolean) => {
     try {
@@ -341,17 +479,9 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
   const filteredVerificationList = useMemo(() => {
     return aggregatedResults
       .filter(agg => {
-        const query = searchQuery.trim().toLowerCase();
-        const item = agg.item;
-        const matchesQuery =
-          !query ||
-          (item?.item_code || item?.code || '').toLowerCase().includes(query) ||
-          (item?.name_eng || item?.name || '').toLowerCase().includes(query);
-
-        const itemPhase = item?.phase || item?.category || 'General';
-        const matchesPhase = selectedPhase === 'all' || itemPhase.toLowerCase() === selectedPhase.toLowerCase();
-
-        return matchesQuery && matchesPhase;
+        const isScored = agg.results.length > 0;
+        const isPublished = agg.is_published;
+        return matchesItemFilters(agg.item, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus, isScored, isPublished);
       })
       .map(agg => {
         const enrichedParticipants = agg.results.map(res => {
@@ -359,16 +489,16 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           const isInstitutional = (res.chest_no && res.chest_no.startsWith('COL-')) || isSpecialGroupEvent(agg.item);
           const stu = !isInstitutional ? findStudentByIdentifier(students, res.chest_no, res.college_affl_no || undefined) : undefined;
 
-            const stuChest = stu ? getCanonicalChestNo(stu) : '';
-            return {
-              ...res,
-              studentName: isInstitutional
-                ? `${col?.name || `College #${res.college_affl_no}`} (Institutional Entry)`
-                : (stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`),
-              collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
-              collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
-              displayChestNo: (stuChest && stuChest !== '—') ? stuChest : (res.chest_no || '—'),
-            };
+          const stuChest = stu ? getCanonicalChestNo(stu) : '';
+          return {
+            ...res,
+            studentName: isInstitutional
+              ? `${col?.name || `College #${res.college_affl_no}`} (Institutional Entry)`
+              : (stu?.full_name || stu?.name || `Candidate (${res.chest_no || res.code_letter})`),
+            collegeName: col?.name || `College #${res.college_affl_no || 'N/A'}`,
+            collegeCode: col?.code || col?.short_name || `#${res.college_affl_no || ''}`,
+            displayChestNo: (stuChest && stuChest !== '—') ? stuChest : (res.chest_no || '—'),
+          };
         });
 
         const totalPoints = agg.results.reduce((sum, r) => sum + (Number(r.points) || 0), 0);
@@ -379,7 +509,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
           totalPoints,
         };
       });
-  }, [aggregatedResults, colleges, students, searchQuery, selectedPhase]);
+  }, [aggregatedResults, colleges, students, searchQuery, selectedPhase, selectedMode, selectedType, selectedStatus]);
 
   return (
     <div className="space-y-6">
@@ -393,7 +523,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         </div>
       )}
 
-      {/* Global Search & Phase Filter Header */}
+      {/* Global Search & Multi-Filter Header */}
       {(!selectedEventId || activeTab !== 'score-entry') && (
         <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 [box-shadow:var(--shadow-card),var(--glass-highlight)] space-y-4">
           <TilePattern id="result-entry-hero-pattern" className="opacity-10 text-[var(--f-saffron)]" />
@@ -412,7 +542,7 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
                   </span>
                   <Badge variant="saffron" size="sm">
                     {activeTab === 'event-status' && 'LIVE TIMETABLE'}
-                    {activeTab === 'score-entry' && 'BLIND SCORING'}
+                    {activeTab === 'score-entry' && 'SCORING CONSOLE'}
                     {activeTab === 'result-publishing' && 'OFFICIAL RELEASE'}
                     {activeTab === 'result-verification' && 'AUDIT & VERIFICATION'}
                   </Badge>
@@ -440,34 +570,134 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
             </button>
           </div>
 
-          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-[var(--border-subtle)]">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search event code or title..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none placeholder:text-[var(--text-muted)]"
-              />
+          {/* Multi-Criteria Filters Bar */}
+          <div className="relative z-10 space-y-3 pt-3 border-t border-[var(--border-subtle)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* 1. Search Query */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search code or title..."
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+
+              {/* 2. Phase Filter */}
+              <div className="relative">
+                <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <select
+                  value={selectedPhase}
+                  onChange={e => setSelectedPhase(e.target.value)}
+                  aria-label="Filter by Phase"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
+                >
+                  <option value="all">All Phases</option>
+                  {distinctPhases.map(phase => (
+                    <option key={phase} value={phase}>
+                      {phase}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Event Mode Filter (On-Stage / Off-Stage / Submission / Screening) */}
+              <div className="relative">
+                <Radio className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <select
+                  value={selectedMode}
+                  onChange={e => setSelectedMode(e.target.value)}
+                  aria-label="Filter by Stage Mode"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
+                >
+                  <option value="all">All Event Modes</option>
+                  <option value="onstage">On-Stage (Live)</option>
+                  <option value="offstage">Off-Stage (Hall/Direct)</option>
+                  <option value="screening">Pre-Fest Screening</option>
+                  <option value="submission">Digital Submission</option>
+                </select>
+              </div>
+
+              {/* 4. Participation Type Filter (Single vs Group) */}
+              <div className="relative">
+                <Users className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <select
+                  value={selectedType}
+                  onChange={e => setSelectedType(e.target.value)}
+                  aria-label="Filter by Participation Type"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
+                >
+                  <option value="all">All Types (Single / Group)</option>
+                  <option value="single">Single / Individual</option>
+                  <option value="group">Group Events</option>
+                </select>
+              </div>
+
+              {/* 5. Scoring / Publishing Status Filter */}
+              <div className="relative">
+                <Layers className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <select
+                  value={selectedStatus}
+                  onChange={e => setSelectedStatus(e.target.value)}
+                  aria-label="Filter by Scoring Status"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
+                >
+                  <option value="all">All Scoring Status</option>
+                  <option value="pending">Pending Scoring</option>
+                  <option value="scored">Scored (Draft)</option>
+                  <option value="published">Official Published</option>
+                </select>
+              </div>
             </div>
 
-            <div className="relative">
-              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <select
-                value={selectedPhase}
-                onChange={e => setSelectedPhase(e.target.value)}
-                aria-label="Filter by Phase / Category"
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none cursor-pointer"
-              >
-                <option value="all">All Phases / Categories</option>
-                {distinctPhases.map(phase => (
-                  <option key={phase} value={phase}>
-                    {phase}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Active Filters Pill Bar & Reset button */}
+            {hasActiveFilters && (
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)]">Active filters:</span>
+                  {selectedPhase !== 'all' && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] gap-1">
+                      <span>Phase: {selectedPhase}</span>
+                      <button onClick={() => setSelectedPhase('all')} className="hover:text-red-500 cursor-pointer">×</button>
+                    </Badge>
+                  )}
+                  {selectedMode !== 'all' && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] gap-1">
+                      <span>Mode: {selectedMode}</span>
+                      <button onClick={() => setSelectedMode('all')} className="hover:text-red-500 cursor-pointer">×</button>
+                    </Badge>
+                  )}
+                  {selectedType !== 'all' && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] gap-1">
+                      <span>Type: {selectedType}</span>
+                      <button onClick={() => setSelectedType('all')} className="hover:text-red-500 cursor-pointer">×</button>
+                    </Badge>
+                  )}
+                  {selectedStatus !== 'all' && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] gap-1">
+                      <span>Status: {selectedStatus}</span>
+                      <button onClick={() => setSelectedStatus('all')} className="hover:text-red-500 cursor-pointer">×</button>
+                    </Badge>
+                  )}
+                  {searchQuery && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] gap-1">
+                      <span>Query: "{searchQuery}"</span>
+                      <button onClick={() => setSearchQuery('')} className="hover:text-red-500 cursor-pointer">×</button>
+                    </Badge>
+                  )}
+                </div>
+
+                <button
+                  onClick={resetAllFilters}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--f-saffron-text)] transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset All</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

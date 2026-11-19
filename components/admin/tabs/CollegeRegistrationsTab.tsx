@@ -45,7 +45,8 @@ import {
   isScreeningEvent,
   getItemParticipantBounds,
   isSpecialGroupEvent,
-  requiresPreFestSubmission
+  requiresPreFestSubmission,
+  isFestCommitteeBlock
 } from '@/lib/types/fest';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
@@ -1169,13 +1170,22 @@ export function CollegeRegistrationsTab({
                                   {initials}
                                 </div>
                                 <div className="space-y-0.5 min-w-0">
-                                  <div className="font-bold text-xs text-[var(--text-primary)] truncate max-w-[170px]" title={stu.name || stu.full_name}>
+                                  <div className={`font-bold text-xs truncate max-w-[170px] ${stu.is_blocked ? 'text-rose-900 dark:text-rose-300 line-through decoration-rose-500/50' : 'text-[var(--text-primary)]'}`} title={stu.name || stu.full_name}>
                                     {stu.name || stu.full_name}
                                   </div>
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
                                       {chestNo}
                                     </span>
+                                    {stu.is_blocked && (
+                                      <Badge
+                                        variant="destructive"
+                                        size="sm"
+                                        className="text-[9.5px] py-0 px-1.5 font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
+                                      >
+                                        {isFestCommitteeBlock(stu.block_reason) ? 'Fest Committee' : `Blocked: ${stu.block_reason || 'Administrative'}`}
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
                               </div>

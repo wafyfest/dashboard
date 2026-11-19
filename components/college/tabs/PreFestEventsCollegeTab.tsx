@@ -361,22 +361,20 @@ export function PreFestEventsCollegeTab({
             <button
               type="button"
               onClick={() => setActiveSection('SCREENING')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${
-                activeSection === 'SCREENING'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${activeSection === 'SCREENING'
                   ? 'bg-amber-500 text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
+                }`}
             >
               Screening ({items.filter(e => isScreeningEvent(e) || e.is_screening || (e.mode as string) === 'screening').length})
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('SUBMISSION')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${
-                activeSection === 'SUBMISSION'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${activeSection === 'SUBMISSION'
                   ? 'bg-amber-500 text-[#090d1a] shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
+                }`}
             >
               Submission ({items.filter(e => isSubmissionEvent(e) || e.is_submission || (e.mode as string) === 'submission').length})
             </button>
@@ -495,7 +493,20 @@ export function PreFestEventsCollegeTab({
           </div>
         </div>
         {/* Pending Links Notification Banner */}
-        {pendingLinksCount > 0 && (
+        {pendingLinksCount > 0 && linkScheduleStatus.tier === 'upcoming' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-xl border border-blue-500/30 bg-blue-500/10 text-xs">
+            <div className="flex items-start sm:items-center gap-2 text-blue-900 dark:text-blue-200">
+              <YouTubeIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 sm:mt-0" />
+              <span>
+                <strong className="font-heading font-bold">{pendingLinksCount}</strong> registered {activeSection.toLowerCase()} {pendingLinksCount === 1 ? 'event' : 'events'}. YouTube link upload window opens on <strong>{formatIstDisplay(linkScheduleStatus.deadlineIso)}</strong> (Registration Phase in progress).
+              </span>
+            </div>
+            <span className="text-[11px] font-mono font-semibold text-blue-700 dark:text-blue-300">
+              Upload Opens {formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}
+            </span>
+          </div>
+        )}
+        {pendingLinksCount > 0 && linkScheduleStatus.tier !== 'upcoming' && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs">
             <div className="flex items-start sm:items-center gap-2 text-rose-900 dark:text-rose-200">
               <YouTubeIcon className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5 sm:mt-0" />
@@ -643,12 +654,21 @@ export function PreFestEventsCollegeTab({
                                 rosterParticipants.map((p, pIdx) => {
                                   const chest = getCanonicalChestNo(p);
                                   const idLabel = chest !== '—' ? `#${chest}` : `CIC: ${p.admission_no || p.cic_no || (p as any).cic_number || 'N/A'}`;
+                                  const isBlocked = Boolean(p.is_blocked);
                                   return (
                                     <span
                                       key={p.id || pIdx}
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10.5px] font-medium text-[var(--text-secondary)] font-sans"
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10.5px] font-medium font-sans ${isBlocked
+                                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                                          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                                        }`}
                                     >
                                       {p.full_name || p.name} <span className="ml-1 text-[var(--text-muted)] font-mono text-[9.5px]">({idLabel})</span>
+                                      {isBlocked && (
+                                        <Badge variant="destructive" size="sm" className="ml-1.5 text-[8.5px] py-0 px-1 font-bold">
+                                          Blocked
+                                        </Badge>
+                                      )}
                                     </span>
                                   );
                                 })
@@ -728,17 +748,24 @@ export function PreFestEventsCollegeTab({
                               <span>Watch Video</span>
                             </button>
                             <span
-                              className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${
-                                subEntry.status === 'late'
+                              className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${subEntry.status === 'late'
                                   ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
                                   : subEntry.status === 'fine'
-                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                              }`}
+                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                }`}
                             >
                               {subEntry.status === 'late' ? 'Late' : subEntry.status === 'fine' ? 'Late Fine' : 'Submitted'}
                             </span>
                           </div>
+                        ) : linkScheduleStatus.tier === 'upcoming' ? (
+                          <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            Upload Opens {formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}
+                          </span>
+                        ) : linkScheduleStatus.tier === 'closed' ? (
+                          <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                            Link Missing (Closed)
+                          </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400">
                             YouTube Link Needed
@@ -759,20 +786,27 @@ export function PreFestEventsCollegeTab({
                               size="xs"
                               variant="outline"
                               disabled={!linkScheduleStatus.canSubmitLink}
-                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${
-                                !linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
+                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${!linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
                               title={
-                                !linkScheduleStatus.canSubmitLink
-                                  ? 'Link submission deadline has passed (Locked)'
-                                  : subEntry?.url
-                                  ? 'Edit Submitted YouTube Link'
-                                  : 'Submit YouTube Video Link'
+                                linkScheduleStatus.tier === 'upcoming'
+                                  ? `Link submission opens on ${formatIstDisplay(linkScheduleStatus.deadlineIso)}`
+                                  : !linkScheduleStatus.canSubmitLink
+                                    ? 'Link submission deadline has passed (Locked)'
+                                    : subEntry?.url
+                                      ? 'Edit Submitted YouTube Link'
+                                      : 'Submit YouTube Video Link'
                               }
                               onClick={() => linkScheduleStatus.canSubmitLink && handleOpenSubmissionModal(item, rosterParticipants)}
                             >
                               <YouTubeIcon className="w-3.5 h-3.5 mr-1 text-rose-500" />
-                              {subEntry?.url ? 'Edit Link' : 'Submit Link'}
+                              {subEntry?.url
+                                ? 'Edit Link'
+                                : linkScheduleStatus.tier === 'upcoming'
+                                  ? `Opens ${formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}`
+                                  : !linkScheduleStatus.canSubmitLink
+                                    ? 'Closed'
+                                    : 'Submit Link'}
                             </Button>
 
                             {/* Edit Roster Button */}
@@ -920,11 +954,22 @@ export function PreFestEventsCollegeTab({
               </div>
             )}
 
-            {/* Expired Link Submission Warning */}
+            {/* Expired / Upcoming Link Submission Notice */}
             {!linkScheduleStatus.canSubmitLink && (
-              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
-                <span>Link submission deadline has passed. New submissions and URL edits are currently locked.</span>
+              <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${linkScheduleStatus.tier === 'upcoming'
+                  ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                  : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                }`}>
+                {linkScheduleStatus.tier === 'upcoming' ? (
+                  <CalendarCheck className="w-4 h-4 shrink-0 text-blue-500" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                )}
+                <span>
+                  {linkScheduleStatus.tier === 'upcoming'
+                    ? `Link submission has not opened yet. It will open on ${formatIstDisplay(linkScheduleStatus.deadlineIso)} (Registration Phase currently in progress).`
+                    : 'Link submission deadline has passed. New submissions and URL edits are currently locked.'}
+                </span>
               </div>
             )}
 

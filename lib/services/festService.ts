@@ -717,14 +717,28 @@ class FestService {
           blockQuery = blockQuery.eq('college_affl_no', collegeAfflNo);
         }
         const { data: blockData, error: blockErr } = await blockQuery;
-        if (!blockErr && blockData) {
+        let blockItems: BlockedStudent[] = (!blockErr && blockData && blockData.length > 0) ? blockData : [];
+
+        // Fallback: If client direct query returned empty/error (e.g. RLS boundary), fetch via secure server endpoint
+        if (blockItems.length === 0 && typeof window !== 'undefined') {
+          const endpoint = collegeAfflNo ? `/api/admin/blocked-students?collegeAfflNo=${collegeAfflNo}` : '/api/admin/blocked-students';
+          const apiRes = await fetch(endpoint).catch(() => null);
+          if (apiRes && apiRes.ok) {
+            const json = await apiRes.json().catch(() => ({}));
+            if (Array.isArray(json.blockedStudents)) {
+              blockItems = json.blockedStudents;
+            }
+          }
+        }
+
+        if (blockItems && blockItems.length > 0) {
           if (collegeAfflNo) {
             const numAffl = Number(collegeAfflNo);
             const existing = this.getStorage<BlockedStudent[]>('blocked_students', []);
             const otherBlocks = existing.filter(b => Number(b.college_affl_no) !== numAffl);
-            this.setStorage('blocked_students', [...otherBlocks, ...blockData]);
+            this.setStorage('blocked_students', [...otherBlocks, ...blockItems]);
           } else {
-            this.setStorage('blocked_students', blockData);
+            this.setStorage('blocked_students', blockItems);
           }
         }
       } catch (err) {
@@ -2876,25 +2890,42 @@ class FestService {
 
   public async updateScheduleStatus(itemIdOrScheduleId: number | string, status: StageStatus): Promise<void> {
     const itm = this.getItem(itemIdOrScheduleId);
+    const numItemId = itm ? Number(itm.item_id) : (!Number.isNaN(Number(itemIdOrScheduleId)) ? Number(itemIdOrScheduleId) : undefined);
     const schedules = this.getStorage<Schedule[]>('schedules', []);
     const idx = itm
-      ? schedules.findIndex(s => s.item_id === itm.item_id)
-      : schedules.findIndex(s => s.id === itemIdOrScheduleId);
+      ? schedules.findIndex(s => Number(s.item_id) === Number(itm.item_id))
+      : schedules.findIndex(s => s.id === itemIdOrScheduleId || (numItemId && Number(s.item_id) === numItemId));
+
+    const nowIso = new Date().toISOString();
+    let targetItemId = numItemId;
 
     if (idx >= 0) {
       schedules[idx].status = status;
-      schedules[idx].updated_at = new Date().toISOString();
+      schedules[idx].updated_at = nowIso;
+      targetItemId = schedules[idx].item_id;
       this.setStorage('schedules', schedules);
-      if (supabase) {
-        try {
-          await this.postServerApi('/api/admin/manage', {
-            action: 'update_schedule_status',
-            itemId: schedules[idx].item_id,
-            status,
-          });
-        } catch (err: any) {
-          console.warn('Supabase updateScheduleStatus notice:', err.message);
-        }
+    } else if (numItemId) {
+      const newSch: Schedule = {
+        id: `sch-${Date.now()}-${numItemId}`,
+        item_id: numItemId,
+        stage_number: null,
+        starting: nowIso,
+        status,
+        updated_at: nowIso
+      };
+      schedules.push(newSch);
+      this.setStorage('schedules', schedules);
+    }
+
+    if (supabase && targetItemId) {
+      try {
+        await this.postServerApi('/api/admin/manage', {
+          action: 'update_schedule_status',
+          itemId: targetItemId,
+          status,
+        });
+      } catch (err: any) {
+        console.warn('Supabase updateScheduleStatus notice:', err.message);
       }
     }
   }
@@ -3737,7 +3768,7 @@ class FestService {
   public async submitResultEntry(
     itemIdOrCode: number | string,
     scores: Array<{
-      code_letter: string;
+      code_letter?: string;
       college_affl_no?: number;
       chest_no?: string;
       mark_percentage?: number;
@@ -3745,7 +3776,9 @@ class FestService {
       grade?: string;
       rank?: number | null;
       points?: number;
-    }>
+      published?: boolean;
+    }>,
+    publishOnSubmit: boolean = false
   ): Promise<{ success: boolean; error?: string }> {
     const itm = this.getItem(itemIdOrCode);
     const itemId = itm ? itm.item_id : Number(itemIdOrCode);
@@ -3762,24 +3795,28 @@ class FestService {
 
     // Clean deduplicated entries
     const newResults: Result[] = [];
-    const seenCodes = new Set<string>();
+    const seenEntries = new Set<string>();
 
     for (let index = 0; index < sorted.length; index++) {
       const s = sorted[index];
       const cleanCode = (s.code_letter || '').trim().toUpperCase();
-      if (!cleanCode || seenCodes.has(cleanCode)) continue;
-      seenCodes.add(cleanCode);
+      const rawChest = (s.chest_no || '').trim().toUpperCase();
+
+      const dedupeKey = cleanCode ? `code:${cleanCode}` : (rawChest ? `chest:${rawChest}` : `idx:${index}`);
+      if (seenEntries.has(dedupeKey)) continue;
+      seenEntries.add(dedupeKey);
 
       // Match registration or code_letter entry
-      const matchingCodeLetter = codeLetters.find(cl => (cl.code_letter || '').trim().toUpperCase() === cleanCode);
+      const matchingCodeLetter = cleanCode ? codeLetters.find(cl => (cl.code_letter || '').trim().toUpperCase() === cleanCode) : undefined;
       const matchingReg = regs.find(r => {
         const rCode = (r.code_letter || '').trim().toUpperCase();
-        if (rCode && rCode === cleanCode) return true;
+        if (cleanCode && rCode && rCode === cleanCode) return true;
         if (matchingCodeLetter && (r.chest_no || '').trim().toUpperCase() === (matchingCodeLetter.chest_no || '').trim().toUpperCase()) return true;
+        if (rawChest && (r.chest_no || '').trim().toUpperCase() === rawChest) return true;
         return false;
       });
 
-      const cleanChest = s.chest_no || matchingCodeLetter?.chest_no || matchingReg?.chest_no || null;
+      const cleanChest = rawChest || matchingCodeLetter?.chest_no || matchingReg?.chest_no || null;
       let afflNo = s.college_affl_no || matchingCodeLetter?.college_affl_no || matchingReg?.college_affl_no || null;
       if (!afflNo && cleanChest) {
         const stu = findStudentByIdentifier(this.getStudents(), cleanChest);
@@ -3796,16 +3833,16 @@ class FestService {
         : (s.points !== undefined ? s.points : this.calculatePoints(itm?.phase, itm?.category, calculatedGrade, calculatedRank, itm?.tabulation));
 
       newResults.push({
-        id: `res-${numItemId}-${cleanCode}`,
+        id: `res-${numItemId}-${cleanCode || cleanChest || index}`,
         item_id: numItemId,
-        code_letter: cleanCode,
+        code_letter: cleanCode || null,
         college_affl_no: afflNo,
         chest_no: cleanChest,
         mark_percentage: marks,
         grade: calculatedGrade,
         rank: calculatedRank as any,
         points: calculatedPoints,
-        published: false,
+        published: s.published !== undefined ? Boolean(s.published) : publishOnSubmit,
         best_in_fest: calculatedRank === 1 && marks >= 95,
         created_at: new Date().toISOString()
       });
@@ -3816,14 +3853,14 @@ class FestService {
       try {
         const dbPayloads = newResults.map(r => ({
           item_id: numItemId,
-          code_letter: r.code_letter,
+          code_letter: r.code_letter || null,
           college_affl_no: r.college_affl_no,
           chest_no: r.chest_no,
           mark_percentage: r.mark_percentage,
           grade: r.grade,
           rank: r.rank,
           points: r.points,
-          published: r.published || false,
+          published: r.published !== undefined ? r.published : publishOnSubmit,
           best_in_fest: r.best_in_fest || false
         }));
 
@@ -3831,6 +3868,7 @@ class FestService {
           action: 'submit',
           itemId: numItemId,
           results: dbPayloads,
+          publish: publishOnSubmit,
         });
       } catch (err: any) {
         console.error('Supabase results sync error:', err.message);
@@ -4436,6 +4474,10 @@ class FestService {
   }
 
   // --- Leaderboard & Trophy Standings (Server-Side Computed) ---
+  public async fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+    return this.fetchServerLeaderboard();
+  }
+
   public async fetchServerLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
       if (this.isClient) {
@@ -4819,15 +4861,23 @@ class FestService {
     return enriched.filter(b => numAffl === undefined || b.college_affl_no === numAffl);
   }
 
-  public async fetchBlockedStudents(): Promise<BlockedStudent[]> {
+  public async fetchBlockedStudents(collegeAfflNo?: number): Promise<BlockedStudent[]> {
     if (typeof window !== 'undefined') {
       try {
-        const res = await fetch('/api/admin/blocked-students');
+        const url = collegeAfflNo ? `/api/admin/blocked-students?collegeAfflNo=${collegeAfflNo}` : '/api/admin/blocked-students';
+        const res = await fetch(url);
         if (res.ok) {
           const json = await res.json();
           const items: BlockedStudent[] = json.blockedStudents || [];
-          this.setStorage('blocked_students', items);
-          return this.getBlockedStudents();
+          if (collegeAfflNo) {
+            const numAffl = Number(collegeAfflNo);
+            const existing = this.getStorage<BlockedStudent[]>('blocked_students', []);
+            const otherBlocks = existing.filter(b => Number(b.college_affl_no) !== numAffl);
+            this.setStorage('blocked_students', [...otherBlocks, ...items]);
+          } else {
+            this.setStorage('blocked_students', items);
+          }
+          return this.getBlockedStudents(collegeAfflNo);
         } else {
           const errJson = await res.json().catch(() => ({}));
           console.warn('API returned non-ok status for blocked students:', res.status, errJson);
@@ -4836,7 +4886,7 @@ class FestService {
         console.warn('Failed to fetch blocked students:', e);
       }
     }
-    return this.getBlockedStudents();
+    return this.getBlockedStudents(collegeAfflNo);
   }
 
   public async blockStudent(data: {

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { festService } from '@/lib/services/festService';
-import { Loader2, Link2, ExternalLink } from 'lucide-react';
+import { Loader2, Link2, ExternalLink, Clock, AlertCircle, AlertTriangle, Lock } from 'lucide-react';
+import { evaluateLinkSubmissionDeadline, formatIstDisplay } from '@/lib/utils/istDate';
 
 export interface SubmissionLinkTarget {
   collegeAfflNo: number;
@@ -32,6 +33,13 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const linkEval = useMemo(() => {
+    if (!target) return null;
+    const kind = target.isScreening ? 'screening' : 'submission';
+    const dlSetting = festService.getEventDeadlineSetting(kind);
+    return evaluateLinkSubmissionDeadline(dlSetting);
+  }, [target]);
+
   useEffect(() => {
     if (target) {
       setUrlInput(target.existingUrl || '');
@@ -39,6 +47,8 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
       setIsSaving(false);
     }
   }, [target]);
+
+  const canSubmit = !isSaving && Boolean(linkEval?.canSubmitLink);
 
   return (
     <Modal
@@ -55,6 +65,7 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (linkEval && !linkEval.canSubmitLink) return;
             setIsSaving(true);
             setError(null);
             const res = await festService.submitEntryLink({
@@ -79,6 +90,34 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
             </div>
           )}
 
+          {/* Timeline Status Messages */}
+          {linkEval && !linkEval.canSubmitLink && linkEval.tier === 'upcoming' && (
+            <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 text-xs text-blue-700 dark:text-blue-300 font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-500 shrink-0" />
+              <span>
+                Link submission has not opened yet. The upload window opens on {formatIstDisplay(linkEval.deadlineIso)} (Registration Phase currently in progress).
+              </span>
+            </div>
+          )}
+
+          {linkEval && !linkEval.canSubmitLink && linkEval.tier === 'closed' && (
+            <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>
+                Link submission deadline has passed ({formatIstDisplay(linkEval.deadlineIso)}). Link submissions and URL edits are locked.
+              </span>
+            </div>
+          )}
+
+          {linkEval?.canSubmitLink && (linkEval.tier === 'fine' || linkEval.tier === 'super_fine') && (
+            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                Late link submission window active. A late fee of ₹{linkEval.fineAmount} applies to this entry.
+              </span>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-heading font-semibold text-[var(--text-secondary)] mb-1">
               Video / File URL (Google Drive, YouTube Unlisted, or Cloud Link) <span className="text-rose-500">*</span>
@@ -87,8 +126,9 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
               type="url"
               placeholder="https://drive.google.com/..."
               value={urlInput}
+              disabled={linkEval !== null && !linkEval.canSubmitLink}
               onChange={(e) => setUrlInput(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono"
+              className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
               required
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1 font-sans">
@@ -118,9 +158,14 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
             <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type="submit" variant="saffron" disabled={isSaving} className="font-heading font-bold gap-1.5">
+            <Button
+              type="submit"
+              variant="saffron"
+              disabled={!canSubmit}
+              className="font-heading font-bold gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Save Submission Link
+              {linkEval?.tier === 'upcoming' ? 'Window Not Open' : 'Save Submission Link'}
             </Button>
           </div>
         </form>

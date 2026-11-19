@@ -52,11 +52,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Valid itemId is required.' }, { status: 400 });
       }
 
-      const { error } = await auth.db
+      const statusVal = body?.status || 'Upcoming';
+      const nowIso = new Date().toISOString();
+
+      const { data: existingRows, error: selErr } = await auth.db
         .from('schedules')
-        .update({ status: body?.status })
+        .select('id')
         .eq('item_id', itemId);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      if (selErr) return NextResponse.json({ error: selErr.message }, { status: 500 });
+
+      if (existingRows && existingRows.length > 0) {
+        const { error } = await auth.db
+          .from('schedules')
+          .update({ status: statusVal, updated_at: nowIso })
+          .eq('item_id', itemId);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      } else {
+        const { error } = await auth.db.from('schedules').insert({
+          item_id: itemId,
+          status: statusVal,
+          starting: nowIso,
+          stage_number: null,
+          updated_at: nowIso
+        });
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
       return NextResponse.json({ success: true });
     }
 

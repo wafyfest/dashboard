@@ -90,9 +90,11 @@ export function ResultPublishingTab({
                     <TableCell>
                       {agg.first ? (
                         <div>
-                          <span className="font-bold text-xs text-[var(--f-saffron-text)]">
-                            Code [{agg.first.code_letter}]
-                          </span>
+                          {agg.first.code_letter && (
+                            <span className="font-bold text-xs text-[var(--f-saffron-text)] mr-1.5">
+                              Code [{agg.first.code_letter}]
+                            </span>
+                          )}
                           <span className="text-[11px] text-[var(--text-secondary)] block">
                             Chest: {agg.first.chest_no || 'N/A'} • {agg.first.points} pts
                           </span>
@@ -104,9 +106,11 @@ export function ResultPublishingTab({
                     <TableCell>
                       {agg.second ? (
                         <div>
-                          <span className="font-bold text-xs text-[var(--text-primary)]">
-                            Code [{agg.second.code_letter}]
-                          </span>
+                          {agg.second.code_letter && (
+                            <span className="font-bold text-xs text-[var(--text-primary)] mr-1.5">
+                              Code [{agg.second.code_letter}]
+                            </span>
+                          )}
                           <span className="text-[11px] text-[var(--text-secondary)] block">
                             Chest: {agg.second.chest_no || 'N/A'} • {agg.second.points} pts
                           </span>
@@ -118,9 +122,11 @@ export function ResultPublishingTab({
                     <TableCell>
                       {agg.third ? (
                         <div>
-                          <span className="font-bold text-xs text-[var(--text-primary)]">
-                            Code [{agg.third.code_letter}]
-                          </span>
+                          {agg.third.code_letter && (
+                            <span className="font-bold text-xs text-[var(--text-primary)] mr-1.5">
+                              Code [{agg.third.code_letter}]
+                            </span>
+                          )}
                           <span className="text-[11px] text-[var(--text-secondary)] block">
                             Chest: {agg.third.chest_no || 'N/A'} • {agg.third.points} pts
                           </span>
