@@ -980,7 +980,7 @@ export function EventRegistrationsTab() {
                                     {requiresPreFestSubmission(item) && (
                                       <TableCell className="py-2.5 align-middle text-center">
                                         {subEntry?.file_url ? (
-                                          <div className="inline-flex flex-col items-center gap-1">
+                                          <div className="inline-flex flex-col items-center gap-0.5">
                                             <a
                                               href={subEntry.file_url}
                                               target="_blank"
@@ -991,21 +991,11 @@ export function EventRegistrationsTab() {
                                               <ExternalLink className="w-3 h-3" />
                                               <span>Open Link</span>
                                             </a>
-                                            <span
-                                              className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border ${
-                                                subEntry.status === 'late'
-                                                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                                  : subEntry.status === 'fine'
-                                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                              }`}
-                                            >
-                                              {subEntry.status === 'late'
-                                                ? 'Late'
-                                                : subEntry.status === 'fine'
-                                                ? 'Late Fine'
-                                                : 'On Time'}
-                                            </span>
+                                            {subEntry.submitted_at && (
+                                              <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                                                {formatIstDisplay(subEntry.submitted_at)}
+                                              </span>
+                                            )}
                                           </div>
                                         ) : (
                                           <span className="text-[11px] text-[var(--text-muted)] italic">
@@ -1179,17 +1169,24 @@ export function EventRegistrationsTab() {
                   <Video className="w-3.5 h-3.5 text-indigo-500" />
                   Submitted Performance Video
                 </span>
-                {screeningModalTarget.submission.file_url && (
-                  <a
-                    href={screeningModalTarget.submission.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    <span>Open link</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+                <div className="flex items-center gap-2">
+                  {screeningModalTarget.submission.submitted_at && (
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                      Uploaded: {formatIstDisplay(screeningModalTarget.submission.submitted_at)}
+                    </span>
+                  )}
+                  {screeningModalTarget.submission.file_url && (
+                    <a
+                      href={screeningModalTarget.submission.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      <span>Open link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
               </div>
 
               {screeningModalTarget.submission.file_url && isValidYouTubeUrl(screeningModalTarget.submission.file_url) ? (

@@ -362,8 +362,8 @@ export function PreFestEventsCollegeTab({
               type="button"
               onClick={() => setActiveSection('SCREENING')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${activeSection === 'SCREENING'
-                  ? 'bg-amber-500 text-[#090d1a] shadow-xs'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'bg-amber-500 text-[#090d1a] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
             >
               Screening ({items.filter(e => isScreeningEvent(e) || e.is_screening || (e.mode as string) === 'screening').length})
@@ -372,8 +372,8 @@ export function PreFestEventsCollegeTab({
               type="button"
               onClick={() => setActiveSection('SUBMISSION')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-heading font-bold transition-all cursor-pointer ${activeSection === 'SUBMISSION'
-                  ? 'bg-amber-500 text-[#090d1a] shadow-xs'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'bg-amber-500 text-[#090d1a] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
             >
               Submission ({items.filter(e => isSubmissionEvent(e) || e.is_submission || (e.mode as string) === 'submission').length})
@@ -659,8 +659,8 @@ export function PreFestEventsCollegeTab({
                                     <span
                                       key={p.id || pIdx}
                                       className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10.5px] font-medium font-sans ${isBlocked
-                                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-                                          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
+                                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                                        : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
                                         }`}
                                     >
                                       {p.full_name || p.name} <span className="ml-1 text-[var(--text-muted)] font-mono text-[9.5px]">({idLabel})</span>
@@ -749,10 +749,10 @@ export function PreFestEventsCollegeTab({
                             </button>
                             <span
                               className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${subEntry.status === 'late'
-                                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                  : subEntry.status === 'fine'
-                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                : subEntry.status === 'fine'
+                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                                 }`}
                             >
                               {subEntry.status === 'late' ? 'Late' : subEntry.status === 'fine' ? 'Late Fine' : 'Submitted'}
@@ -957,8 +957,8 @@ export function PreFestEventsCollegeTab({
             {/* Expired / Upcoming Link Submission Notice */}
             {!linkScheduleStatus.canSubmitLink && (
               <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${linkScheduleStatus.tier === 'upcoming'
-                  ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
-                  : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                : 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 }`}>
                 {linkScheduleStatus.tier === 'upcoming' ? (
                   <CalendarCheck className="w-4 h-4 shrink-0 text-blue-500" />

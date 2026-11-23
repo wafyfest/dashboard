@@ -135,7 +135,8 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
           mergedSubs[existingIdx] = {
             ...mergedSubs[existingIdx],
             file_url: ps.youtube_url || mergedSubs[existingIdx].file_url,
-            status: ps.submission_status || mergedSubs[existingIdx].status
+            status: ps.submission_status || mergedSubs[existingIdx].status,
+            submitted_at: ps.submitted_at || mergedSubs[existingIdx].submitted_at
           };
         } else {
           mergedSubs.push(subRecord);
@@ -764,17 +765,11 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                                   <span>Open Link</span>
                                 </a>
                               )}
-                              <span
-                                className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${
-                                  sub.status === 'late'
-                                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                    : sub.status === 'fine'
-                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                }`}
-                              >
-                                {sub.status === 'late' ? 'Late' : sub.status === 'fine' ? 'Late Fine' : 'On Time'}
-                              </span>
+                              {sub.submitted_at && (
+                                <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                                  {formatIstDisplay(sub.submitted_at)}
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-400">
