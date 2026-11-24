@@ -48,6 +48,9 @@ import { EventsScheduleTab } from '../admin/tabs/EventsScheduleTab';
 import { EventRegistrationsTab } from '../admin/tabs/EventRegistrationsTab';
 import { SystemLogsTab } from '../admin/tabs/SystemLogsTab';
 import { PreFestEventsTab } from '../admin/tabs/PreFestEventsTab';
+import { AppealsTab } from '../admin/tabs/AppealsTab';
+import { ReplacementsTab } from '../admin/tabs/ReplacementsTab';
+import { ResultsTab } from '../admin/tabs/ResultsTab';
 
 export type AdminTab =
   | 'overview'
@@ -88,28 +91,14 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
     }
   };
 
-  const [appealRemarks, setAppealRemarks] = useState<{ [id: string]: string }>({});
-
   const colleges = React.useMemo(() => festService.getColleges(), [refreshKey]);
   const items = React.useMemo(() => festService.getItems(), [refreshKey]);
   const students = React.useMemo(() => festService.getStudents(), [refreshKey]);
   const registrations = React.useMemo(() => festService.getRegistrations(), [refreshKey]);
   const appeals = React.useMemo(() => festService.getAppeals(), [refreshKey]);
   const replacements = React.useMemo(() => festService.getReplacements(), [refreshKey]);
-  const results = React.useMemo(() => festService.getResults(), [refreshKey]);
   const locks = React.useMemo(() => festService.getEntryLocks(), [refreshKey]);
   const schedules = React.useMemo(() => festService.getSchedules(), [refreshKey]);
-
-  // Deduplicate results by event item_id for display and publishing controls
-  const groupedResults = React.useMemo(() => {
-    const map = new Map<number, Result>();
-    for (const res of results) {
-      if (!map.has(res.item_id)) {
-        map.set(res.item_id, res);
-      }
-    }
-    return Array.from(map.values());
-  }, [results]);
 
   // Unique count of active students registered across fest events
   const registeredStudentsCount = React.useMemo(() => {
@@ -379,321 +368,13 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
       )}
 
       {/* 5. APPEALS TAB */}
-      {activeTab === 'appeals' && (
-        <div className="space-y-6">
-          <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-[var(--border-subtle)]/60">
-              <div>
-                <CardTitle className="font-heading font-bold text-base text-[var(--text-primary)]">Event Result Appeals &amp; Grievances</CardTitle>
-                <CardDescription className="text-xs text-[var(--text-muted)] font-sans">
-                  Review contested decisions, technical glitches, and jury disputes with payment proofs
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table className="min-w-[700px]">
-                <TableHeader className="bg-[var(--bg-subtle)]">
-                  <TableRow>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">College</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Event</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Reason / Complaint</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Receipt</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Status</TableHead>
-                    <TableHead className="text-right font-heading font-bold text-xs text-[var(--text-secondary)]">Admin Adjudication</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {appeals.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-xs text-[var(--text-muted)] font-sans">
-                        No appeals submitted
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    appeals.map(appeal => (
-                      <TableRow key={appeal.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                        <TableCell className="font-heading font-semibold text-[var(--text-primary)]">{appeal.college?.name}</TableCell>
-                        <TableCell className="font-heading font-medium text-[var(--text-primary)]">{appeal.item?.name}</TableCell>
-                        <TableCell className="max-w-xs text-xs text-[var(--text-secondary)] font-sans">
-                          {appeal.reason}
-                          {appeal.admin_remarks && (
-                            <div className="mt-1 text-[11px] bg-[var(--bg-subtle)] p-1.5 rounded-lg text-[var(--text-primary)] border border-[var(--border-subtle)] font-sans">
-                              <strong>Remarks:</strong> {appeal.admin_remarks}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {appeal.fee_receipt_url ? (
-                            <a
-                              href={appeal.fee_receipt_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] hover:underline text-xs flex items-center gap-1 font-medium font-sans"
-                            >
-                              <FileText className="w-3 h-3" /> View Fee
-                            </a>
-                          ) : (
-                            <span className="text-[var(--text-muted)] text-xs font-sans">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <AppealStatusBadge status={appeal.status || appeal.current_status || 'Pending'} />
-                        </TableCell>
-                        <TableCell className="text-right space-y-1">
-                          {appeal.status === 'Pending' ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="text"
-                                placeholder="Admin remarks..."
-                                value={appealRemarks[appeal.id] || ''}
-                                onChange={e =>
-                                  setAppealRemarks({ ...appealRemarks, [appeal.id]: e.target.value })
-                                }
-                                className="px-2.5 py-1 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-1 focus:ring-amber-500/30 font-sans w-36"
-                              />
-                              <Button
-                                size="xs"
-                                variant="success"
-                                onClick={() => {
-                                  festService.reviewAppeal(
-                                    appeal.id,
-                                    'Approved',
-                                    appealRemarks[appeal.id] || 'Approved by Executive Committee'
-                                  );
-                                  triggerRefresh();
-                                }}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="destructive"
-                                onClick={() => {
-                                  festService.reviewAppeal(
-                                    appeal.id,
-                                    'Rejected',
-                                    appealRemarks[appeal.id] || 'Rejected after jury re-evaluation'
-                                  );
-                                  triggerRefresh();
-                                }}
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-[var(--text-muted)] font-sans">Adjudicated</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {activeTab === 'appeals' && <AppealsTab onRefresh={triggerRefresh} />}
 
       {/* 5.1. REPLACEMENTS & SUBSTITUTIONS TAB */}
-      {activeTab === 'replacements' && (
-        <div className="space-y-6">
-          <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-[var(--border-subtle)]/60">
-              <div>
-                <CardTitle className="font-heading font-bold text-base text-[var(--text-primary)]">Participant Replacement Requests</CardTitle>
-                <CardDescription className="text-xs text-[var(--text-muted)] font-sans">
-                  Emergency student substitutions (medical reasons, schedule clashes) requiring administrative approval
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table className="min-w-[700px]">
-                <TableHeader className="bg-[var(--bg-subtle)]">
-                  <TableRow>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Event</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Original Participant</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Replacement Student</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Reason</TableHead>
-                    <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Status</TableHead>
-                    <TableHead className="text-right font-heading font-bold text-xs text-[var(--text-secondary)]">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {replacements.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-xs text-[var(--text-muted)] font-sans">
-                        No replacement requests
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    replacements.map(rep => (
-                      <TableRow key={rep.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                        <TableCell className="font-heading font-semibold text-[var(--text-primary)]">
-                          {rep.registration?.item?.name}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-heading font-medium text-rose-600 dark:text-rose-400">{rep.original_student?.full_name || rep.original_student?.name}</div>
-                          <span className="text-[10px] text-[var(--text-muted)] font-mono">CIC: {rep.original_student?.cic_no || rep.original_student?.admission_no || rep.original_student?.chest_no || 'N/A'}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-heading font-medium text-emerald-600 dark:text-emerald-400">{rep.replacement_student?.full_name || rep.replacement_student?.name}</div>
-                          <span className="text-[10px] text-[var(--text-muted)] font-mono">CIC: {rep.replacement_student?.cic_no || rep.replacement_student?.admission_no || rep.replacement_student?.chest_no || 'N/A'}</span>
-                        </TableCell>
-                        <TableCell className="text-xs text-[var(--text-secondary)] font-sans">{rep.reason}</TableCell>
-                        <TableCell>
-                          <AppealStatusBadge status={rep.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {rep.status === 'Pending' ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                size="xs"
-                                variant="success"
-                                onClick={async () => {
-                                  const res = await festService.reviewReplacement(rep.id, 'Approved');
-                                  if (!res.success) {
-                                    alert(res.error || 'Failed to approve substitution');
-                                  } else {
-                                    triggerRefresh();
-                                  }
-                                }}
-                              >
-                                Approve Substitution
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="destructive"
-                                onClick={async () => {
-                                  const res = await festService.reviewReplacement(rep.id, 'Rejected');
-                                  if (!res.success) {
-                                    alert(res.error || 'Failed to reject substitution');
-                                  } else {
-                                    triggerRefresh();
-                                  }
-                                }}
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-[var(--text-muted)] font-sans">Resolved</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {activeTab === 'replacements' && <ReplacementsTab onRefresh={triggerRefresh} />}
 
       {/* 6. RESULTS & POINTS TAB */}
-      {activeTab === 'results' && (
-        <Card className="[box-shadow:var(--shadow-card),var(--glass-highlight)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] rounded-2xl overflow-hidden">
-          <CardHeader className="pb-3 border-b border-[var(--border-subtle)]/60">
-            <div>
-              <CardTitle className="font-heading font-bold text-base text-[var(--text-primary)]">Results Verification & Official Publishing</CardTitle>
-              <CardDescription className="text-xs text-[var(--text-muted)] font-sans">
-                Review submitted tabulation sheets, verify points, and publish to the public leaderboard
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-[var(--bg-subtle)]">
-                <TableRow>
-                  <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Event</TableHead>
-                  <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">1st Place (Gold - 5 pts)</TableHead>
-                  <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">2nd Place (Silver - 3 pts)</TableHead>
-                  <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">3rd Place (Bronze - 1 pt)</TableHead>
-                  <TableHead className="font-heading font-bold text-xs text-[var(--text-secondary)]">Status</TableHead>
-                  <TableHead className="text-right font-heading font-bold text-xs text-[var(--text-secondary)]">Publishing Controls</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupedResults.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-xs text-[var(--text-muted)] font-sans">
-                      No results entered yet by tabulators
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  groupedResults.map(res => (
-                    <TableRow key={res.item_id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                      <TableCell>
-                        <div className="font-heading font-semibold text-[var(--text-primary)]">{res.item?.name}</div>
-                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{res.item?.code}</span>
-                      </TableCell>
-                      <TableCell>
-                        {res.first_reg ? (
-                          <div>
-                            <span className="font-heading font-bold text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">🥇 {res.first_reg.college?.code || res.first_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-[var(--text-muted)] font-sans">
-                              {res.first_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-[var(--text-muted)] text-xs font-sans">Unassigned</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {res.second_reg ? (
-                          <div>
-                            <span className="font-heading font-bold text-[var(--text-secondary)]">🥈 {res.second_reg.college?.code || res.second_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-[var(--text-muted)] font-sans">
-                              {res.second_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-[var(--text-muted)] text-xs font-sans">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {res.third_reg ? (
-                          <div>
-                            <span className="font-heading font-bold text-amber-700 dark:text-amber-500">🥉 {res.third_reg.college?.code || res.third_reg.college?.short_name}</span>
-                            <div className="text-[11px] text-[var(--text-muted)] font-sans">
-                              {res.third_reg.participants?.map((p: any) => p.name || p.full_name).join(', ')}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-[var(--text-muted)] text-xs font-sans">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {res.published ? (
-                          <Badge variant="success">Published Live</Badge>
-                        ) : (
-                          <Badge variant="warning">Awaiting Approval</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="xs"
-                          variant={res.published ? 'outline' : 'saffron'}
-                          className="font-heading font-semibold"
-                          onClick={async () => {
-                            const ok = await festService.publishResult(res.item_id, !res.published);
-                            if (!ok) {
-                              alert('Failed to update result publication status');
-                            } else {
-                              triggerRefresh();
-                            }
-                          }}
-                        >
-                          {res.published ? 'Revoke to Draft' : 'Publish to Board'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {activeTab === 'results' && <ResultsTab onRefresh={triggerRefresh} />}
 
       {/* 6.0. SYSTEM AUDIT LOGS TAB */}
       {activeTab === 'logs' && <SystemLogsTab />}

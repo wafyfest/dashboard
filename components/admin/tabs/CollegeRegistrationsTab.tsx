@@ -60,6 +60,8 @@ import {
 import { formatIstDisplay, evaluateEventDeadlineSetting, formatDurationCompact } from '@/lib/utils/istDate';
 import { getEventKind } from '@/lib/types/fest';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
+import { downloadCsv, getFilenameTimestamp } from '@/lib/utils/csvExport';
+import { ExportModal } from '../ExportModal';
 
 export interface LateRegistrationEntry {
   id: string;
@@ -126,6 +128,7 @@ export function CollegeRegistrationsTab({
 
   // Fetch Supabase data for the college
   const [isLoadingCollegeData, setIsLoadingCollegeData] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   useEffect(() => {
     let isMounted = true;
     const affl = activeCollegeAffl;
@@ -456,7 +459,158 @@ export function CollegeRegistrationsTab({
       filterSummary: `${rows.length} total event registration entries across ${registeredEventsCount} events`
     });
 
-    doc.save(`Registered_Students_Col_${currentCol.affl_no}_${currentCol.short_name || 'College'}.pdf`);
+    const timestamp = getFilenameTimestamp();
+    doc.save(`Registered_Students_Col_${currentCol.affl_no}_${currentCol.short_name || 'College'}_${timestamp}.pdf`);
+  };
+
+  const handleDownloadCollegeCsv = () => {
+    if (!currentCol) return;
+
+    const rows: (string | number)[][] = [];
+    let slNo = 1;
+
+    items.forEach(itm => {
+      const itemRegs = collegeRegs.filter(r => Number(r.item_id) === Number(itm.item_id));
+      if (itemRegs.length === 0) return;
+
+      itemRegs.forEach(reg => {
+        const isInstitutional = (reg.chest_no && reg.chest_no.startsWith('COL-')) || isSpecialGroupEvent(itm);
+        const student = !isInstitutional
+          ? (findStudentByIdentifier(collegeStudents, reg.cic_no || reg.chest_no) ||
+             findStudentByIdentifier(students, reg.cic_no || reg.chest_no))
+          : undefined;
+
+        const studentName = isInstitutional ? `${currentCol.name} (College Entry)` : (student?.name || student?.full_name || 'Participant');
+        const cicNo = isInstitutional ? '—' : String(student?.admission_no || student?.cic_no || reg.cic_no || '—');
+        const chestNo = isInstitutional ? (reg.chest_no || `COL-${currentCol.affl_no}`) : (reg.chest_no || getCanonicalChestNo(student));
+        const studentPhase = student?.phase || student?.class || '—';
+        const eventCode = itm.code || itm.item_code || `ITM-${itm.item_id}`;
+        const eventName = itm.name || itm.name_eng || `Item #${itm.item_id}`;
+        const eventPhase = itm.phase || '—';
+        const eventCategory = itm.category || '—';
+        const eventMode = formatPdfItemMode(itm);
+        const eventType = itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single');
+        const blindLetter = reg.code_letter || '—';
+        const screeningStatus = reg.screening_status || 'pending';
+
+        rows.push([
+          slNo++,
+          currentCol.affl_no,
+          currentCol.short_name || currentCol.code || '',
+          currentCol.name,
+          chestNo,
+          cicNo,
+          studentName,
+          student?.class || '—',
+          studentPhase,
+          eventCode,
+          eventName,
+          eventPhase,
+          eventCategory,
+          eventMode,
+          eventType,
+          blindLetter,
+          screeningStatus
+        ]);
+      });
+    });
+
+    if (rows.length === 0) {
+      alert(`No registered students found for ${currentCol.name} (#${currentCol.affl_no}).`);
+      return;
+    }
+
+    const headers = [
+      'Sl No',
+      'College Affiliation No',
+      'College Code',
+      'College Name',
+      'Chest No',
+      'CIC No',
+      'Student Name',
+      'Class',
+      'Phase',
+      'Event Code',
+      'Event Name',
+      'Event Phase',
+      'Event Category',
+      'Event Mode',
+      'Event Type',
+      'Blind Letter',
+      'Screening Status'
+    ];
+
+    const timestamp = getFilenameTimestamp();
+    downloadCsv(
+      `College_${currentCol.affl_no}_${currentCol.short_name || 'College'}_participants_${timestamp}.csv`,
+      headers,
+      rows
+    );
+  };
+
+  const handleDownloadAllCollegesCsv = () => {
+    const allRegs = festService.getRegistrations();
+    if (!allRegs || allRegs.length === 0) {
+      alert('No registrations found across institutions.');
+      return;
+    }
+
+    const rows: (string | number)[][] = [];
+    let slNo = 1;
+
+    allRegs.forEach(reg => {
+      const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
+      const itm = items.find(i => Number(i.item_id) === Number(reg.item_id));
+      const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+
+      const isInstitutional = (reg.chest_no && reg.chest_no.startsWith('COL-')) || (itm && isSpecialGroupEvent(itm));
+      const studentName = isInstitutional ? `${col?.name || 'College'} (College Entry)` : (stu?.name || stu?.full_name || 'Participant');
+      const cicNo = isInstitutional ? '—' : String(stu?.admission_no || stu?.cic_no || reg.cic_no || '—');
+      const chestNo = isInstitutional ? (reg.chest_no || `COL-${reg.college_affl_no}`) : (reg.chest_no || getCanonicalChestNo(stu));
+
+      rows.push([
+        slNo++,
+        reg.college_affl_no || '',
+        col?.short_name || col?.code || '',
+        col?.name || `College #${reg.college_affl_no}`,
+        chestNo,
+        cicNo,
+        studentName,
+        stu?.class || '—',
+        stu?.phase || '—',
+        itm?.code || itm?.item_code || `ITM-${reg.item_id}`,
+        itm?.name || itm?.name_eng || `Item #${reg.item_id}`,
+        itm?.phase || '—',
+        itm?.category || '—',
+        itm ? formatPdfItemMode(itm) : '—',
+        itm?.item_type || ((itm?.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
+        reg.code_letter || '—',
+        reg.screening_status || 'pending'
+      ]);
+    });
+
+    const headers = [
+      'Sl No',
+      'College Affiliation No',
+      'College Code',
+      'College Name',
+      'Chest No',
+      'CIC No',
+      'Student Name',
+      'Class',
+      'Phase',
+      'Event Code',
+      'Event Name',
+      'Event Phase',
+      'Event Category',
+      'Event Mode',
+      'Event Type',
+      'Blind Letter',
+      'Screening Status'
+    ];
+
+    const timestamp = getFilenameTimestamp();
+    downloadCsv(`ALL_COLLEGES_participants_master_${timestamp}.csv`, headers, rows);
   };
 
   return (
@@ -524,8 +678,8 @@ export function CollegeRegistrationsTab({
           </div>
 
           {/* College Switcher & Action Toolbar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-            <div className="w-full sm:w-64 lg:w-72">
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2.5">
+            <div className="w-full sm:w-64 lg:w-72 shrink-0">
               <Select
                 value={activeCollegeAffl}
                 onChange={e => handleCollegeChange(Number(e.target.value))}
@@ -539,7 +693,7 @@ export function CollegeRegistrationsTab({
               </Select>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Button
                 size="xs"
                 variant={currentCol?.manual_lock_override ? 'destructive' : 'outline'}
@@ -583,6 +737,17 @@ export function CollegeRegistrationsTab({
               >
                 <FileText className="w-3.5 h-3.5 mr-1 text-amber-500" />
                 <span>Download PDF</span>
+              </Button>
+
+              <Button
+                size="xs"
+                variant="saffron"
+                onClick={() => setIsExportModalOpen(true)}
+                className="h-8 text-xs font-bold gap-1.5 whitespace-nowrap shadow-xs"
+                title="Open Export Center to download CSV/PDF rosters or screening links"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export...</span>
               </Button>
             </div>
           </div>
@@ -1108,6 +1273,16 @@ export function CollegeRegistrationsTab({
                     <FileText className="w-3.5 h-3.5 mr-1 text-amber-500" />
                     <span>Download Roster PDF</span>
                   </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={handleDownloadCollegeCsv}
+                    className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30 whitespace-nowrap font-medium"
+                    title={`Export participant CSV for ${currentCol?.name}`}
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                    <span>Export CSV</span>
+                  </Button>
                 </div>
               </div>
 
@@ -1372,10 +1547,11 @@ export function CollegeRegistrationsTab({
           const encodedUri = encodeURI(csvContent);
           const link = document.createElement('a');
           link.setAttribute('href', encodedUri);
+          const timestamp = getFilenameTimestamp();
           const filename =
             lateScope === 'current'
-              ? `late_registrations_col_${currentColAffl}.csv`
-              : 'fest_all_late_registrations.csv';
+              ? `late_registrations_col_${currentColAffl}_${timestamp}.csv`
+              : `fest_all_late_registrations_${timestamp}.csv`;
           link.setAttribute('download', filename);
           document.body.appendChild(link);
           link.click();
@@ -2138,6 +2314,18 @@ export function CollegeRegistrationsTab({
           })()}
         </Modal>
       )}
+
+      {/* Unified Export Modal Dialog */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        initialCollegeAffl={currentCol?.affl_no}
+        initialType="college_csv"
+        items={items}
+        colleges={colleges}
+        registrations={registrations}
+        students={students}
+      />
     </div>
   );
 }

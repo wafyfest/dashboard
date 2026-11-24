@@ -33,8 +33,9 @@ import { EventStatusTab } from '../result-entry/tabs/EventStatusTab';
 import { ScoreEntryTab, ScoreEntryRow } from '../result-entry/tabs/ScoreEntryTab';
 import { ResultPublishingTab } from '../result-entry/tabs/ResultPublishingTab';
 import { ResultVerificationTab } from '../result-entry/tabs/ResultVerificationTab';
+import { PointTableTab } from '../result-entry/tabs/PointTableTab';
 
-export type ResultEntryTab = 'event-status' | 'score-entry' | 'result-publishing' | 'result-verification';
+export type ResultEntryTab = 'event-status' | 'score-entry' | 'result-publishing' | 'result-verification' | 'point-table';
 export type ResultEntryTabType = ResultEntryTab;
 
 interface ResultEntryViewProps {
@@ -436,7 +437,8 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
         selectedScoringItem?.category,
         target.grade,
         target.rank,
-        selectedScoringItem?.tabulation
+        selectedScoringItem?.tabulation,
+        selectedScoringItem?.point_type === 'group' || selectedScoringItem?.item_type === 'Group'
       );
 
       updated[index] = target;
@@ -777,6 +779,14 @@ export function ResultEntryView({ activeTab = 'event-status', onTabChange }: Res
       {activeTab === 'result-verification' && (
         <ResultVerificationTab
           verificationList={filteredVerificationList}
+        />
+      )}
+
+      {activeTab === 'point-table' && (
+        <PointTableTab
+          colleges={colleges}
+          items={items}
+          results={allResults}
         />
       )}
     </div>

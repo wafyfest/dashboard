@@ -3551,14 +3551,24 @@ class FestService {
     return this.getPointsMatrix();
   }
 
-  public calculatePoints(phase?: string, category?: string, grade?: string, rank?: number | null, tabulation?: boolean): number {
-    if (tabulation === false || (category || '').trim().toUpperCase() === 'D') {
+  public calculatePoints(
+    phase?: string,
+    category?: string,
+    grade?: string,
+    rank?: number | null,
+    tabulation?: boolean,
+    isGroup?: boolean
+  ): number {
+    const rawCat = (category || '').trim().toUpperCase();
+    if (tabulation === false || rawCat === 'D') {
       return 0;
     }
+
     const matrix = this.getStorage<any[]>('points_matrix', []);
     const normGrade = (grade || '').trim().toUpperCase();
     const numRank = rank ? Number(rank) : null;
 
+    // Check user-configured custom matrix override if any
     if (matrix && matrix.length > 0) {
       const targetPhaseKey = phase ? normalizeCategoryKey(phase) : '';
       const phaseMatches = (matrixPhase?: string | null) => {
@@ -3568,7 +3578,7 @@ class FestService {
 
       const exactMatch = matrix.find(m => {
         const matchPhase = phaseMatches(m.phase);
-        const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
+        const matchCat = !category || !m.category || m.category.toUpperCase() === rawCat;
         const matchRank = numRank ? Number(m.rank) === numRank : (!m.rank || m.rank === 0);
         const matchGrade = normGrade ? (m.grade || '').toUpperCase() === normGrade : (!m.grade);
         return matchPhase && matchCat && matchRank && matchGrade;
@@ -3576,47 +3586,37 @@ class FestService {
       if (exactMatch && exactMatch.points !== undefined) {
         return Number(exactMatch.points);
       }
-
-      // Match by rank
-      if (numRank) {
-        const rankMatch = matrix.find(m => {
-          const matchPhase = phaseMatches(m.phase);
-          const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
-          return matchPhase && matchCat && Number(m.rank) === numRank;
-        });
-        if (rankMatch && rankMatch.points !== undefined) {
-          return Number(rankMatch.points);
-        }
-      }
-
-      // Match by grade
-      if (normGrade) {
-        const gradeMatch = matrix.find(m => {
-          const matchPhase = phaseMatches(m.phase);
-          const matchCat = !category || !m.category || m.category.toUpperCase() === category.toUpperCase();
-          return matchPhase && matchCat && (m.grade || '').toUpperCase() === normGrade;
-        });
-        if (gradeMatch && gradeMatch.points !== undefined) {
-          return Number(gradeMatch.points);
-        }
-      }
     }
 
-    // Default Arts Fest Points Matrix Logic:
+    // --- Official Wafy Arts Fest Point Calculation Engine ---
+    // Rule 8: Event Category Place Points:
+    //   Category A: 1st=12, 2nd=8, 3rd=4
+    //   Category B: 1st=10, 2nd=6, 3rd=3
+    //   Category C: 1st=20, 2nd=15, 3rd=10
+    //   Category D: 0 points (special award only)
     let rankPts = 0;
-    if (numRank === 1) rankPts = 5;
-    else if (numRank === 2) rankPts = 3;
-    else if (numRank === 3) rankPts = 1;
+    const catUpper = rawCat === 'A' || rawCat === 'C' ? rawCat : 'B'; // default to B
 
+    if (numRank === 1) {
+      rankPts = catUpper === 'C' ? 20 : catUpper === 'A' ? 12 : 10;
+    } else if (numRank === 2) {
+      rankPts = catUpper === 'C' ? 15 : catUpper === 'A' ? 8 : 6;
+    } else if (numRank === 3) {
+      rankPts = catUpper === 'C' ? 10 : catUpper === 'A' ? 4 : 3;
+    }
+
+    // Rule 10: Grade Points:
+    //   A+ = 7, A = 5, B = 3, C = 1
     let gradePts = 0;
-    if (normGrade === 'A+' || normGrade === 'A') gradePts = 5;
+    if (normGrade === 'A+') gradePts = 7;
+    else if (normGrade === 'A') gradePts = 5;
     else if (normGrade === 'B') gradePts = 3;
     else if (normGrade === 'C') gradePts = 1;
 
-    if (numRank && rankPts > 0) {
-      return rankPts;
-    }
-    return gradePts;
+    // Rule 11: In group events, personal points do not credit to individual tallies (handled caller-side if needed)
+    // Rule 12: Grade only receives grade points.
+    // Cumulative Points Rule: Place Points + Grade Points
+    return rankPts + gradePts;
   }
 
   // --- Live Results Fetch & Deduplication ---

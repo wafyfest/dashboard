@@ -5,7 +5,8 @@ import {
   Radio,
   ClipboardPen,
   Globe,
-  FileCheck2
+  FileCheck2,
+  Trophy
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { ResultEntryView, ResultEntryTab } from '@/components/roles/ResultEntryView';
@@ -19,12 +20,13 @@ export default function ResultEntryPage() {
     setIsMounted(true);
   }, []);
 
-  // 4 Sidebar Consoles strictly as requested
+  // 5 Consoles including Point Table
   const navItems: NavItem[] = [
     { id: 'event-status', label: 'Event Status', icon: Radio },
     { id: 'score-entry', label: 'Score Entry', icon: ClipboardPen },
     { id: 'result-publishing', label: 'Result Publishing', icon: Globe },
-    { id: 'result-verification', label: 'Result Verification', icon: FileCheck2 }
+    { id: 'result-verification', label: 'Result Verification', icon: FileCheck2 },
+    { id: 'point-table', label: 'Points Table', icon: Trophy }
   ];
 
   if (!isMounted) {

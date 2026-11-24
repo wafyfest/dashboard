@@ -125,7 +125,11 @@ export function GlobalDropdownEnhancer() {
       }
     };
 
-    const handleScrollOrResize = () => {
+    const handleScrollOrResize = (e: Event) => {
+      // Allow scrolling inside the dropdown menu itself without closing it!
+      if (menuRef.current && (e.target === menuRef.current || menuRef.current.contains(e.target as Node))) {
+        return;
+      }
       if (activeSelect) {
         closeDropdown();
       }

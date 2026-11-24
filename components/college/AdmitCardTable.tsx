@@ -16,6 +16,7 @@ import {
 import { Student, College, Registration, FestSettings } from '@/lib/types/fest';
 import { generateAdmitCardPdf } from '@/lib/utils/admitCardPdf';
 import { getCanonicalChestNo, registrationContainsStudent } from '@/lib/utils/studentIdentity';
+import { getFilenameTimestamp } from '@/lib/utils/csvExport';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -131,7 +132,8 @@ export function AdmitCardTable({
         .toLowerCase();
       const cic = student.admission_no ?? student.cic_no ?? 'admit';
 
-      doc.save(`Admit_Card_${cleanName}_${cic}.pdf`);
+      const timestamp = getFilenameTimestamp();
+      doc.save(`Admit_Card_${cleanName}_${cic}_${timestamp}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
     } finally {

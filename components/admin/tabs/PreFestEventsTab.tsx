@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { Badge, ItemModeBadge } from '@/components/ui/badge';
+import { Badge, ItemModeBadge, ScreeningStatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import {
@@ -22,10 +22,15 @@ import {
   Building2,
   Layers,
   Eye,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Play,
+  RotateCcw,
+  Download
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
+import { downloadCsv } from '@/lib/utils/csvExport';
+import { ExportModal, ExportType } from '../ExportModal';
 import {
   Item,
   Registration,
@@ -34,6 +39,7 @@ import {
   College,
   SpecialEventType,
   SpecialEventSettings,
+  ScreeningStatus,
   isSubmissionEvent,
   isScreeningEvent
 } from '@/lib/types/fest';
@@ -79,9 +85,90 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
   const [filterEventId, setFilterEventId] = useState<string>('all');
   const [filterMode, setFilterMode] = useState<string>('all');
   const [filterSubmissionStatus, setFilterSubmissionStatus] = useState<string>('all');
+  const [filterScreeningStatus, setFilterScreeningStatus] = useState<string>('all');
+
+  // Unified Export Modal
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [exportModalConfig, setExportModalConfig] = useState<{ eventId?: number; type: ExportType }>({
+    type: 'links'
+  });
 
   // Preview Modal for YouTube Video
   const [previewYouTubeUrl, setPreviewYouTubeUrl] = useState<string | null>(null);
+
+  // Screening Shortlist Modal State
+  interface ScreeningModalTarget {
+    item: Item;
+    reg: Registration;
+    matchingRegs: Registration[];
+    rosterParticipants: Student[];
+    submission: SubmissionEntry | undefined;
+    currentStatus: ScreeningStatus;
+    remarks: string;
+  }
+  const [screeningModalTarget, setScreeningModalTarget] = useState<ScreeningModalTarget | null>(null);
+  const [selectedModalStatus, setSelectedModalStatus] = useState<ScreeningStatus>('qualified');
+  const [modalRemarks, setModalRemarks] = useState<string>('');
+  const [isSavingDecision, setIsSavingDecision] = useState<boolean>(false);
+
+  const openScreeningModal = (
+    item: Item,
+    reg: Registration,
+    matchingRegs: Registration[],
+    rosterParticipants: Student[],
+    submission: SubmissionEntry | undefined
+  ) => {
+    const currStatus = (reg.screening_status as ScreeningStatus) || 'pending';
+    setScreeningModalTarget({
+      item,
+      reg,
+      matchingRegs,
+      rosterParticipants,
+      submission,
+      currentStatus: currStatus,
+      remarks: reg.screening_remarks || '',
+    });
+    setSelectedModalStatus(currStatus === 'pending' ? 'qualified' : currStatus);
+    setModalRemarks(reg.screening_remarks || '');
+  };
+
+  const handleSaveModalDecision = async () => {
+    if (!screeningModalTarget) return;
+    const regIds = screeningModalTarget.matchingRegs
+      .map(x => x.id)
+      .filter(Boolean);
+
+    if (regIds.length === 0) return;
+
+    setIsSavingDecision(true);
+    try {
+      const res = await festService.updateScreeningStatus({
+        registrationIds: regIds,
+        itemId: Number(screeningModalTarget.item.item_id || screeningModalTarget.item.id),
+        status: selectedModalStatus,
+        remarks: modalRemarks.trim() || undefined,
+      });
+      if (!res.success) {
+        alert(res.error || 'Failed to update screening status');
+      } else {
+        // Optimistic local state update
+        setRegistrationsList(prev => prev.map(r => {
+          if (regIds.includes(r.id)) {
+            return {
+              ...r,
+              screening_status: selectedModalStatus,
+              screening_remarks: modalRemarks.trim() || r.screening_remarks
+            };
+          }
+          return r;
+        }));
+        setScreeningModalTarget(null);
+        triggerRefresh();
+      }
+    } finally {
+      setIsSavingDecision(false);
+    }
+  };
 
   // Load data from live Supabase / storage
   const loadData = async (showLoading: boolean = false) => {
@@ -275,6 +362,14 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
       if (filterSubmissionStatus === 'submitted' && !sub?.file_url) return false;
       if (filterSubmissionStatus === 'pending' && sub?.file_url) return false;
 
+      if (activeSection === 'SCREENING' && filterScreeningStatus !== 'all') {
+        const matchingRegs = registrationsList.filter(
+          x => Number(x.college_affl_no) === colAffl && Number(x.item_id) === itmId
+        );
+        const screenStatus = (r.screening_status || matchingRegs.find(x => x.screening_status)?.screening_status || 'pending');
+        if (screenStatus !== filterScreeningStatus) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const afflMatch = String(colAffl).includes(q);
@@ -285,7 +380,71 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
       }
       return true;
     });
-  }, [sectionRegistrations, sectionEvents, collegesList, submissionsMap, filterEventId, filterMode, filterSubmissionStatus, searchQuery]);
+  }, [sectionRegistrations, sectionEvents, collegesList, submissionsMap, filterEventId, filterMode, filterSubmissionStatus, filterScreeningStatus, searchQuery, activeSection, registrationsList]);
+
+  const handleDownloadScreeningCsv = () => {
+    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const rows: string[][] = [];
+
+    filteredRegistrations.forEach(reg => {
+      const itmId = Number(reg.item_id);
+      const colAffl = Number(reg.college_affl_no);
+      const ev = eventsList.find(e => Number(e.item_id || e.id) === itmId);
+      const subKey = `${colAffl}:${itmId}`;
+      const sub = submissionsMap.get(subKey);
+
+      // Resolve roster participants
+      const rosterParticipants: Student[] = [];
+      if (reg.participants && reg.participants.length > 0) {
+        reg.participants.forEach(p => {
+          const found = findStudentByIdentifier(studentsList, p.id || p.chest_no || p.admission_no, colAffl);
+          if (found && !rosterParticipants.some(rp => rp.id === found.id)) rosterParticipants.push(found);
+          else if (p && !rosterParticipants.some(rp => rp.id === p.id)) rosterParticipants.push(p);
+        });
+      } else if (reg.student) {
+        if (!rosterParticipants.some(rp => rp.id === reg.student!.id)) rosterParticipants.push(reg.student);
+      } else if (reg.chest_no) {
+        const found = findStudentByIdentifier(studentsList, reg.chest_no, colAffl);
+        if (found && !rosterParticipants.some(rp => rp.id === found.id)) rosterParticipants.push(found);
+      }
+
+      const eventName = ev?.name_eng || ev?.name || (ev?.item_code ? `Event ${ev.item_code}` : `Item #${itmId}`);
+      const category = ev?.category ? `${ev.phase || ''} (${ev.category})` : ev?.phase || 'General';
+      const link = sub?.file_url || 'Not Submitted';
+
+      if (rosterParticipants.length > 0) {
+        rosterParticipants.forEach(p => {
+          const chest = getCanonicalChestNo(p);
+          const finalChest = chest !== '—' ? chest : (reg.chest_no || `COL-${colAffl}`);
+          rows.push([
+            String(finalChest),
+            link,
+            eventName,
+            category
+          ]);
+        });
+      } else {
+        const finalChest = reg.chest_no && reg.chest_no !== '—' ? reg.chest_no : (sub?.chest_no && sub.chest_no !== '—' ? sub.chest_no : `COL-${colAffl}`);
+        rows.push([
+          String(finalChest),
+          link,
+          eventName,
+          category
+        ]);
+      }
+    });
+
+    if (rows.length === 0) {
+      alert('No registrations found to export.');
+      return;
+    }
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestampStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const filename = `${activeSection.toLowerCase()}_event_links_${timestampStr}.csv`;
+    downloadCsv(filename, headers, rows);
+  };
 
   return (
     <div className="space-y-6">
@@ -654,6 +813,36 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                 <option value="submitted">Link Submitted</option>
                 <option value="pending">Pending Link</option>
               </select>
+
+              {activeSection === 'SCREENING' && (
+                <select
+                  value={filterScreeningStatus}
+                  onChange={e => setFilterScreeningStatus(e.target.value)}
+                  className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-medium"
+                >
+                  <option value="all">All Screening Verdicts</option>
+                  <option value="pending">Pending Review</option>
+                  <option value="qualified">Qualified (Finals)</option>
+                  <option value="eliminated">Not Shortlisted</option>
+                </select>
+              )}
+
+              <Button
+                size="xs"
+                variant="saffron"
+                onClick={() => {
+                  setExportModalConfig({
+                    eventId: filterEventId !== 'all' ? Number(filterEventId) : undefined,
+                    type: activeSection === 'SCREENING' ? 'screening' : 'submission'
+                  });
+                  setIsExportModalOpen(true);
+                }}
+                className="h-8 text-xs font-bold gap-1.5 whitespace-nowrap shadow-xs"
+                title={`Export screening/submission links or participant rosters`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export...</span>
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -669,12 +858,15 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                   <TableHead className="w-44">Registered Participants</TableHead>
                   <TableHead className="w-24 text-center">Mode</TableHead>
                   <TableHead className="w-48 text-center">Submission Link</TableHead>
+                  {activeSection === 'SCREENING' && (
+                    <TableHead className="w-48 text-center font-heading font-semibold">Screening Shortlist</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRegistrations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-[var(--text-muted)] italic">
+                    <TableCell colSpan={activeSection === 'SCREENING' ? 7 : 6} className="text-center py-8 text-[var(--text-muted)] italic">
                       No registrations found matching the filters.
                     </TableCell>
                   </TableRow>
@@ -777,6 +969,42 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                             </span>
                           )}
                         </TableCell>
+
+                        {/* Screening Shortlist Decision Column */}
+                        {activeSection === 'SCREENING' && (() => {
+                          const matchingRegs = registrationsList.filter(
+                            r => Number(r.college_affl_no) === colAffl && Number(r.item_id) === itmId
+                          );
+                          const screenStatus = (reg.screening_status || matchingRegs.find(r => r.screening_status)?.screening_status || 'pending') as ScreeningStatus;
+                          const hasValidSub = Boolean(sub?.file_url && sub.file_url.trim());
+
+                          return (
+                            <TableCell className="text-center align-middle">
+                              <div className="flex flex-col items-center gap-1.5">
+                                <ScreeningStatusBadge status={screenStatus} size="sm" />
+                                {hasValidSub ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openScreeningModal(ev || (reg as any), reg, matchingRegs, rosterParticipants, sub)}
+                                    className="px-2 py-0.5 rounded text-[10.5px] font-semibold border border-indigo-500/35 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 cursor-pointer inline-flex items-center gap-1 transition-colors shadow-xs"
+                                    title="Open screening review & decision window"
+                                  >
+                                    {screenStatus === 'pending' ? (
+                                      <>
+                                        <Play className="w-2.5 h-2.5 fill-current" />
+                                        <span>Review & Decide</span>
+                                      </>
+                                    ) : (
+                                      <span>Change Decision</span>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-[var(--text-muted)] italic">Awaiting link</span>
+                                )}
+                              </div>
+                            </TableCell>
+                          );
+                        })()}
                       </TableRow>
                     );
                   })
@@ -828,6 +1056,249 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
           </div>
         </Modal>
       )}
+
+      {/* Screening Shortlist & Video Review Modal */}
+      {screeningModalTarget && (
+        <Modal
+          isOpen={Boolean(screeningModalTarget)}
+          onClose={() => setScreeningModalTarget(null)}
+          title="Pre-Fest Screening Shortlist Review"
+          maxWidth="2xl"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs text-[var(--text-muted)]">
+                Status:{' '}
+                <span className="font-semibold capitalize text-[var(--text-primary)]">
+                  {selectedModalStatus}
+                </span>
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScreeningModalTarget(null)}
+                  disabled={isSavingDecision}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="saffron"
+                  onClick={handleSaveModalDecision}
+                  disabled={isSavingDecision}
+                  className="font-heading font-bold"
+                >
+                  {isSavingDecision ? 'Saving...' : 'Save Decision'}
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {/* Header Details */}
+            <div className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/70 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wide">
+                    {screeningModalTarget.item.name_eng || screeningModalTarget.item.name || 'Event'}
+                  </div>
+                  <div className="font-heading font-bold text-sm text-[var(--text-primary)] truncate">
+                    {screeningModalTarget.rosterParticipants
+                      .map(m => m.full_name || m.name || 'Participant')
+                      .join(', ') || 'College Delegation'}
+                  </div>
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] flex items-center gap-2 mt-0.5">
+                    <span>
+                      Chest:{' '}
+                      {screeningModalTarget.rosterParticipants
+                        .map(m => getCanonicalChestNo(m))
+                        .join(', ') || screeningModalTarget.reg.chest_no || '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-[11px] font-mono text-[var(--text-muted)] uppercase tracking-wide">College</div>
+                  <div className="font-heading font-bold text-xs text-[var(--text-primary)]">
+                    #{screeningModalTarget.reg.college_affl_no}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)] max-w-[200px] truncate">
+                    {collegesList.find(c => Number(c.affl_no) === Number(screeningModalTarget.reg.college_affl_no))?.name || `College #${screeningModalTarget.reg.college_affl_no}`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Video Submission Preview Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-heading font-semibold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-indigo-500" />
+                  Submitted Performance Video
+                </span>
+                <div className="flex items-center gap-2">
+                  {screeningModalTarget.submission?.submitted_at && (
+                    <span className="text-[10px] font-mono text-[var(--text-muted)]" suppressHydrationWarning>
+                      Uploaded: {formatIstDisplay(screeningModalTarget.submission.submitted_at)}
+                    </span>
+                  )}
+                  {screeningModalTarget.submission?.file_url && (
+                    <a
+                      href={screeningModalTarget.submission.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      <span>Open link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {screeningModalTarget.submission?.file_url && isValidYouTubeUrl(screeningModalTarget.submission.file_url) ? (
+                <div className="relative w-full pb-[56.25%] bg-black rounded-lg overflow-hidden border border-[var(--border-subtle)] shadow-xs">
+                  <iframe
+                    src={getYouTubeEmbedUrl(screeningModalTarget.submission.file_url) || ''}
+                    title="YouTube video player"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full border-0"
+                  />
+                </div>
+              ) : screeningModalTarget.submission?.file_url ? (
+                <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-center space-y-2">
+                  <p className="text-xs text-[var(--text-secondary)]">External performance link uploaded:</p>
+                  <a
+                    href={screeningModalTarget.submission.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open Submission in New Tab
+                  </a>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-center text-[var(--text-muted)] italic">
+                  No submission URL available
+                </div>
+              )}
+            </div>
+
+            {/* Decision Selection Radio Cards */}
+            <div className="space-y-1.5">
+              <label className="font-heading font-semibold text-xs text-[var(--text-primary)]">
+                Screening Verdict
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Qualify Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('qualified')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'qualified'
+                      ? 'border-emerald-500 bg-emerald-500/15 text-emerald-950 dark:text-emerald-100 ring-1 ring-emerald-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-emerald-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'qualified'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Qualify</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Shortlist as finalist for the stage competition
+                    </div>
+                  </div>
+                </button>
+
+                {/* Eliminate Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('eliminated')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'eliminated'
+                      ? 'border-rose-500 bg-rose-500/15 text-rose-950 dark:text-rose-100 ring-1 ring-rose-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-rose-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <XCircle
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'eliminated'
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Eliminate</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Mark as not shortlisted for stage finals
+                    </div>
+                  </div>
+                </button>
+
+                {/* Reset to Pending Option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedModalStatus('pending')}
+                  className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                    selectedModalStatus === 'pending'
+                      ? 'border-amber-500 bg-amber-500/15 text-amber-950 dark:text-amber-100 ring-1 ring-amber-500'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 hover:border-amber-500/40 text-[var(--text-secondary)]'
+                  }`}
+                >
+                  <RotateCcw
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${
+                      selectedModalStatus === 'pending'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-[var(--text-muted)]'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-xs">Pending</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                      Leave under review / decide later
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Optional Remarks Textarea */}
+            <div className="space-y-1">
+              <label className="font-heading font-semibold text-xs text-[var(--text-primary)] flex items-center justify-between">
+                <span>Evaluation Notes / Remarks (Optional)</span>
+                <span className="text-[10px] font-normal text-[var(--text-muted)] font-mono">Visible to organizers</span>
+              </label>
+              <textarea
+                value={modalRemarks}
+                onChange={e => setModalRemarks(e.target.value)}
+                placeholder="e.g. Scored 86/100, excellent performance, qualified for stage finals..."
+                rows={2}
+                className="w-full text-xs p-2 rounded-lg border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Unified Export Modal Dialog */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        initialEventId={exportModalConfig.eventId}
+        initialType={exportModalConfig.type}
+        items={eventsList}
+        colleges={collegesList}
+        registrations={registrationsList}
+        submissions={submissionsList}
+        students={studentsList}
+      />
     </div>
   );
 }

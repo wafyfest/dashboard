@@ -47,6 +47,8 @@ import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
+import { downloadCsv } from '@/lib/utils/csvExport';
+import { ExportModal, ExportType } from '../ExportModal';
 import { formatIstDisplay, evaluateEventDeadlineSetting } from '@/lib/utils/istDate';
 import { getEventKind } from '@/lib/types/fest';
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from '@/lib/utils/youtube';
@@ -315,6 +317,10 @@ export function EventRegistrationsTab() {
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportModalConfig, setExportModalConfig] = useState<{ eventId?: number; type: ExportType }>({
+    type: 'links'
+  });
   const handleCopy = (text: string, id: string) => {
     if (!text) return;
     navigator.clipboard?.writeText(text);
@@ -446,6 +452,207 @@ export function EventRegistrationsTab() {
     doc.save(`Event_${itm.code}_${safeName}_Roster.pdf`);
   };
 
+  const handleExportEventCsv = (itm: Item, participants: EnrolledParticipantRow[]) => {
+    if (participants.length === 0) {
+      alert(`No registered students found for event "${itm.name || itm.code}".`);
+      return;
+    }
+
+    const headers = [
+      'Sl No',
+      'Event Code',
+      'Event Name',
+      'Event Phase',
+      'Event Category',
+      'Event Mode',
+      'Event Type',
+      'Blind Letter',
+      'Chest No',
+      'CIC No',
+      'Student Name',
+      'College Affiliation No',
+      'College Code',
+      'College Name',
+      'Student Class',
+      'Student Phase',
+      'Screening Status'
+    ];
+
+    const rows = participants.map((p, idx) => {
+      const studentName = p.student?.name || p.student?.full_name || 'Participant';
+      const cicNo = String(p.student?.admission_no || p.student?.cic_no || p.registration.cic_no || '—');
+      const chestNo = p.registration.chest_no || getCanonicalChestNo(p.student) || '—';
+      const blindLetter = p.codeLetter || p.registration.code_letter || '—';
+
+      return [
+        idx + 1,
+        itm.code || itm.item_code || `ITM-${itm.item_id}`,
+        itm.name || itm.name_eng || `Event #${itm.item_id}`,
+        itm.phase || '—',
+        itm.category || '—',
+        formatPdfItemMode(itm),
+        itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
+        blindLetter,
+        chestNo,
+        cicNo,
+        studentName,
+        p.college?.affl_no || p.registration.college_affl_no || '',
+        p.college?.short_name || p.college?.code || '',
+        p.college?.name || `College #${p.registration.college_affl_no}`,
+        p.student?.class || '—',
+        p.student?.phase || '—',
+        p.registration.screening_status || 'pending'
+      ];
+    });
+
+    const safeName = (itm.name || itm.code || 'Event').replace(/[^a-zA-Z0-9]/g, '_');
+    downloadCsv(`Event_${itm.code}_${safeName}_participants.csv`, headers, rows);
+  };
+
+  const handleExportAllEventsCsv = () => {
+    const allRegs = festService.getRegistrations();
+    if (!allRegs || allRegs.length === 0) {
+      alert('No registrations found across events.');
+      return;
+    }
+
+    const headers = [
+      'Sl No',
+      'Event Code',
+      'Event Name',
+      'Event Phase',
+      'Event Category',
+      'Event Mode',
+      'Event Type',
+      'Blind Letter',
+      'Chest No',
+      'CIC No',
+      'Student Name',
+      'College Affiliation No',
+      'College Code',
+      'College Name',
+      'Student Class',
+      'Student Phase',
+      'Screening Status'
+    ];
+
+    let slNo = 1;
+    const rows: (string | number)[][] = [];
+
+    const sortedRegs = [...allRegs].sort(
+      (a, b) => Number(a.item_id) - Number(b.item_id) || Number(a.college_affl_no) - Number(b.college_affl_no)
+    );
+
+    sortedRegs.forEach(reg => {
+      const itm = items.find(i => Number(i.item_id) === Number(reg.item_id));
+      const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
+      const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+
+      const isInstitutional =
+        (reg.chest_no && reg.chest_no.startsWith('COL-')) || (itm && isSpecialGroupEvent(itm));
+      const studentName = isInstitutional
+        ? `${col?.name || 'College'} (College Entry)`
+        : stu?.name || stu?.full_name || 'Participant';
+      const cicNo = isInstitutional ? '—' : String(stu?.admission_no || stu?.cic_no || reg.cic_no || '—');
+      const chestNo = isInstitutional
+        ? reg.chest_no || `COL-${reg.college_affl_no}`
+        : reg.chest_no || getCanonicalChestNo(stu);
+
+      rows.push([
+        slNo++,
+        itm?.code || itm?.item_code || `ITM-${reg.item_id}`,
+        itm?.name || itm?.name_eng || `Item #${reg.item_id}`,
+        itm?.phase || '—',
+        itm?.category || '—',
+        itm ? formatPdfItemMode(itm) : '—',
+        itm?.item_type || ((itm?.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
+        reg.code_letter || '—',
+        chestNo,
+        cicNo,
+        studentName,
+        reg.college_affl_no || '',
+        col?.short_name || col?.code || '',
+        col?.name || `College #${reg.college_affl_no}`,
+        stu?.class || '—',
+        stu?.phase || '—',
+        reg.screening_status || 'pending'
+      ]);
+    });
+
+    downloadCsv('ALL_EVENTS_participants_master.csv', headers, rows);
+  };
+
+  const handleExportScreeningSubmissionLinksCsv = (itm: Item, participants: EnrolledParticipantRow[]) => {
+    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const eventName = itm.name_eng || itm.name || itm.code || `Item #${itm.item_id}`;
+    const category = itm.category ? `${itm.phase || ''} (${itm.category})` : itm.phase || 'General';
+
+    const rows = participants.map(p => {
+      const chestNo = p.registration.chest_no || getCanonicalChestNo(p.student) || '—';
+      const sub = findSubmissionForParticipant(itm, p);
+      const link = sub?.file_url || 'Not Submitted';
+
+      return [
+        String(chestNo),
+        link,
+        eventName,
+        category
+      ];
+    });
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestampStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const safeCode = itm.code || `Item_${itm.item_id}`;
+    downloadCsv(`${safeCode}_screening_submission_links_${timestampStr}.csv`, headers, rows);
+  };
+
+  const handleExportAllScreeningSubmissionLinksCsv = () => {
+    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const rows: string[][] = [];
+
+    const targetItems = items.filter(
+      i => isScreeningEvent(i) || isSubmissionEvent(i) || i.is_screening || i.is_submission || i.mode === 'submission'
+    );
+    const targetItemIds = new Set(targetItems.map(i => Number(i.item_id)));
+
+    const allRegs = festService.getRegistrations().filter(r => targetItemIds.has(Number(r.item_id)));
+
+    allRegs.forEach(reg => {
+      const itm = targetItems.find(i => Number(i.item_id) === Number(reg.item_id));
+      const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+      const chestNo = reg.chest_no || getCanonicalChestNo(stu) || '—';
+
+      const sub = submissions.find(
+        s =>
+          Number(s.item_id) === Number(reg.item_id) &&
+          (Number(s.college_affl_no) === Number(reg.college_affl_no) ||
+            String(s.chest_no).trim().toUpperCase() === String(chestNo).trim().toUpperCase())
+      );
+
+      const link = sub?.file_url || 'Not Submitted';
+      const eventName = itm?.name_eng || itm?.name || (itm?.code ? `Event ${itm.code}` : `Item #${reg.item_id}`);
+      const category = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
+
+      rows.push([
+        String(chestNo),
+        link,
+        eventName,
+        category
+      ]);
+    });
+
+    if (rows.length === 0) {
+      alert('No screening or submission event entries found.');
+      return;
+    }
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestampStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    downloadCsv(`screening_and_submission_links_master_${timestampStr}.csv`, headers, rows);
+  };
+
   return (
     <div className="space-y-4 w-full">
       {/* 1. CLEAN HEADER & METRICS BAR */}
@@ -499,6 +706,19 @@ export function EventRegistrationsTab() {
               className="h-8 text-xs font-medium"
             >
               Collapse All
+            </Button>
+            <Button
+              size="xs"
+              variant="saffron"
+              onClick={() => {
+                setExportModalConfig({ eventId: undefined, type: 'links' });
+                setIsExportModalOpen(true);
+              }}
+              className="h-8 text-xs font-bold gap-1.5 whitespace-nowrap shadow-xs"
+              title="Open Export Center to download CSV/PDF rosters or screening links"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export...</span>
             </Button>
           </div>
         </div>
@@ -741,17 +961,29 @@ export function EventRegistrationsTab() {
                       )}
                     </div>
 
-                    {/* PDF Export Button */}
+                    {/* Unified Export Button */}
                     {participants.length > 0 && (
                       <Button
                         size="xs"
                         variant="outline"
-                        onClick={() => handleExportEventPdf(item, participants)}
-                        className="h-7 text-xs gap-1 font-medium whitespace-nowrap"
-                        title={`Download official participants PDF for ${item.name}`}
+                        onClick={() => {
+                          const isScreenOrSub =
+                            isScreeningEvent(item) ||
+                            isSubmissionEvent(item) ||
+                            item.is_screening ||
+                            item.is_submission ||
+                            item.mode === 'submission';
+                          setExportModalConfig({
+                            eventId: Number(item.item_id),
+                            type: isScreenOrSub ? 'links' : 'roster_csv'
+                          });
+                          setIsExportModalOpen(true);
+                        }}
+                        className="h-7 text-xs gap-1 font-semibold whitespace-nowrap text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] border-amber-500/30 hover:bg-amber-500/10"
+                        title={`Export options for ${item.name}`}
                       >
-                        <FileText className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                        <span className="hidden sm:inline">Export PDF</span>
+                        <Download className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Export...</span>
                       </Button>
                     )}
                   </div>
@@ -1319,6 +1551,18 @@ export function EventRegistrationsTab() {
           </div>
         </Modal>
       )}
+
+      {/* Unified Export Modal Dialog */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        initialEventId={exportModalConfig.eventId}
+        initialType={exportModalConfig.type}
+        items={items}
+        colleges={colleges}
+        registrations={registrations}
+        students={students}
+      />
     </div>
   );
 }

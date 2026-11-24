@@ -19,6 +19,7 @@ import {
   Layers,
   MoveVertical
 } from 'lucide-react';
+import { getFilenameTimestamp } from '@/lib/utils/csvExport';
 
 export interface PosterInitialData {
   studentName: string;
@@ -378,7 +379,8 @@ export function ResultPosterModal({
       const link = document.createElement('a');
       const safeName = (studentName || 'Participant').replace(/[^a-zA-Z0-9]/g, '_');
       const safeItem = (itemEnglish || 'Event').replace(/[^a-zA-Z0-9]/g, '_');
-      link.download = `Wafy_Fest_Poster_${safeName}_${safeItem}.png`;
+      const timestamp = getFilenameTimestamp();
+      link.download = `Wafy_Fest_Poster_${safeName}_${safeItem}_${timestamp}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {

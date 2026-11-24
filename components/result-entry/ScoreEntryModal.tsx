@@ -127,6 +127,35 @@ export function ScoreEntryModal({
                 <Badge variant={selectedEvent.point_type === 'group' ? 'purple' : 'secondary'} size="sm">
                   {selectedEvent.point_type === 'group' ? 'Group Event' : 'Single Event'}
                 </Badge>
+                {(() => {
+                  const cat = (selectedEvent.category || '').trim().toUpperCase();
+                  if (cat === 'A') {
+                    return (
+                      <Badge variant="outline" size="sm" className="font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                        Cat A (12/8/4 + Grade)
+                      </Badge>
+                    );
+                  }
+                  if (cat === 'C') {
+                    return (
+                      <Badge variant="outline" size="sm" className="font-semibold text-purple-600 dark:text-purple-400 border-purple-500/30">
+                        Cat C (20/15/10 + Grade)
+                      </Badge>
+                    );
+                  }
+                  if (cat === 'D') {
+                    return (
+                      <Badge variant="outline" size="sm" className="font-semibold text-rose-500 border-rose-500/30">
+                        Cat D (0 Pts)
+                      </Badge>
+                    );
+                  }
+                  return (
+                    <Badge variant="outline" size="sm" className="font-semibold text-amber-600 dark:text-amber-400 border-amber-500/30">
+                      Cat B (10/6/3 + Grade)
+                    </Badge>
+                  );
+                })()}
                 {isScreeningEvent(selectedEvent) && <ScreeningBadge size="sm" />}
                 {isNonTabulationEvent(selectedEvent) && (
                   <Badge variant="outline" size="sm" className="font-semibold text-rose-500 border-rose-500/30">
