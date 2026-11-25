@@ -17,7 +17,8 @@ import {
   UserPlus,
   Sparkles,
   UserX,
-  Users
+  Users,
+  FileText
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -43,7 +44,8 @@ const VALID_ADMIN_TABS = new Set<string>([
   'appeals',
   'replacements',
   'results',
-  'logs'
+  'logs',
+  'topics'
 ]);
 
 const navItems: NavItem[] = [
@@ -66,6 +68,7 @@ const navItems: NavItem[] = [
 
   // Live Festival Operations
   { id: 'schedule', label: 'Stages & Schedules', icon: Calendar, group: 'Live Stage' },
+  { id: 'topics', label: 'Item Topics', icon: FileText, group: 'Live Stage' },
   { id: 'results', label: 'Results & Points', icon: Trophy, group: 'Live Stage' },
   { id: 'announcements', label: 'Broadcast Alerts', icon: BellRing, group: 'Live Stage' },
 

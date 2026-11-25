@@ -41,7 +41,9 @@ import {
   EventKind,
   EventDeadlineSetting,
   getEventKind,
-  DEFAULT_EVENT_DEADLINES
+  DEFAULT_EVENT_DEADLINES,
+  Topic,
+  isTopicOuted
 } from '../types/fest';
 
 import {
@@ -106,7 +108,8 @@ class FestService {
     points_matrix: [],
     preFestSettings: [],
     preFestRegistrations: [],
-    preFestSubmissions: []
+    preFestSubmissions: [],
+    topics: []
   };
 
   constructor() {
@@ -168,7 +171,8 @@ class FestService {
     'maxParticipation',
     'preFestSettings',
     'preFestRegistrations',
-    'preFestSubmissions'
+    'preFestSubmissions',
+    'topics'
   ];
 
   private setStorage<T>(key: string, value: T): void {
@@ -758,6 +762,21 @@ class FestService {
             try {
               window.localStorage.setItem('wsf_announcements', JSON.stringify(annData));
             } catch (e) { }
+          }
+        }
+      } catch (err) {
+        // Deferred
+      }
+
+      // 12.5. Topics
+      try {
+        if (this.isClient) {
+          const res = await fetch('/api/topics');
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json.topics)) {
+              this.setStorage('topics', json.topics);
+            }
           }
         }
       } catch (err) {
@@ -5440,6 +5459,115 @@ class FestService {
 
   public async submitSpecialEventYouTube(registrationId: string, youtubeUrl: string) {
     return this.submitPreFestYouTube(registrationId, youtubeUrl);
+  }
+
+  // ==========================================
+  // TOPICS MANAGEMENT & OUTING SYSTEM
+  // ==========================================
+
+  public getTopics(): Topic[] {
+    const list = this.getStorage<Topic[]>('topics', []);
+    const items = this.getItems();
+    const itemMap = new Map<number, Item>();
+    items.forEach(it => itemMap.set(Number(it.item_id), it));
+
+    return (list || []).map(t => ({
+      ...t,
+      item: t.item || itemMap.get(Number(t.item_id))
+    }));
+  }
+
+  public async fetchAllTopics(): Promise<Topic[]> {
+    try {
+      const res = await fetch('/api/topics', {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!res.ok) {
+        console.warn('Failed to fetch topics:', res.statusText);
+        return this.getTopics();
+      }
+      const data = await res.json();
+      const topics: Topic[] = data.topics || [];
+      this.setStorage('topics', topics);
+      return this.getTopics();
+    } catch (err) {
+      console.warn('Error fetching topics:', err);
+      return this.getTopics();
+    }
+  }
+
+  public async createTopic(data: {
+    item_id: number;
+    outing_time: string;
+    hide?: boolean;
+    topic?: string | null;
+    description?: string | null;
+  }): Promise<{ success: boolean; topic?: Topic; error?: string }> {
+    try {
+      const res = await fetch('/api/topics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        return { success: false, error: result.error || 'Failed to create topic' };
+      }
+      await this.fetchAllTopics();
+      this.broadcastGlobalSync('topics', { action: 'create' });
+      return { success: true, topic: result.topic };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while creating topic' };
+    }
+  }
+
+  public async updateTopic(
+    id: number,
+    data: {
+      item_id?: number;
+      outing_time?: string;
+      hide?: boolean;
+      topic?: string | null;
+      description?: string | null;
+    }
+  ): Promise<{ success: boolean; topic?: Topic; error?: string }> {
+    try {
+      const res = await fetch('/api/topics', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...data })
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        return { success: false, error: result.error || 'Failed to update topic' };
+      }
+      await this.fetchAllTopics();
+      this.broadcastGlobalSync('topics', { id, action: 'update' });
+      return { success: true, topic: result.topic };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while updating topic' };
+    }
+  }
+
+  public async deleteTopic(id: number): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`/api/topics?id=${id}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        return { success: false, error: result.error || 'Failed to delete topic' };
+      }
+      await this.fetchAllTopics();
+      this.broadcastGlobalSync('topics', { id, action: 'delete' });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while deleting topic' };
+    }
+  }
+
+  public async toggleTopicHide(id: number, hide: boolean): Promise<{ success: boolean; topic?: Topic; error?: string }> {
+    return this.updateTopic(id, { hide });
   }
 }
 

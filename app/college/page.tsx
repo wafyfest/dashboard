@@ -22,7 +22,8 @@ import {
   Lock,
   CheckCircle2,
   Building2,
-  Trophy
+  Trophy,
+  FileText
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { useFest } from '@/lib/context/FestContext';
@@ -63,6 +64,7 @@ import { CollegeReplacementsTab } from '@/components/college/tabs/CollegeReplace
 import { CollegeVolunteersTab } from '@/components/college/tabs/CollegeVolunteersTab';
 import { PreFestEventsCollegeTab } from '@/components/college/tabs/PreFestEventsCollegeTab';
 import { CollegeResultsTab } from '@/components/college/tabs/CollegeResultsTab';
+import { CollegeTopicsTab } from '@/components/college/tabs/CollegeTopicsTab';
 
 export default function CollegePortalPage() {
   const { currentCollegeId, currentCollegeAfflNo, festSettings, refreshKey, triggerRefresh, isAuthenticated, isLoadingAuth, timeTick } = useFest();
@@ -84,6 +86,7 @@ export default function CollegePortalPage() {
     { id: 'students', label: 'Students', icon: UserCheck },
     { id: 'volunteers', label: 'Volunteers', icon: HeartHandshake },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
+    { id: 'topics', label: 'Topics', icon: FileText },
     { id: 'results', label: 'Results', icon: Trophy },
     { id: 'admit_card', label: 'Admit Card', icon: Contact },
     { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
@@ -735,6 +738,11 @@ export default function CollegePortalPage() {
                 triggerRefresh();
               }}
             />
+          )}
+
+          {/* TAB: TOPICS (VIEW ONLY) */}
+          {activeTab === 'topics' && (
+            <CollegeTopicsTab />
           )}
 
           {/* TAB 6: ADMIT CARD */}

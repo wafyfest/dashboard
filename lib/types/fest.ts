@@ -552,6 +552,24 @@ export interface Item {
   created_at?: string;
 }
 
+export interface Topic {
+  id: number;
+  created_at?: string;
+  item_id: number;
+  outing_time: string;
+  hide: boolean;
+  topic?: string | null;
+  description?: string | null;
+  item?: Item;
+}
+
+export function isTopicOuted(topic?: Topic | null, referenceTime: Date = new Date()): boolean {
+  if (!topic || topic.hide) return false;
+  if (!topic.outing_time) return false;
+  const outing = new Date(topic.outing_time);
+  return !isNaN(outing.getTime()) && outing.getTime() <= referenceTime.getTime();
+}
+
 export interface MaxParticipation {
   phase: string;
   off_max: number;

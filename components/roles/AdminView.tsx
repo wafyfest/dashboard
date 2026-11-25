@@ -51,6 +51,7 @@ import { PreFestEventsTab } from '../admin/tabs/PreFestEventsTab';
 import { AppealsTab } from '../admin/tabs/AppealsTab';
 import { ReplacementsTab } from '../admin/tabs/ReplacementsTab';
 import { ResultsTab } from '../admin/tabs/ResultsTab';
+import { TopicsTab } from '../admin/tabs/TopicsTab';
 
 export type AdminTab =
   | 'overview'
@@ -72,7 +73,8 @@ export type AdminTab =
   | 'appeals'
   | 'replacements'
   | 'results'
-  | 'logs';
+  | 'logs'
+  | 'topics';
 
 interface AdminViewProps {
   activeTab?: AdminTab;
@@ -372,6 +374,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
       {/* 5.1. REPLACEMENTS & SUBSTITUTIONS TAB */}
       {activeTab === 'replacements' && <ReplacementsTab onRefresh={triggerRefresh} />}
+
+      {/* 5.2. SUBJECT TOPICS & OUTING SCHEDULE TAB */}
+      {activeTab === 'topics' && <TopicsTab onRefresh={triggerRefresh} />}
 
       {/* 6. RESULTS & POINTS TAB */}
       {activeTab === 'results' && <ResultsTab onRefresh={triggerRefresh} />}
