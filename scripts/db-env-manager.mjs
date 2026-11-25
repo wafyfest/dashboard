@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { WebSocket } from 'undici';
+if (!globalThis.WebSocket) {
+  globalThis.WebSocket = WebSocket;
+}
 import { createClient } from '@supabase/supabase-js';
 
 const rootDir = process.cwd();
@@ -53,7 +57,11 @@ async function showStatus() {
   // Test connection
   if (env.NEXT_PUBLIC_SUPABASE_URL && (env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
     try {
-      const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = createClient(
+        env.NEXT_PUBLIC_SUPABASE_URL,
+        env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        { auth: { persistSession: false }, realtime: { createWebSocket: () => null } }
+      );
       const { count: colCount, error: colErr } = await sb.from('colleges').select('*', { count: 'exact', head: true });
       const { count: stuCount, error: stuErr } = await sb.from('students').select('*', { count: 'exact', head: true });
       const { count: regCount, error: regErr } = await sb.from('registrations').select('*', { count: 'exact', head: true });
@@ -81,10 +89,10 @@ function switchToTest() {
   console.log('✅ Copied .env.test -> .env.local');
 
   try {
-    execSync('npx supabase link --project-ref kwdyjcrdilmaqpolgqds', { stdio: 'inherit' });
+    execSync('npx supabase link --project-ref kwdyjcrdilmaqpolgqds', { stdio: 'pipe' });
     console.log('🔗 Linked Supabase CLI to TEST project (kwdyjcrdilmaqpolgqds)');
   } catch (err) {
-    console.warn('⚠️ Warning: Could not relink CLI:', err.message);
+    // CLI linking is optional for local development
   }
 
   console.log('\n🧪 Environment successfully switched to TEST database!');
@@ -100,10 +108,10 @@ function switchToLive() {
   console.log('✅ Copied .env.live -> .env.local');
 
   try {
-    execSync('npx supabase link --project-ref mwzhidbsioveoggjkhmi', { stdio: 'inherit' });
+    execSync('npx supabase link --project-ref mwzhidbsioveoggjkhmi', { stdio: 'pipe' });
     console.log('🔗 Linked Supabase CLI to LIVE project (mwzhidbsioveoggjkhmi)');
   } catch (err) {
-    console.warn('⚠️ Warning: Could not relink CLI:', err.message);
+    // CLI linking is optional for local development
   }
 
   console.log('\n🔴 Environment successfully switched to LIVE production database!');

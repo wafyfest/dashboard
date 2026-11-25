@@ -1,3 +1,24 @@
+import fs from 'fs';
+
+// If .env.local does not exist, automatically initialize from .env.live
+if (!fs.existsSync('.env.local')) {
+  if (fs.existsSync('.env.live')) {
+    try {
+      fs.copyFileSync('.env.live', '.env.local');
+      console.log('ℹ️ [next.config] Auto-initialized .env.local from .env.live');
+    } catch (e) {
+      console.warn('⚠️ [next.config] Could not auto-copy .env.live:', e);
+    }
+  } else if (fs.existsSync('.env.test')) {
+    try {
+      fs.copyFileSync('.env.test', '.env.local');
+      console.log('ℹ️ [next.config] Auto-initialized .env.local from .env.test');
+    } catch (e) {
+      console.warn('⚠️ [next.config] Could not auto-copy .env.test:', e);
+    }
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
