@@ -33,7 +33,6 @@ import {
   Lock,
   Video,
   ExternalLink,
-  Trophy
 } from 'lucide-react';
 import { formatIstDisplay, evaluateEventDeadlineSetting, evaluateLinkSubmissionDeadline } from '@/lib/utils/istDate';
 import { festService } from '@/lib/services/festService';
@@ -213,20 +212,6 @@ export function CollegeDashboardTab({
 }: CollegeDashboardTabProps) {
   const [showUserGuide, setShowUserGuide] = useState(false);
   const { timeTick, refreshKey } = useFest();
-
-  const effectiveLeaderboard = useMemo(() => {
-    if (leaderboard && leaderboard.length > 0) return leaderboard;
-    return festService.getLeaderboard();
-  }, [leaderboard, refreshKey]);
-
-  const myStanding = useMemo(() => {
-    const affl = Number(college?.affl_no || college?.affiliation_no || 0);
-    return effectiveLeaderboard.find(
-      e => Number(e.college.affl_no) === affl || (college?.id && e.college.id === college.id)
-    );
-  }, [effectiveLeaderboard, college]);
-
-  const tableLeader = useMemo(() => effectiveLeaderboard[0] || null, [effectiveLeaderboard]);
 
   const deadlineSetting = useMemo(
     () => festService.getEventDeadlineSetting('general'),
@@ -586,60 +571,6 @@ export function CollegeDashboardTab({
             )}
           </div>
         </div>
-      )}
-
-      {/* 2.5. FESTIVAL CHAMPIONSHIP STANDINGS WIDGET */}
-      {myStanding && (
-        <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] overflow-hidden">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-[var(--f-saffron)] shrink-0 shadow-sm">
-                  <Trophy className="w-6 h-6 text-[var(--f-saffron)]" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-heading font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                      Championship Standing
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                      Rank #{myStanding.rank} of {effectiveLeaderboard.length}
-                    </span>
-                  </div>
-                  <div className="text-sm sm:text-base font-heading font-extrabold text-[var(--text-primary)] flex items-center gap-3 flex-wrap">
-                    <span className="text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] font-mono text-xl sm:text-2xl font-black">
-                      {myStanding.points} <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">Pts</span>
-                    </span>
-                    <span className="text-xs font-normal text-[var(--text-muted)]">•</span>
-                    <span className="text-xs font-mono font-medium text-[var(--text-secondary)]">
-                      🥇 {myStanding.gold} &nbsp;🥈 {myStanding.silver} &nbsp;🥉 {myStanding.bronze} Medals
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
-                {tableLeader && tableLeader.college.affl_no !== myStanding.college.affl_no && (
-                  <div className="text-right hidden lg:block text-xs text-[var(--text-muted)] pr-3 border-r border-[var(--border-subtle)]">
-                    <div>Table Leader: <span className="font-semibold text-[var(--text-primary)]">{tableLeader.college.short_name || tableLeader.college.name}</span></div>
-                    <div className="font-mono text-[11px] text-amber-600 dark:text-amber-400 font-bold">{tableLeader.points} Pts</div>
-                  </div>
-                )}
-                {onNavigateTab && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onNavigateTab('results')}
-                    className="gap-1.5 text-xs font-heading font-bold bg-[var(--f-saffron)] hover:bg-[var(--f-saffron-dark)] text-white shadow-sm"
-                  >
-                    <span>View Point Table</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* 3. STUDENT ROSTER COUNTS */}

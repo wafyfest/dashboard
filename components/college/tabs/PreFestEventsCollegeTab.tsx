@@ -595,6 +595,11 @@ export function PreFestEventsCollegeTab({
                   }
                 });
 
+                const isSpecialGroup = isSpecialGroupEvent(item);
+                const actualRosterParticipants = isSpecialGroup
+                  ? rosterParticipants
+                  : rosterParticipants.filter(p => !String(p.chest_no || '').startsWith('COL-') && !String(p.id || '').startsWith('col-entry-'));
+
                 // Lock check via registration locks matrix
                 const lockCheck = registrationStatusByItem?.get(itmId)
                   || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
@@ -610,7 +615,7 @@ export function PreFestEventsCollegeTab({
                   : (item.item_type === 'Group' ? 'Group' : 'Individual');
                 const { min: minCount, max: maxCount, isOpen: isOpenParticipants } = getItemParticipantBounds(item);
                 const registeredCount = isRegistered
-                  ? Math.max(rosterParticipants.length, matchingRegs.length, 1)
+                  ? (isSpecialGroup ? 1 : actualRosterParticipants.length)
                   : 0;
 
                 return (
@@ -650,8 +655,8 @@ export function PreFestEventsCollegeTab({
                                 <CheckCircle2 className="w-3 h-3" />
                                 Roster:
                               </span>
-                              {rosterParticipants.length > 0 ? (
-                                rosterParticipants.map((p, pIdx) => {
+                              {actualRosterParticipants.length > 0 ? (
+                                actualRosterParticipants.map((p, pIdx) => {
                                   const chest = getCanonicalChestNo(p);
                                   const idLabel = chest !== '—' ? `#${chest}` : `CIC: ${p.admission_no || p.cic_no || (p as any).cic_number || 'N/A'}`;
                                   const isBlocked = Boolean(p.is_blocked);
@@ -673,8 +678,8 @@ export function PreFestEventsCollegeTab({
                                   );
                                 })
                               ) : (
-                                <span className="text-[var(--text-secondary)] font-mono text-[10.5px]">
-                                  {matchingRegs[0]?.chest_no ? `Chest #${matchingRegs[0].chest_no}` : 'Enrolled'}
+                                <span className="text-amber-700 dark:text-amber-300 font-sans text-[10.5px] font-semibold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                                  Action Required: Select 5 students
                                 </span>
                               )}
                             </>
@@ -711,9 +716,13 @@ export function PreFestEventsCollegeTab({
                             <span className="font-sans font-bold text-[10.5px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                               College Entry
                             </span>
-                          ) : (
+                          ) : actualRosterParticipants.length > 0 ? (
                             <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                               {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
+                            </span>
+                          ) : (
+                            <span className="font-sans font-bold text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                              0/{maxCount} (Pending)
                             </span>
                           )}
                         </div>

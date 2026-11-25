@@ -401,7 +401,7 @@ export default function CollegePortalPage() {
     const visibleIds = new Set(filteredModalStudents.map(s => s.id));
     let count = 0;
     selectedStudentIds.forEach(id => {
-      if (!visibleIds.has(id)) count++;
+      if (!visibleIds.has(id) && !id.startsWith('col-entry-') && !id.startsWith('COL-')) count++;
     });
     return count;
   }, [filteredModalStudents, selectedStudentIds]);
@@ -417,10 +417,11 @@ export default function CollegePortalPage() {
     );
     const currentlyRegisteredStudents: Student[] = [];
     students.forEach(s => {
-      if (matchingEventRegs.some(r => registrationContainsStudent(r, s, students))) {
+      if (matchingEventRegs.some(r => !String(r.chest_no || '').startsWith('COL-') && registrationContainsStudent(r, s, students))) {
         currentlyRegisteredStudents.push(s);
       }
     });
+    const hasLegacyPlaceholder = matchingEventRegs.some(r => String(r.chest_no || '').startsWith('COL-'));
     const isAlreadyRegistered = isSpecialGroup
       ? matchingEventRegs.length > 0
       : (matchingEventRegs.length > 0 || currentlyRegisteredStudents.length > 0);
@@ -437,35 +438,48 @@ export default function CollegePortalPage() {
       matchingEventRegs,
       currentlyRegisteredStudents,
       isAlreadyRegistered,
+      hasLegacyPlaceholder,
       modalLockCheck,
     };
   }, [selectedItemForReg, registrations, students, currentCollegeAfflNo, currentCollegeId]);
 
   const handleOpenRegistrationModal = (item: Item) => {
     const targetItemId = Number(item.item_id || item.id);
+    const isSpecialGroup = isSpecialGroupEvent(item);
     const matchingRegs = registrations.filter(
       r => Number(r.item_id) === targetItemId || String(r.item_id) === String(item.id)
     );
     const preselectedSet = new Set<string>();
-    matchingRegs.forEach(reg => {
-      reg.participants?.forEach(p => {
-        const found = findStudentByIdentifier(students, p.id || p.chest_no || p.admission_no || p.cic_no, currentCollegeAfflNo || college?.affl_no);
-        if (found?.id) preselectedSet.add(found.id);
-        else if (p.id) preselectedSet.add(p.id);
-      });
-      if (reg.student?.id) preselectedSet.add(reg.student.id);
-      if (reg.chest_no) {
-        const found = findStudentByIdentifier(students, reg.chest_no, currentCollegeAfflNo || college?.affl_no);
-        if (found?.id) preselectedSet.add(found.id);
-      }
-    });
 
-    // Direct cross-check against all students pool
-    students.forEach(s => {
-      if (matchingRegs.some(r => registrationContainsStudent(r, s, students))) {
-        preselectedSet.add(s.id);
-      }
-    });
+    if (!isSpecialGroup) {
+      matchingRegs.forEach(reg => {
+        // Skip legacy institutional dummy registrations (e.g. COL-32)
+        if (String(reg.chest_no || '').startsWith('COL-')) return;
+
+        reg.participants?.forEach(p => {
+          if (String(p.id || '').startsWith('col-entry-') || String(p.chest_no || '').startsWith('COL-')) return;
+          const found = findStudentByIdentifier(students, p.id || p.chest_no || p.admission_no || p.cic_no, currentCollegeAfflNo || college?.affl_no);
+          if (found?.id) preselectedSet.add(found.id);
+          else if (p.id && !p.id.startsWith('col-entry-')) preselectedSet.add(p.id);
+        });
+
+        if (reg.student?.id && !String(reg.student.id).startsWith('col-entry-')) {
+          const found = findStudentByIdentifier(students, reg.student.id, currentCollegeAfflNo || college?.affl_no);
+          if (found?.id) preselectedSet.add(found.id);
+        }
+        if (reg.chest_no && !String(reg.chest_no).startsWith('COL-')) {
+          const found = findStudentByIdentifier(students, reg.chest_no, currentCollegeAfflNo || college?.affl_no);
+          if (found?.id) preselectedSet.add(found.id);
+        }
+      });
+
+      // Direct cross-check against all students pool (ignoring COL- entries)
+      students.forEach(s => {
+        if (matchingRegs.some(r => !String(r.chest_no || '').startsWith('COL-') && registrationContainsStudent(r, s, students))) {
+          preselectedSet.add(s.id);
+        }
+      });
+    }
 
     setSelectedItemForReg(item);
     setSelectedStudentIds(preselectedSet);
@@ -485,7 +499,7 @@ export default function CollegePortalPage() {
       const isSpecialGroup = isSpecialGroupEvent(selectedItemForReg);
       const participantPayload = isSpecialGroup
         ? [`COL-${currentCollegeAfflNo || college?.affl_no}`]
-        : Array.from(selectedStudentIds);
+        : Array.from(selectedStudentIds).filter(id => !id.startsWith('col-entry-') && !id.startsWith('COL-'));
 
       const res = await festService.registerCollegeForItem(
         currentCollegeAfflNo || currentCollegeId,

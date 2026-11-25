@@ -300,12 +300,17 @@ export function CollegeRegistrationTab({
               const fallbackStudent = (students.length > 0 && (reg?.cic_no || reg?.chest_no))
                 ? findStudentByIdentifier(students, reg.cic_no || reg.chest_no, currentCollegeAfflNo)
                 : undefined;
-              const rosterParticipants = reg
+              const rawParticipants = reg
                 ? ((reg.participants && reg.participants.length > 0)
                   ? reg.participants
                   : (reg.student ? [reg.student] : (fallbackStudent ? [fallbackStudent] : [])))
                 : [];
-              const registeredCount = reg ? (rosterParticipants.length || 1) : 0;
+              const rosterParticipants = isSpecialGroup
+                ? rawParticipants
+                : rawParticipants.filter(p => !String(p.chest_no || '').startsWith('COL-') && !String(p.id || '').startsWith('col-entry-'));
+              const registeredCount = isSpecialGroup
+                ? (reg ? 1 : 0)
+                : rosterParticipants.length;
               const isRegistered = !!reg;
 
               return (
@@ -357,8 +362,8 @@ export function CollegeRegistrationTab({
                             );
                           })
                         ) : (
-                          <span className="text-[var(--text-secondary)] font-mono text-[10.5px]">
-                            {reg.cic_no ? `CIC: ${reg.cic_no}` : (reg.chest_no ? `Chest #${reg.chest_no}` : 'Enrolled')}
+                          <span className="text-amber-700 dark:text-amber-300 font-sans text-[10.5px] font-semibold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                            Action Required: Select 5 students
                           </span>
                         )}
                       </div>
@@ -383,9 +388,13 @@ export function CollegeRegistrationTab({
                           <span className="font-sans font-bold text-[10.5px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" /> College Entry
                           </span>
-                        ) : (
+                        ) : rosterParticipants.length > 0 ? (
                           <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             {registeredCount}/{isOpenParticipants ? 'Open' : maxCount}
+                          </span>
+                        ) : (
+                          <span className="font-sans font-bold text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                            0/{maxCount} (Pending)
                           </span>
                         )}
                       </div>
