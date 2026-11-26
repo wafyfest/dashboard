@@ -616,7 +616,8 @@ BEGIN
     SELECT 1 FROM public.late_registrations lr
     WHERE lr.college_affl_no = c.affl_no
       AND COALESCE(lr.is_waived, false) = false
-  );
+  )
+  WHERE c.affl_no IS NOT NULL;
 
   RETURN v_synced_count;
 END;

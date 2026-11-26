@@ -28,7 +28,9 @@ import {
   ChevronUp,
   User,
   Check,
-  Loader2
+  Loader2,
+  ExternalLink,
+  Video
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
@@ -91,6 +93,7 @@ export function EventDeadlinesTab() {
   const [colleges, setColleges] = useState<College[]>(() => festService.getColleges());
   const [items, setItems] = useState<Item[]>(() => festService.getItems());
   const [students, setStudents] = useState<Student[]>(() => festService.getStudents());
+  const [preFestSubmissions, setPreFestSubmissions] = useState<any[]>(() => festService.getPreFestSubmissions());
 
   // Late Registrations Filters
   const [lateTierFilter, setLateTierFilter] = useState<'all' | 'fine' | 'super_fine'>('all');
@@ -176,10 +179,11 @@ export function EventDeadlinesTab() {
         body: JSON.stringify({ action: 'sync' })
       }).catch(() => null);
 
-      const [deadlinesRes, lateList, regsList] = await Promise.all([
+      const [deadlinesRes, lateList, regsList, preFestData] = await Promise.all([
         fetch('/api/admin/event-deadlines').then(r => r.ok ? r.json() : null).catch(() => null),
         festService.fetchLateRegistrationsForCollege().catch(() => []),
-        festService.fetchRegistrationsForCollege().catch(() => [])
+        festService.fetchRegistrationsForCollege().catch(() => []),
+        festService.fetchPreFestEventsData().catch(() => null)
       ]);
 
       if (deadlinesRes?.settings && Array.isArray(deadlinesRes.settings)) {
@@ -195,6 +199,11 @@ export function EventDeadlinesTab() {
       } else {
         setRegistrations(festService.getRegistrations());
       }
+      if (preFestData?.submissions && Array.isArray(preFestData.submissions)) {
+        setPreFestSubmissions(preFestData.submissions);
+      } else {
+        setPreFestSubmissions(festService.getPreFestSubmissions());
+      }
       setColleges(festService.getColleges());
       setItems(festService.getItems());
       setStudents(festService.getStudents());
@@ -209,6 +218,21 @@ export function EventDeadlinesTab() {
   const collegeMap = useMemo(() => new Map(colleges.map(c => [Number(c.affl_no), c])), [colleges]);
   const itemMap = useMemo(() => new Map(items.map(i => [Number(i.item_id || i.id), i])), [items]);
   const settingsByKind = useMemo(() => new Map(settingsList.map(s => [s.event_kind, s])), [settingsList]);
+
+  // Fast lookup map for prefest video submissions by (college_affl_no, item_id)
+  const submissionMap = useMemo(() => {
+    const map = new Map<string, any>();
+    const itemByEventId = new Map(items.map(i => [String(i.id), i]));
+    preFestSubmissions.forEach(sub => {
+      const itm = (sub.event_id && itemByEventId.get(String(sub.event_id))) ||
+                  items.find(i => Number(i.item_id) === Number(sub.item_id));
+      const itmId = itm?.item_id || sub.item_id;
+      if (itmId && sub.college_affl_no) {
+        map.set(`${Number(sub.college_affl_no)}_${Number(itmId)}`, sub);
+      }
+    });
+    return map;
+  }, [preFestSubmissions, items]);
 
   // Enriched late entries: combines persistent late_registrations table records with all registrations submitted post-deadline
   const enrichedLateEntries = useMemo(() => {
@@ -226,6 +250,9 @@ export function EventDeadlinesTab() {
       const studentName = matchedStudent?.name?.trim() ? matchedStudent.name.trim() : null;
       const fineTier = (l.fine_tier as 'fine' | 'super_fine') || 'fine';
       const fineAmount = Number(l.fine_amount) || (fineTier === 'super_fine' ? 1000 : 500);
+      const isLinkSubmission = Boolean((l.late_reason || '').toLowerCase().includes('link'));
+      const sub = submissionMap.get(`${Number(l.college_affl_no)}_${Number(l.item_id)}`);
+      const youtubeUrl = sub?.youtube_url || (l as any).youtube_url || null;
 
       combined.push({
         ...l,
@@ -238,6 +265,9 @@ export function EventDeadlinesTab() {
         student_name: studentName,
         fine_tier: fineTier,
         fine_amount: fineAmount,
+        is_link_submission: isLinkSubmission,
+        youtube_url: youtubeUrl,
+        submitted_link_at: sub?.submitted_at || null,
       });
     });
 
@@ -492,12 +522,14 @@ export function EventDeadlinesTab() {
       'Event Name',
       'Event Category',
       'Event Mode',
+      'Type',
       'Fine Tier',
       'Fine Amount (INR)',
       'Status',
-      'Registered At (IST)',
+      'Submitted / Reg At (IST)',
       'Effective Deadline (IST)',
-      'Late Reason'
+      'Late Reason',
+      'YouTube Video Link'
     ];
 
     const rows = allFilteredEntries.map(e => [
@@ -509,12 +541,14 @@ export function EventDeadlinesTab() {
       `"${(e.event_name || '').replace(/"/g, '""')}"`,
       `"${e.event_category || ''}"`,
       `"${e.event_mode || ''}"`,
+      `"${e.is_link_submission ? 'Video Link Submission' : 'Participant Registration'}"`,
       `"${e.fine_tier || 'fine'}"`,
       e.is_waived ? 0 : (e.fine_amount || 0),
       `"${e.is_waived ? 'Waived' : 'Active Fine'}"`,
       `"${e.registered_at ? formatIstDisplay(e.registered_at) : ''}"`,
       `"${e.effective_deadline ? formatIstDisplay(e.effective_deadline) : ''}"`,
-      `"${(e.late_reason || '').replace(/"/g, '""')}"`
+      `"${(e.late_reason || '').replace(/"/g, '""')}"`,
+      `"${(e.youtube_url || '').replace(/"/g, '""')}"`
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -1212,7 +1246,7 @@ export function EventDeadlinesTab() {
                                 <th className="py-2.5 px-3 w-8">#</th>
                                 <th className="py-2.5 px-3">Student / Participant</th>
                                 <th className="py-2.5 px-3">Event Details</th>
-                                <th className="py-2.5 px-3">Registered (IST)</th>
+                                <th className="py-2.5 px-3">Submitted / Reg (IST)</th>
                                 <th className="py-2.5 px-3">Deadline Cutoff (IST)</th>
                                 <th className="py-2.5 px-3">Fine Tier & Amount</th>
                                 <th className="py-2.5 px-3">Late Reason</th>
@@ -1251,17 +1285,58 @@ export function EventDeadlinesTab() {
                                         </span>
                                         <span>{entry.event_name}</span>
                                       </div>
-                                      <div className="flex items-center gap-1 mt-0.5">
+                                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                         <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                                           Cat {entry.event_category}
                                         </span>
                                         <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)] uppercase">
                                           {entry.event_mode}
                                         </span>
+                                        {entry.is_link_submission && (
+                                          <span className="text-[9px] px-1 py-0 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 font-semibold inline-flex items-center gap-0.5">
+                                            <Video className="w-2.5 h-2.5" />
+                                            Video Link
+                                          </span>
+                                        )}
                                       </div>
+                                      {entry.youtube_url && (
+                                        <div className="mt-1">
+                                          <a
+                                            href={entry.youtube_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[10px] font-mono transition-colors"
+                                            title={entry.youtube_url}
+                                          >
+                                            <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                                            <span>Watch Video</span>
+                                          </a>
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-primary)]">
-                                      {entry.registered_at ? formatIstDisplay(entry.registered_at) : '—'}
+                                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                                      {entry.is_link_submission ? (
+                                        <div className="flex flex-col gap-0.5">
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
+                                            <Video className="w-2.5 h-2.5 flex-shrink-0" />
+                                            <span>Video Submitted</span>
+                                          </span>
+                                          <span className="text-[var(--text-primary)]">
+                                            {entry.registered_at ? formatIstDisplay(entry.registered_at) : '—'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col gap-0.5">
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--text-muted)]">
+                                            <User className="w-2.5 h-2.5 flex-shrink-0" />
+                                            <span>Registered</span>
+                                          </span>
+                                          <span className="text-[var(--text-primary)]">
+                                            {entry.registered_at ? formatIstDisplay(entry.registered_at) : '—'}
+                                          </span>
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-muted)]">
                                       {entry.effective_deadline ? formatIstDisplay(entry.effective_deadline) : '—'}
