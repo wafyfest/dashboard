@@ -34,7 +34,7 @@ export function CollegeTopicsTab() {
   const [topics, setTopics] = useState<Topic[]>(() => festService.getTopics());
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [phaseFilter, setPhaseFilter] = useState<string>('all');
   const [modeFilter, setModeFilter] = useState<string>('all');
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
@@ -79,11 +79,13 @@ export function CollegeTopicsTab() {
     return topics.filter(t => isTopicOuted(t, currentTime));
   }, [topics, currentTime]);
 
-  // Categories available among outed topics
-  const availableCategories = useMemo(() => {
+  // Unique phases available among outed topics
+  const availablePhases = useMemo(() => {
     const set = new Set<string>();
     outedTopics.forEach(t => {
-      if (t.item?.category) set.add(t.item.category);
+      if (t.item?.phase) {
+        set.add(t.item.phase);
+      }
     });
     return Array.from(set).sort();
   }, [outedTopics]);
@@ -98,19 +100,23 @@ export function CollegeTopicsTab() {
         const nameMal = (t.item?.name_mal || '').toLowerCase();
         const itemCode = (t.item?.item_code || '').toLowerCase();
         const topicText = (t.topic || '').toLowerCase();
+        const phaseText = (t.item?.phase || '').toLowerCase();
+        const modeText = (t.item?.mode || '').toLowerCase();
         const matches =
           nameEng.includes(q) ||
           nameMal.includes(q) ||
           itemCode.includes(q) ||
           topicText.includes(q) ||
+          phaseText.includes(q) ||
+          modeText.includes(q) ||
           String(t.item_id).includes(q);
         if (!matches) return false;
       }
 
-      // Category filter
-      if (categoryFilter !== 'all') {
-        const cat = t.item?.category || '';
-        if (cat.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+      // Phase filter (strictly filtering by phase)
+      if (phaseFilter !== 'all') {
+        const p = t.item?.phase || '';
+        if (p.toLowerCase() !== phaseFilter.toLowerCase()) return false;
       }
 
       // Mode filter
@@ -121,7 +127,7 @@ export function CollegeTopicsTab() {
 
       return true;
     });
-  }, [outedTopics, searchQuery, categoryFilter, modeFilter]);
+  }, [outedTopics, searchQuery, phaseFilter, modeFilter]);
 
   return (
     <div className="space-y-6">
@@ -180,20 +186,20 @@ export function CollegeTopicsTab() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Category Filter */}
-            {availableCategories.length > 0 && (
+            {/* Phase Filter */}
+            {availablePhases.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                 <Filter className="w-3.5 h-3.5" />
-                <span>Category:</span>
+                <span>Phase:</span>
                 <select
-                  value={categoryFilter}
-                  onChange={e => setCategoryFilter(e.target.value)}
+                  value={phaseFilter}
+                  onChange={e => setPhaseFilter(e.target.value)}
                   className="px-2.5 py-1.5 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)]"
                 >
-                  <option value="all">All Categories ({outedTopics.length})</option>
-                  {availableCategories.map(cat => (
-                    <option key={cat} value={cat}>
-                      {formatStudentCategory(cat)}
+                  <option value="all">All Phases ({outedTopics.length})</option>
+                  {availablePhases.map(phase => (
+                    <option key={phase} value={phase}>
+                      {phase}
                     </option>
                   ))}
                 </select>
@@ -264,11 +270,11 @@ export function CollegeTopicsTab() {
                       <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                         {item?.item_code || `ITM-${topic.item_id}`}
                       </span>
-                      {item?.category && (
-                        <CategoryBadge category={item.category} size="sm" />
+                      {(item?.phase || item?.category) && (
+                        <CategoryBadge category={item.phase || item.category} size="sm" />
                       )}
                       {item?.mode && (
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-xs">
                           {item.mode}
                         </span>
                       )}
@@ -332,7 +338,7 @@ export function CollegeTopicsTab() {
                     Outed: {formatIstDisplay(topic.outing_time, { includeTzLabel: false })}
                   </span>
                   <span className="text-[10px]">
-                    Verified Committee Release
+                    ..
                   </span>
                 </div>
               </Card>

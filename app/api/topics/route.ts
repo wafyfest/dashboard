@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     // Attach item details
     const { data: ev } = await auth.db
       .from('events')
-      .select('item_id, item_code, name_eng, name_mal, phase, category, mode')
+      .select('item_id, item_code, name_eng, name_mal, phase, category, mode, is_submission, is_screening')
       .eq('item_id', itemId)
       .maybeSingle();
 
@@ -225,7 +225,7 @@ export async function PUT(req: NextRequest) {
     if (data?.item_id) {
       const { data: itemData } = await auth.db
         .from('events')
-        .select('item_id, item_code, name_eng, name_mal, phase, category, mode')
+        .select('item_id, item_code, name_eng, name_mal, phase, category, mode, is_submission, is_screening')
         .eq('item_id', data.item_id)
         .maybeSingle();
       ev = itemData;

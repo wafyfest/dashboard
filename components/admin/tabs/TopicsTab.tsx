@@ -60,7 +60,7 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
   // Filter & Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'released' | 'scheduled' | 'hidden'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [phaseFilter, setPhaseFilter] = useState<string>('all');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -310,11 +310,11 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
     );
   }, [items, itemSearchQuery]);
 
-  // Unique categories for filtering
-  const availableCategories = useMemo(() => {
+  // Unique phases for filtering
+  const availablePhases = useMemo(() => {
     const set = new Set<string>();
     items.forEach(it => {
-      if (it.category) set.add(it.category);
+      if (it.phase) set.add(it.phase);
     });
     return Array.from(set).sort();
   }, [items]);
@@ -329,19 +329,23 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
         const itemNameMal = (t.item?.name_mal || '').toLowerCase();
         const itemCode = (t.item?.item_code || '').toLowerCase();
         const topicTxt = (t.topic || '').toLowerCase();
+        const phaseTxt = (t.item?.phase || '').toLowerCase();
+        const modeTxt = (t.item?.mode || '').toLowerCase();
         const matches =
           itemNameEng.includes(q) ||
           itemNameMal.includes(q) ||
           itemCode.includes(q) ||
           topicTxt.includes(q) ||
+          phaseTxt.includes(q) ||
+          modeTxt.includes(q) ||
           String(t.item_id).includes(q);
         if (!matches) return false;
       }
 
-      // Category filter
-      if (categoryFilter !== 'all') {
-        const cat = t.item?.category || '';
-        if (cat.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+      // Phase filter (strictly filtering by phase)
+      if (phaseFilter !== 'all') {
+        const p = t.item?.phase || '';
+        if (p.toLowerCase() !== phaseFilter.toLowerCase()) return false;
       }
 
       // Status filter
@@ -354,7 +358,7 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
 
       return true;
     });
-  }, [topics, searchQuery, categoryFilter, statusFilter, currentTime]);
+  }, [topics, searchQuery, phaseFilter, statusFilter, currentTime]);
 
   // Metrics Counts
   const metrics = useMemo(() => {
@@ -515,19 +519,19 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
               </select>
             </div>
 
-            {/* Category Filter */}
-            {availableCategories.length > 0 && (
+            {/* Phase Filter */}
+            {availablePhases.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                <span>Category:</span>
+                <span>Phase:</span>
                 <select
-                  value={categoryFilter}
-                  onChange={e => setCategoryFilter(e.target.value)}
+                  value={phaseFilter}
+                  onChange={e => setPhaseFilter(e.target.value)}
                   className="px-2.5 py-1.5 text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--f-saffron)]"
                 >
-                  <option value="all">All Categories</option>
-                  {availableCategories.map(cat => (
-                    <option key={cat} value={cat}>
-                      {formatStudentCategory(cat)}
+                  <option value="all">All Phases</option>
+                  {availablePhases.map(phase => (
+                    <option key={phase} value={phase}>
+                      {phase}
                     </option>
                   ))}
                 </select>
@@ -596,11 +600,11 @@ export function TopicsTab({ onRefresh }: TopicsTabProps) {
                             <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
                               {item?.item_code || `ITM-${topic.item_id}`}
                             </span>
-                            {item?.category && (
-                              <CategoryBadge category={item.category} size="sm" />
+                            {(item?.phase || item?.category) && (
+                              <CategoryBadge category={item.phase || item.category} size="sm" />
                             )}
                             {item?.mode && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-xs">
                                 {item.mode}
                               </span>
                             )}
