@@ -6,6 +6,7 @@ const LIVE_REF = 'mwzhidbsioveoggjkhmi';
 const TEST_REF = 'kwdyjcrdilmaqpolgqds';
 
 function queryRemote(projectRef, sql, isReadOnly = true) {
+  if (!sql || !sql.trim()) return [];
   const tmpSql = path.resolve(process.cwd(), `.temp_${Date.now()}_${Math.random().toString(36).slice(2)}.sql`);
   try {
     fs.writeFileSync(tmpSql, sql, 'utf8');
@@ -13,10 +14,11 @@ function queryRemote(projectRef, sql, isReadOnly = true) {
     const cmd = `npx supabase db query --remote=${projectRef} ${flag} --file "${tmpSql}"`;
     const out = execSync(cmd, { stdio: 'pipe' }).toString();
     
-    // Find the JSON output starting from the first '{' after boundary
+    // Find the JSON output starting from the first '{' to last '}'
     const jsonStart = out.indexOf('{');
-    if (jsonStart !== -1) {
-      const parsed = JSON.parse(out.slice(jsonStart));
+    const jsonEnd = out.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
+      const parsed = JSON.parse(out.slice(jsonStart, jsonEnd + 1));
       return parsed.rows || [];
     }
     return [];

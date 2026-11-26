@@ -10,6 +10,18 @@ export function escapeCsvField(val: unknown): string {
 }
 
 /**
+ * Builds RFC 4180 compliant CSV string with UTF-8 BOM prefix.
+ */
+export function generateCsvContent(
+  headers: string[],
+  rows: (string | number | null | undefined)[][]
+): string {
+  const headerLine = headers.map(escapeCsvField).join(',');
+  const rowLines = rows.map(row => row.map(escapeCsvField).join(','));
+  return '\uFEFF' + [headerLine, ...rowLines].join('\r\n');
+}
+
+/**
  * Returns formatted timestamp suitable for filenames: YYYY-MM-DD_HH-mm-ss
  */
 export function getFilenameTimestamp(date: Date = new Date()): string {
@@ -36,10 +48,7 @@ export function ensureFilenameTimestamp(filename: string): string {
 export function downloadCsv(filename: string, headers: string[], rows: (string | number | null | undefined)[][]): void {
   if (typeof window === 'undefined') return;
 
-  const headerLine = headers.map(escapeCsvField).join(',');
-  const rowLines = rows.map(row => row.map(escapeCsvField).join(','));
-  const csvContent = '\uFEFF' + [headerLine, ...rowLines].join('\r\n');
-
+  const csvContent = generateCsvContent(headers, rows);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

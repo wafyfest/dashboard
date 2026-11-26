@@ -7,7 +7,6 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  Link2,
   Layers,
   Search,
   CheckCircle2,
@@ -15,17 +14,41 @@ import {
   Building2,
   Video,
   FileCheck,
+  FolderArchive,
+  Mic,
+  Palette,
   X
 } from 'lucide-react';
-import { Item, College, Registration, SubmissionEntry, Student, isScreeningEvent, isSubmissionEvent, isSpecialGroupEvent } from '@/lib/types/fest';
+import {
+  Item,
+  College,
+  Registration,
+  SubmissionEntry,
+  Student,
+  isScreeningEvent,
+  isSubmissionEvent,
+  isSpecialGroupEvent,
+  isSpecialEvent,
+  getEffectiveStageMode
+} from '@/lib/types/fest';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
-import { downloadCsv, getFilenameTimestamp } from '@/lib/utils/csvExport';
+import { downloadCsv, generateCsvContent, getFilenameTimestamp } from '@/lib/utils/csvExport';
+import { downloadZip, ZipFileEntry } from '@/lib/utils/zipExport';
 import { formatPdfItemMode, generateParticipantsListPdf, ParticipantPdfRow } from '@/lib/utils/participantsListPdf';
 import { findStudentByIdentifier, getCanonicalChestNo } from '@/lib/utils/studentIdentity';
 
 export type ExportCategory = 'prefest' | 'event_wise' | 'college_wise' | 'pdf';
 export type PreFestSubType = 'screening' | 'submission' | 'all';
+export type EventModeFilter =
+  | 'all'
+  | 'onstage'
+  | 'offstage'
+  | 'submission'
+  | 'screening'
+  | 'general'
+  | 'special';
+export type ExportPackaging = 'single' | 'separate';
 export type ExportScope = 'all' | 'specific';
 export type PdfScopeType = 'event' | 'college';
 
@@ -52,26 +75,38 @@ export interface ExportModalProps {
   students?: Student[];
 }
 
-function resolveInitialCategory(type?: ExportType): { category: ExportCategory; subType: PreFestSubType } {
+function resolveInitialCategory(type?: ExportType): {
+  category: ExportCategory;
+  subType: PreFestSubType;
+  modeFilter: EventModeFilter;
+} {
   if (!type || type === 'prefest' || type === 'links') {
-    return { category: 'prefest', subType: 'all' };
+    return { category: 'prefest', subType: 'all', modeFilter: 'all' };
   }
   if (type === 'screening') {
-    return { category: 'prefest', subType: 'screening' };
+    return { category: 'prefest', subType: 'screening', modeFilter: 'screening' };
   }
   if (type === 'submission') {
-    return { category: 'prefest', subType: 'submission' };
+    return { category: 'prefest', subType: 'submission', modeFilter: 'submission' };
   }
   if (type === 'event_wise' || type === 'roster_csv') {
-    return { category: 'event_wise', subType: 'all' };
+    return { category: 'event_wise', subType: 'all', modeFilter: 'all' };
   }
   if (type === 'college_wise' || type === 'college_csv') {
-    return { category: 'college_wise', subType: 'all' };
+    return { category: 'college_wise', subType: 'all', modeFilter: 'all' };
   }
   if (type === 'pdf' || type === 'roster_pdf') {
-    return { category: 'pdf', subType: 'all' };
+    return { category: 'pdf', subType: 'all', modeFilter: 'all' };
   }
-  return { category: 'prefest', subType: 'all' };
+  return { category: 'prefest', subType: 'all', modeFilter: 'all' };
+}
+
+function sanitizeFileName(str: string): string {
+  return str
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .trim();
 }
 
 export function ExportModal({
@@ -91,6 +126,8 @@ export function ExportModal({
 
   const [category, setCategory] = useState<ExportCategory>(initialResolved.category);
   const [preFestSubType, setPreFestSubType] = useState<PreFestSubType>(initialResolved.subType);
+  const [eventModeFilter, setEventModeFilter] = useState<EventModeFilter>(initialResolved.modeFilter);
+  const [packaging, setPackaging] = useState<ExportPackaging>('single');
   const [scope, setScope] = useState<ExportScope>(initialEventId || initialCollegeAffl ? 'specific' : 'all');
   const [pdfScopeType, setPdfScopeType] = useState<PdfScopeType>(initialCollegeAffl ? 'college' : 'event');
   const [selectedEventId, setSelectedEventId] = useState<number>(initialEventId || 0);
@@ -104,6 +141,8 @@ export function ExportModal({
       const resolved = resolveInitialCategory(initialType);
       setCategory(resolved.category);
       setPreFestSubType(resolved.subType);
+      setEventModeFilter(resolved.modeFilter);
+      setPackaging('single');
       setSearchQuery('');
 
       if (resolved.category === 'college_wise' || (resolved.category === 'pdf' && initialCollegeAffl)) {
@@ -174,15 +213,42 @@ export function ExportModal({
     );
   }, [items]);
 
-  // Selectable items according to category and preFestSubType
+  // Event Mode filtering for Event-Wise view
+  const eventModeFilteredItems = useMemo(() => {
+    if (category !== 'event_wise') return items;
+    return items.filter(i => {
+      switch (eventModeFilter) {
+        case 'onstage':
+          return getEffectiveStageMode(i) === 'onstage';
+        case 'offstage':
+          return getEffectiveStageMode(i) === 'offstage';
+        case 'submission':
+          return isSubmissionEvent(i) || Boolean(i.is_submission) || i.mode === 'submission';
+        case 'screening':
+          return isScreeningEvent(i) || Boolean(i.is_screening);
+        case 'general':
+          return (i.phase || '').toLowerCase() === 'general' || (i.category || '').toLowerCase() === 'general';
+        case 'special':
+          return isSpecialEvent(i) || (i.category || '').toUpperCase() === 'D' || /^SE\d/i.test(i.item_code || i.code || '');
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [items, category, eventModeFilter]);
+
+  // Selectable items according to category, preFestSubType, and eventModeFilter
   const selectableItems = useMemo(() => {
     if (category === 'prefest') {
       if (preFestSubType === 'screening') return screeningItems;
       if (preFestSubType === 'submission') return submissionItems;
       return allPreFestItems;
     }
+    if (category === 'event_wise') {
+      return eventModeFilteredItems;
+    }
     return items;
-  }, [category, preFestSubType, screeningItems, submissionItems, allPreFestItems, items]);
+  }, [category, preFestSubType, screeningItems, submissionItems, allPreFestItems, eventModeFilteredItems, items]);
 
   // Filtered event list for search dropdown
   const filteredItems = useMemo(() => {
@@ -241,6 +307,19 @@ export function ExportModal({
     return colleges.find(c => Number(c.affl_no) === Number(selectedCollegeAffl));
   }, [colleges, selectedCollegeAffl]);
 
+  // Counts of events by mode for UI badges
+  const modeCounts = useMemo(() => {
+    return {
+      all: items.length,
+      onstage: items.filter(i => getEffectiveStageMode(i) === 'onstage').length,
+      offstage: items.filter(i => getEffectiveStageMode(i) === 'offstage').length,
+      screening: screeningItems.length,
+      submission: submissionItems.length,
+      general: items.filter(i => (i.phase || '').toLowerCase() === 'general' || (i.category || '').toLowerCase() === 'general').length,
+      special: items.filter(i => isSpecialEvent(i) || (i.category || '').toUpperCase() === 'D' || /^SE\d/i.test(i.item_code || i.code || '')).length,
+    };
+  }, [items, screeningItems, submissionItems]);
+
   // Estimated rows count
   const estimatedRowsCount = useMemo(() => {
     if (category === 'college_wise') {
@@ -253,7 +332,8 @@ export function ExportModal({
       if (scope === 'specific') {
         return registrations.filter(r => Number(r.item_id) === Number(selectedEventId)).length;
       }
-      return registrations.length;
+      const targetIds = new Set(selectableItems.map(i => Number(i.item_id)));
+      return registrations.filter(r => targetIds.has(Number(r.item_id))).length;
     }
     if (category === 'prefest') {
       if (scope === 'specific') {
@@ -287,6 +367,9 @@ export function ExportModal({
         const safeCode = currentEvent.item_code || currentEvent.code || `Item_${currentEvent.item_id}`;
         return `${safeCode}_${typePrefix}_links_${timestamp}.csv`;
       }
+      if (packaging === 'separate') {
+        return `PreFest_Links_${typePrefix.toUpperCase()}_Separate_Files_${timestamp}.zip`;
+      }
       return `${typePrefix}_event_links_master_${timestamp}.csv`;
     }
 
@@ -295,7 +378,11 @@ export function ExportModal({
         const safeCode = currentEvent.item_code || currentEvent.code || `Item_${currentEvent.item_id}`;
         return `Event_${safeCode}_participants_${timestamp}.csv`;
       }
-      return `ALL_EVENTS_participants_master_${timestamp}.csv`;
+      const modePrefix = eventModeFilter === 'all' ? 'ALL_EVENTS' : `MODE_${eventModeFilter.toUpperCase()}`;
+      if (packaging === 'separate') {
+        return `Event_Rosters_${modePrefix}_Separate_Files_${timestamp}.zip`;
+      }
+      return `${modePrefix}_participants_master_${timestamp}.csv`;
     }
 
     if (category === 'college_wise') {
@@ -314,26 +401,89 @@ export function ExportModal({
       return `Event_${safeCode}_Roster_${timestamp}.pdf`;
     }
     return `Fest_Participants_Roster_${timestamp}.pdf`;
-  }, [category, preFestSubType, scope, pdfScopeType, currentEvent, currentCol]);
+  }, [category, preFestSubType, eventModeFilter, packaging, scope, pdfScopeType, currentEvent, currentCol]);
 
   // Perform Export Execution
   const handleExecuteExport = () => {
     setIsExporting(true);
     try {
-      // 1. PRE-FEST SCREENING & SUBMISSION LINKS CSV
+      // 1. PRE-FEST SCREENING & SUBMISSION LINKS CSV / ZIP
       if (category === 'prefest') {
-        const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
-        const rows: string[][] = [];
+        const headers = ['Chest No', 'Link', 'Event Name', 'Category', 'College'];
 
-        const targetEventIds =
-          scope === 'specific'
-            ? new Set([Number(selectedEventId)])
-            : new Set(selectableItems.map(i => Number(i.item_id)));
+        const targetItems = scope === 'specific' && currentEvent
+          ? [currentEvent]
+          : selectableItems;
 
+        const targetEventIds = new Set(targetItems.map(i => Number(i.item_id)));
         const targetRegs = registrations.filter(r => targetEventIds.has(Number(r.item_id)));
 
+        if (targetRegs.length === 0) {
+          alert('No registrations found for the selected pre-fest event scope.');
+          return;
+        }
+
+        // SEPARATE FILES PER EVENT (ZIP ARCHIVE)
+        if (scope === 'all' && packaging === 'separate') {
+          const zipFiles: ZipFileEntry[] = [];
+
+          targetItems.forEach(itm => {
+            const eventRegs = targetRegs.filter(r => Number(r.item_id) === Number(itm.item_id));
+            if (eventRegs.length === 0) return; // Skip events without candidates
+
+            const rows: string[][] = [];
+            eventRegs.forEach(reg => {
+              const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+              const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
+              const chestNo = reg.chest_no || getCanonicalChestNo(stu) || (stu?.chest_no ? String(stu.chest_no) : `COL-${reg.college_affl_no}`);
+
+              const sub = submissions.find(
+                s =>
+                  Number(s.item_id) === Number(reg.item_id) &&
+                  (Number(s.college_affl_no) === Number(reg.college_affl_no) ||
+                    String(s.chest_no).trim().toUpperCase() === String(chestNo).trim().toUpperCase())
+              );
+
+              const link = sub?.file_url || 'Not Submitted';
+              const eventName = itm?.name_eng || itm?.name || (itm?.item_code ? `Event ${itm.item_code}` : `Item #${reg.item_id}`);
+              const categoryName = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
+              const collegeLabel = col?.name ? `${col.name} (#${col.affl_no})` : `College #${reg.college_affl_no}`;
+
+              rows.push([String(chestNo), link, eventName, categoryName, collegeLabel]);
+            });
+
+            // Sort: valid submitted links first, then chest no
+            rows.sort((a, b) => {
+              const aHas = a[1] !== 'Not Submitted' ? 0 : 1;
+              const bHas = b[1] !== 'Not Submitted' ? 0 : 1;
+              if (aHas !== bHas) return aHas - bHas;
+              return a[0].localeCompare(b[0]);
+            });
+
+            const codeStr = itm.item_code || itm.code || `ITM_${itm.item_id}`;
+            const nameStr = sanitizeFileName(itm.name_eng || itm.name || 'Event');
+            const fileContent = generateCsvContent(headers, rows);
+            zipFiles.push({
+              name: `${codeStr}_${nameStr}_links.csv`,
+              content: fileContent
+            });
+          });
+
+          if (zipFiles.length === 0) {
+            alert('No event links found to export into separate files.');
+            return;
+          }
+
+          downloadZip(previewFilename, zipFiles);
+          onClose();
+          return;
+        }
+
+        // CONSOLIDATED SINGLE MASTER FILE (CSV)
+        const rows: string[][] = [];
         targetRegs.forEach(reg => {
           const itm = items.find(i => Number(i.item_id) === Number(reg.item_id));
+          const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
           const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
           const chestNo = reg.chest_no || getCanonicalChestNo(stu) || (stu?.chest_no ? String(stu.chest_no) : `COL-${reg.college_affl_no}`);
 
@@ -347,14 +497,10 @@ export function ExportModal({
           const link = sub?.file_url || 'Not Submitted';
           const eventName = itm?.name_eng || itm?.name || (itm?.item_code ? `Event ${itm.item_code}` : `Item #${reg.item_id}`);
           const categoryName = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
+          const collegeLabel = col?.name ? `${col.name} (#${col.affl_no})` : `College #${reg.college_affl_no}`;
 
-          rows.push([String(chestNo), link, eventName, categoryName]);
+          rows.push([String(chestNo), link, eventName, categoryName, collegeLabel]);
         });
-
-        if (rows.length === 0) {
-          alert('No registrations found for the selected pre-fest event scope.');
-          return;
-        }
 
         // Sort: valid submitted links first, then by event name and chest no
         rows.sort((a, b) => {
@@ -369,7 +515,7 @@ export function ExportModal({
         return;
       }
 
-      // 2. EVENT-WISE PARTICIPANT ROSTER CSV
+      // 2. EVENT-WISE PARTICIPANT ROSTER CSV / ZIP
       if (category === 'event_wise') {
         const headers = [
           'Sl No',
@@ -391,16 +537,89 @@ export function ExportModal({
           'Screening Status'
         ];
 
-        let targetRegs = registrations;
-        if (scope === 'specific') {
-          targetRegs = registrations.filter(r => Number(r.item_id) === Number(selectedEventId));
-        }
+        const targetItems = scope === 'specific' && currentEvent
+          ? [currentEvent]
+          : selectableItems;
+
+        const targetItemIds = new Set(targetItems.map(i => Number(i.item_id)));
+        const targetRegs = registrations.filter(r => targetItemIds.has(Number(r.item_id)));
 
         if (targetRegs.length === 0) {
           alert('No registrations found for the selected event scope.');
           return;
         }
 
+        // SEPARATE FILES PER EVENT (ZIP ARCHIVE)
+        if (scope === 'all' && packaging === 'separate') {
+          const zipFiles: ZipFileEntry[] = [];
+
+          targetItems.forEach(itm => {
+            const eventRegs = targetRegs.filter(r => Number(r.item_id) === Number(itm.item_id));
+            if (eventRegs.length === 0) return; // Skip events without registrations
+
+            const sortedEventRegs = [...eventRegs].sort(
+              (a, b) => (a.code_letter || '').localeCompare(b.code_letter || '') ||
+                        Number(a.college_affl_no) - Number(b.college_affl_no)
+            );
+
+            let slNo = 1;
+            const rows: (string | number)[][] = [];
+
+            sortedEventRegs.forEach(reg => {
+              const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
+              const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
+
+              const isInstitutional =
+                (reg.chest_no && reg.chest_no.startsWith('COL-')) || isSpecialGroupEvent(itm);
+              const studentName = isInstitutional
+                ? `${col?.name || 'College'} (College Entry)`
+                : stu?.name || stu?.full_name || 'Participant';
+              const cicNo = isInstitutional ? '—' : String(stu?.admission_no || stu?.cic_no || reg.cic_no || '—');
+              const chestNo = isInstitutional
+                ? reg.chest_no || `COL-${reg.college_affl_no}`
+                : reg.chest_no || getCanonicalChestNo(stu);
+
+              rows.push([
+                slNo++,
+                itm.item_code || itm.code || `ITM-${reg.item_id}`,
+                itm.name_eng || itm.name || `Item #${reg.item_id}`,
+                itm.phase || '—',
+                itm.category || '—',
+                formatPdfItemMode(itm),
+                itm.item_type || ((itm.min_participants ?? 1) > 1 ? 'Group' : 'Single'),
+                reg.code_letter || '—',
+                chestNo,
+                cicNo,
+                studentName,
+                reg.college_affl_no || '',
+                col?.short_name || col?.code || '',
+                col?.name || `College #${reg.college_affl_no}`,
+                stu?.class || '—',
+                stu?.phase || '—',
+                reg.screening_status || 'pending'
+              ]);
+            });
+
+            const codeStr = itm.item_code || itm.code || `ITM_${itm.item_id}`;
+            const nameStr = sanitizeFileName(itm.name_eng || itm.name || 'Event');
+            const fileContent = generateCsvContent(headers, rows);
+            zipFiles.push({
+              name: `${codeStr}_${nameStr}_participants.csv`,
+              content: fileContent
+            });
+          });
+
+          if (zipFiles.length === 0) {
+            alert('No event participant records found to package.');
+            return;
+          }
+
+          downloadZip(previewFilename, zipFiles);
+          onClose();
+          return;
+        }
+
+        // CONSOLIDATED SINGLE MASTER FILE (CSV)
         let slNo = 1;
         const rows: (string | number)[][] = [];
 
@@ -623,12 +842,17 @@ export function ExportModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Export Festival Rosters & Data"
-      description="Select your export format: Pre-Fest screening/submission links, event-wise, college-wise, or printable PDF."
+      description="Export screening links, full competition rosters by mode/phase, institutional rosters, or official PDF stage sheets."
       maxWidth="xl"
       footer={
         <div className="flex items-center justify-between w-full">
-          <div className="text-xs text-[var(--text-muted)] font-mono">
-            {estimatedRowsCount} entries matching scope
+          <div className="text-xs text-[var(--text-muted)] font-mono flex items-center gap-2">
+            <span>{estimatedRowsCount} entries matching scope</span>
+            {scope === 'all' && packaging === 'separate' && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-[10px]">
+                {selectableItems.length} Separate Files (ZIP)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={onClose}>
@@ -641,8 +865,20 @@ export function ExportModal({
               disabled={isExporting || estimatedRowsCount === 0}
               className="font-heading font-bold gap-1.5"
             >
-              <Download className="w-4 h-4" />
-              <span>{isExporting ? 'Exporting...' : 'Download Export'}</span>
+              {packaging === 'separate' && scope === 'all' ? (
+                <FolderArchive className="w-4 h-4" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>
+                {isExporting
+                  ? packaging === 'separate' && scope === 'all'
+                    ? 'Packaging ZIP...'
+                    : 'Exporting...'
+                  : packaging === 'separate' && scope === 'all'
+                  ? 'Download ZIP Bundle'
+                  : 'Download Export'}
+              </span>
             </Button>
           </div>
         </div>
@@ -675,10 +911,10 @@ export function ExportModal({
               </div>
               <div>
                 <div className="text-xs font-heading font-bold text-[var(--text-primary)]">
-                  Pre-Fest Events
+                  Pre-Fest Links
                 </div>
                 <div className="text-[10px] text-[var(--text-muted)] mt-0.5 font-sans leading-tight">
-                  Screening &amp; submission links (Chest #, Link, Event, Category)
+                  Screening &amp; submission links (Chest #, Link, Event)
                 </div>
               </div>
             </button>
@@ -703,10 +939,10 @@ export function ExportModal({
               </div>
               <div>
                 <div className="text-xs font-heading font-bold text-[var(--text-primary)]">
-                  Event-Wise (CSV)
+                  Event-Wise (CSV / ZIP)
                 </div>
                 <div className="text-[10px] text-[var(--text-muted)] mt-0.5 font-sans leading-tight">
-                  Full participant roster by competition event
+                  Filter by mode, stage, screening, or special
                 </div>
               </div>
             </button>
@@ -734,7 +970,7 @@ export function ExportModal({
                   College-Wise (CSV)
                 </div>
                 <div className="text-[10px] text-[var(--text-muted)] mt-0.5 font-sans leading-tight">
-                  Participant roster grouped by college institution
+                  Rosters grouped by college institution
                 </div>
               </div>
             </button>
@@ -769,7 +1005,7 @@ export function ExportModal({
           </div>
         </div>
 
-        {/* 2. IF PRE-FEST: SUB-TYPE SELECTOR (SCREENING VS SUBMISSION) */}
+        {/* 2A. IF PRE-FEST: SUB-TYPE SELECTOR (SCREENING VS SUBMISSION) */}
         {category === 'prefest' && (
           <div className="space-y-1.5 p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]">
             <label className="text-xs font-heading font-bold text-[var(--text-secondary)] uppercase tracking-wider block">
@@ -827,7 +1063,155 @@ export function ExportModal({
           </div>
         )}
 
-        {/* 3. IF PDF: CHOOSE EVENT VS COLLEGE */}
+        {/* 2B. IF EVENT-WISE: COMPREHENSIVE EVENT MODE FILTER */}
+        {category === 'event_wise' && (
+          <div className="space-y-1.5 p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-heading font-bold text-[var(--text-secondary)] uppercase tracking-wider block">
+                Filter by Event Mode &amp; Type
+              </label>
+              <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                {selectableItems.length} matching events
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {/* ALL */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('all');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'all'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">All Events</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.all}
+                </span>
+              </button>
+
+              {/* ON STAGE */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('onstage');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'onstage'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">On Stage</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.onstage}
+                </span>
+              </button>
+
+              {/* OFF STAGE */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('offstage');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'offstage'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">Off Stage</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.offstage}
+                </span>
+              </button>
+
+              {/* SCREENING */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('screening');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'screening'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">Screening</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.screening}
+                </span>
+              </button>
+
+              {/* SUBMISSION */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('submission');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'submission'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">Submission</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.submission}
+                </span>
+              </button>
+
+              {/* GENERAL */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('general');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'general'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">General</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.general}
+                </span>
+              </button>
+
+              {/* SPECIAL */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEventModeFilter('special');
+                  setSearchQuery('');
+                }}
+                className={`py-1.5 px-2 rounded-lg border text-xs font-medium transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                  eventModeFilter === 'special'
+                    ? 'border-[var(--f-saffron)] bg-[var(--f-saffron)] text-[#090d1a] font-bold shadow-xs'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <span className="truncate">Special (Cat D)</span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/10">
+                  {modeCounts.special}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 2C. IF PDF: CHOOSE EVENT VS COLLEGE */}
         {category === 'pdf' && (
           <div className="space-y-1.5 p-3 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]">
             <label className="text-xs font-heading font-bold text-[var(--text-secondary)] uppercase tracking-wider block">
@@ -869,7 +1253,7 @@ export function ExportModal({
           </div>
         )}
 
-        {/* 4. CHOOSE SCOPE: ALL VS SPECIFIC */}
+        {/* 3. CHOOSE SCOPE: ALL VS SPECIFIC */}
         <div className="space-y-1.5">
           <label className="text-xs font-heading font-bold text-[var(--text-secondary)] uppercase tracking-wider">
             2. Choose Scope (All vs Specific)
@@ -889,7 +1273,7 @@ export function ExportModal({
                 <Layers className="w-4 h-4 text-amber-500 shrink-0" />
                 <span>
                   {category === 'college_wise'
-                    ? `All Colleges Master (${colleges.length})`
+                    ? `All Colleges (${colleges.length})`
                     : category === 'prefest'
                     ? `All ${
                         preFestSubType === 'screening'
@@ -898,7 +1282,7 @@ export function ExportModal({
                           ? 'Submission'
                           : 'Pre-Fest'
                       } Events (${selectableItems.length})`
-                    : `All Events Master (${items.length})`}
+                    : `All ${eventModeFilter === 'all' ? '' : eventModeFilter.toUpperCase() + ' '}Events (${selectableItems.length})`}
                 </span>
               </span>
               {scope === 'all' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />}
@@ -925,6 +1309,65 @@ export function ExportModal({
             </button>
           </div>
         </div>
+
+        {/* 4. PACKAGING OPTION: SINGLE CONSOLIDATED FILE VS SEPARATE FILE PER EVENT (FOR ALL SCOPE) */}
+        {scope === 'all' && (category === 'event_wise' || category === 'prefest') && (
+          <div className="space-y-1.5 p-3 bg-gradient-to-r from-amber-500/5 to-transparent rounded-xl border border-amber-500/20">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-heading font-bold text-[var(--text-primary)] uppercase tracking-wider block">
+                3. Download Packaging Option
+              </label>
+              <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                {packaging === 'separate' ? 'ZIP Archive' : 'Single CSV'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+              {/* OPTION A: SINGLE FILE */}
+              <button
+                type="button"
+                onClick={() => setPackaging('single')}
+                className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                  packaging === 'single'
+                    ? 'border-[var(--f-saffron)] bg-amber-500/15 ring-1 ring-amber-500/30'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <FileSpreadsheet className={`w-4 h-4 shrink-0 mt-0.5 ${packaging === 'single' ? 'text-amber-500' : 'text-[var(--text-muted)]'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center justify-between">
+                    <span>All Events in 1 File</span>
+                    {packaging === 'single' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                    One single master CSV with all events, candidates, and details consolidated.
+                  </div>
+                </div>
+              </button>
+
+              {/* OPTION B: SEPARATE FILES PER EVENT (ZIP) */}
+              <button
+                type="button"
+                onClick={() => setPackaging('separate')}
+                className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                  packaging === 'separate'
+                    ? 'border-[var(--f-saffron)] bg-amber-500/15 ring-1 ring-amber-500/30'
+                    : 'border-[var(--border-medium)] bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]'
+                }`}
+              >
+                <FolderArchive className={`w-4 h-4 shrink-0 mt-0.5 ${packaging === 'separate' ? 'text-amber-500' : 'text-[var(--text-muted)]'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-heading font-bold text-[var(--text-primary)] flex items-center justify-between">
+                    <span>Each Event in Separate File</span>
+                    {packaging === 'separate' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                    Separate individual CSV file for each event, bundled in a single ZIP download.
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 5. SPECIFIC SELECTOR (EVENT OR COLLEGE) */}
         {scope === 'specific' && (category !== 'college_wise' && !(category === 'pdf' && pdfScopeType === 'college')) && (
@@ -968,7 +1411,7 @@ export function ExportModal({
                 {filteredItems.map(itm => {
                   const isScreen = isScreeningEvent(itm) || Boolean(itm.is_screening);
                   const isSub = isSubmissionEvent(itm) || Boolean(itm.is_submission) || itm.mode === 'submission';
-                  const tag = isScreen ? 'Screening' : isSub ? 'Submission' : 'Stage';
+                  const tag = isScreen ? 'Screening' : isSub ? 'Submission' : getEffectiveStageMode(itm) === 'onstage' ? 'On Stage' : 'Off Stage';
                   const itemCode = itm.item_code || itm.code || `ITM-${itm.item_id}`;
                   const itemName = itm.name_eng || itm.name || 'Event';
                   const isSelected = Number(selectedEventId) === Number(itm.item_id);
@@ -1008,7 +1451,7 @@ export function ExportModal({
               </div>
             ) : (
               <div className="text-xs text-amber-600 dark:text-amber-400 p-2.5 bg-amber-500/10 rounded-lg flex items-center justify-between border border-amber-500/20">
-                <span>No events match "{searchQuery}"</span>
+                <span>No events match &quot;{searchQuery}&quot;</span>
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
@@ -1094,7 +1537,7 @@ export function ExportModal({
               </div>
             ) : (
               <div className="text-xs text-amber-600 dark:text-amber-400 p-2.5 bg-amber-500/10 rounded-lg flex items-center justify-between border border-amber-500/20">
-                <span>No colleges match "{searchQuery}"</span>
+                <span>No colleges match &quot;{searchQuery}&quot;</span>
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
@@ -1116,14 +1559,24 @@ export function ExportModal({
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+            <span>Packaging Mode:</span>
+            <span className="font-mono text-[var(--text-secondary)] font-semibold">
+              {scope === 'all' && packaging === 'separate'
+                ? `ZIP Archive with ${selectableItems.length} separate event CSV files`
+                : scope === 'all'
+                ? 'Single Master CSV file (all events combined)'
+                : 'Single Event CSV file'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
             <span>Included Columns:</span>
             <span className="font-mono text-[var(--text-secondary)]">
               {category === 'prefest'
-                ? 'Chest No, Link, Event Name, Category'
+                ? 'Chest No, Link, Event Name, Category, College'
                 : category === 'college_wise'
                 ? 'College #, Name, Chest #, CIC, Student, Class, Event Code, Name...'
                 : category === 'event_wise'
-                ? 'Sl No, Event Code, Name, Chest #, CIC, Student, College...'
+                ? 'Sl No, Event Code, Name, Blind Letter, Chest #, CIC, Student, College...'
                 : 'Official PDF Table with Chest Numbers & Signatures'}
             </span>
           </div>

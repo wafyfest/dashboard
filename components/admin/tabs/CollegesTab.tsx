@@ -17,7 +17,9 @@ import {
 } from '@/components/ui/table';
 import { useFest } from '@/lib/context/FestContext';
 import { festService } from '@/lib/services/festService';
-import { College } from '@/lib/types/fest';
+import { College, LateRegistration } from '@/lib/types/fest';
+import { findStudentByIdentifier } from '@/lib/utils/studentIdentity';
+import { formatIstDisplay } from '@/lib/utils/istDate';
 import {
   Building2,
   Search,
@@ -35,7 +37,10 @@ import {
   Users,
   CheckCircle2,
   Info,
-  DollarSign
+  DollarSign,
+  RotateCcw,
+  Receipt,
+  Check
 } from 'lucide-react';
 
 interface CollegesTabProps {
@@ -60,11 +65,98 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
   const [fineModalAmount, setFineModalAmount] = useState<number>(500);
   const [fineModalReason, setFineModalReason] = useState<string>('Administrative Penalty');
 
+  // Waive & Manage Event Fines Modal State
+  const [collegeForWaiveModal, setCollegeForWaiveModal] = useState<College | null>(null);
+
   // Reactive colleges from festService keyed to refreshKey
   const colleges = useMemo(() => festService.getColleges(), [refreshKey]);
 
-  // Calculate live registration counts per college
+  // Reactive items, students & registrations
+  const allItems = useMemo(() => festService.getItems(), [refreshKey]);
+  const allStudents = useMemo(() => festService.getStudents(), [refreshKey]);
   const allRegistrations = useMemo(() => festService.getRegistrations(), [refreshKey]);
+  const itemMap = useMemo(() => new Map(allItems.map(i => [Number(i.item_id || i.id), i])), [allItems]);
+
+  // Group late entries by event for the selected waive modal college
+  const waiveModalLateEntries = useMemo(() => {
+    if (!collegeForWaiveModal) return [];
+    return festService.getLateRegistrations(collegeForWaiveModal.affl_no);
+  }, [collegeForWaiveModal, refreshKey]);
+
+  const eventFineGroups = useMemo(() => {
+    if (!collegeForWaiveModal) return [];
+    const map = new Map<number, {
+      itemId: number;
+      itemCode: string;
+      itemName: string;
+      category: string;
+      mode: string;
+      entries: Array<{
+        raw: LateRegistration;
+        id?: string;
+        chestNo: string;
+        cicNo?: number | null;
+        studentName?: string;
+        fineTier: 'fine' | 'super_fine';
+        fineAmount: number;
+        lateReason?: string;
+        registeredAt?: string;
+        isWaived: boolean;
+      }>;
+      totalAmount: number;
+      pendingAmount: number;
+      waivedAmount: number;
+      isAllWaived: boolean;
+    }>();
+
+    waiveModalLateEntries.forEach(l => {
+      const itmId = Number(l.item_id);
+      if (!map.has(itmId)) {
+        const itm = itemMap.get(itmId);
+        map.set(itmId, {
+          itemId: itmId,
+          itemCode: itm?.item_code || itm?.code || `ITM-${itmId}`,
+          itemName: itm?.name_eng || itm?.name || `Event #${itmId}`,
+          category: itm?.category || itm?.phase || 'General',
+          mode: itm?.mode || 'onstage',
+          entries: [],
+          totalAmount: 0,
+          pendingAmount: 0,
+          waivedAmount: 0,
+          isAllWaived: true,
+        });
+      }
+
+      const group = map.get(itmId)!;
+      const matchedStudent = findStudentByIdentifier(allStudents, (l as any).cic_no || l.chest_no, collegeForWaiveModal.affl_no);
+      const studentName = matchedStudent?.name?.trim() ? matchedStudent.name.trim() : null;
+      const amt = Number(l.fine_amount) || (l.fine_tier === 'super_fine' ? 1000 : 500);
+      const isWaived = Boolean(l.is_waived);
+
+      group.entries.push({
+        raw: l,
+        id: l.id,
+        chestNo: l.chest_no,
+        cicNo: l.cic_no != null ? Number(l.cic_no) : null,
+        studentName: studentName || undefined,
+        fineTier: (l.fine_tier as 'fine' | 'super_fine') || 'fine',
+        fineAmount: amt,
+        lateReason: l.late_reason,
+        registeredAt: l.registered_at,
+        isWaived,
+      });
+
+      group.totalAmount += amt;
+      if (isWaived) {
+        group.waivedAmount += amt;
+      } else {
+        group.pendingAmount += amt;
+        group.isAllWaived = false;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.itemCode.localeCompare(b.itemCode, undefined, { numeric: true }));
+  }, [collegeForWaiveModal, waiveModalLateEntries, itemMap, allStudents]);
 
   const regCountByCollege = useMemo(() => {
     const counts = new Map<number, number>();
@@ -187,14 +279,98 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
       try {
         await festService.waiveCollegeAllFines(afflNo);
         triggerRefresh();
+        const fresh = festService.getCollege(afflNo);
         if (selectedCollegeForDetail?.affl_no === afflNo) {
-          const fresh = festService.getCollege(afflNo);
           setSelectedCollegeForDetail(fresh || null);
+        }
+        if (collegeForWaiveModal?.affl_no === afflNo) {
+          setCollegeForWaiveModal(fresh || null);
         }
       } finally {
         setIsProcessing(false);
       }
     }
+  };
+
+  const handleOpenWaiveModal = async (col: College) => {
+    setCollegeForWaiveModal(col);
+    try {
+      await festService.fetchLateRegistrationsForCollege(col.affl_no);
+      triggerRefresh();
+    } catch (err) {
+      console.warn('Failed to prefetch college late registrations:', err);
+    }
+  };
+
+  const handleToggleEventWaiver = async (itemId: number, isWaived: boolean) => {
+    if (!collegeForWaiveModal) return;
+    setIsProcessing(true);
+    try {
+      const afflNo = collegeForWaiveModal.affl_no;
+      await festService.toggleLateRegistrationWaiver('', isWaived, afflNo, itemId);
+      await festService.fetchLateRegistrationsForCollege(afflNo);
+      triggerRefresh();
+      const fresh = festService.getCollege(afflNo);
+      if (fresh) {
+        setCollegeForWaiveModal(fresh);
+        if (selectedCollegeForDetail?.affl_no === fresh.affl_no) {
+          setSelectedCollegeForDetail(fresh);
+        }
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleToggleEntryWaiver = async (rawEntry: LateRegistration, isWaived: boolean) => {
+    if (!collegeForWaiveModal) return;
+    setIsProcessing(true);
+    try {
+      const afflNo = collegeForWaiveModal.affl_no;
+      await festService.toggleLateRegistrationWaiver(
+        rawEntry.id || '',
+        isWaived,
+        afflNo,
+        rawEntry.item_id,
+        rawEntry.chest_no
+      );
+      await festService.fetchLateRegistrationsForCollege(afflNo);
+      triggerRefresh();
+      const fresh = festService.getCollege(afflNo);
+      if (fresh) {
+        setCollegeForWaiveModal(fresh);
+        if (selectedCollegeForDetail?.affl_no === fresh.affl_no) {
+          setSelectedCollegeForDetail(fresh);
+        }
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleWaiveManualFine = async () => {
+    if (!collegeForWaiveModal) return;
+    setIsProcessing(true);
+    try {
+      const afflNo = collegeForWaiveModal.affl_no;
+      await festService.waiveCollegeManualFine(afflNo);
+      triggerRefresh();
+      const fresh = festService.getCollege(afflNo);
+      if (fresh) {
+        setCollegeForWaiveModal(fresh);
+        if (selectedCollegeForDetail?.affl_no === fresh.affl_no) {
+          setSelectedCollegeForDetail(fresh);
+        }
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleWaiveAllFromModal = async () => {
+    if (!collegeForWaiveModal) return;
+    const summary = festService.getCollegeFineSummary(collegeForWaiveModal.affl_no);
+    await handleWaiveAll(collegeForWaiveModal.affl_no, collegeForWaiveModal.name, summary.netFine);
   };
 
   const handleRevokeAllOverrides = async () => {
@@ -605,10 +781,10 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
                                 <Button
                                   size="xs"
                                   variant="outline"
-                                  onClick={() => handleWaiveAll(col.affl_no, col.name, fineSummary.netFine)}
+                                  onClick={() => handleOpenWaiveModal(col)}
                                   disabled={isProcessing}
                                   className="h-7 px-2 text-xs font-semibold border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                                  title={`Waive all fines (₹${fineSummary.netFine.toLocaleString('en-IN')}) for this college`}
+                                  title={`Waive or manage specific event fines (₹${fineSummary.netFine.toLocaleString('en-IN')}) for this college`}
                                 >
                                   Waive
                                 </Button>
@@ -828,10 +1004,10 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
                     <Button
                       size="xs"
                       variant="outline"
-                      onClick={() => handleWaiveAll(selectedCollegeForDetail.affl_no, selectedCollegeForDetail.name, summary.netFine)}
+                      onClick={() => handleOpenWaiveModal(selectedCollegeForDetail)}
                       className="border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
                     >
-                      Waive All (₹{summary.netFine.toLocaleString('en-IN')})
+                      Waive Fines (₹{summary.netFine.toLocaleString('en-IN')})
                     </Button>
                   ) : (
                     <Button
@@ -938,6 +1114,283 @@ export function CollegesTab({ onOpenMatrix, hideMetrics = false }: CollegesTabPr
           </form>
         </Modal>
       )}
+
+      {/* WAIVE & MANAGE EVENT FINES MODAL */}
+      {collegeForWaiveModal && (() => {
+        const summary = festService.getCollegeFineSummary(collegeForWaiveModal.affl_no);
+        return (
+          <Modal
+            isOpen={Boolean(collegeForWaiveModal)}
+            onClose={() => setCollegeForWaiveModal(null)}
+            title={`Manage & Waive Fines: #${collegeForWaiveModal.affl_no} ${collegeForWaiveModal.name}`}
+            description="Selectively remove or waive fines for specific events, or forgive all institutional penalties."
+            maxWidth="3xl"
+          >
+            <div className="space-y-4">
+              {/* Summary KPIs & Waive All Button */}
+              <div className="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="grid grid-cols-3 gap-2 flex-1">
+                  <div className="p-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider">Net Outstanding</div>
+                    <div className="text-base font-black font-mono text-rose-500 mt-0.5">
+                      ₹{summary.netFine.toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider">Late Reg Fines</div>
+                    <div className="text-sm font-bold font-mono text-[var(--text-primary)] mt-0.5">
+                      ₹{summary.pendingAutoFine.toLocaleString('en-IN')}
+                      {summary.waivedAutoFine > 0 && (
+                        <span className="text-[10px] text-emerald-500 font-normal ml-1">
+                          (₹{summary.waivedAutoFine.toLocaleString('en-IN')} waived)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+                    <div className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider">Manual Fine</div>
+                    <div className="text-sm font-bold font-mono text-[var(--text-primary)] mt-0.5">
+                      ₹{summary.manualFine.toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
+
+                {summary.netFine > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleWaiveAllFromModal}
+                    disabled={isProcessing}
+                    className="shrink-0 font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs"
+                    title="Waive all late entry and manual fines for this college in one click"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    Waive All (₹{summary.netFine.toLocaleString('en-IN')})
+                  </Button>
+                )}
+              </div>
+
+              {/* Specific Fined Events Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] font-heading">
+                      Fined Events ({eventFineGroups.length})
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    Selectively waive or reinstate specific event fines
+                  </span>
+                </div>
+
+                {eventFineGroups.length === 0 ? (
+                  <div className="p-6 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 text-center space-y-2">
+                    <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto" />
+                    <p className="text-xs font-semibold text-[var(--text-primary)]">
+                      No Itemized Event Late Registrations
+                    </p>
+                    <p className="text-[11px] text-[var(--text-secondary)] max-w-md mx-auto">
+                      There are no registered events stamped with late fines for this institution.
+                    </p>
+                    {collegeForWaiveModal.fine_status && summary.manualFine === 0 && (
+                      <div className="pt-2">
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={handleWaiveAllFromModal}
+                          disabled={isProcessing}
+                          className="border-rose-400/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                        >
+                          Clear Institutional Fine Flag
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    {eventFineGroups.map(group => (
+                      <div
+                        key={group.itemId}
+                        className={`p-3 rounded-xl border transition-all ${
+                          group.pendingAmount === 0
+                            ? 'bg-emerald-500/[0.03] border-emerald-500/20'
+                            : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
+                        }`}
+                      >
+                        {/* Event Header Row */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
+                              {group.itemCode}
+                            </span>
+                            <span className="text-xs font-bold text-[var(--text-primary)]">
+                              {group.itemName}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] uppercase font-mono py-0">
+                              {group.category}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px] capitalize py-0">
+                              {group.mode}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {group.pendingAmount > 0 ? (
+                              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[11px] font-mono font-bold">
+                                Pending: ₹{group.pendingAmount.toLocaleString('en-IN')}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-mono font-bold">
+                                <Check className="w-3 h-3 mr-1 inline" /> All Waived (₹{group.waivedAmount.toLocaleString('en-IN')})
+                              </Badge>
+                            )}
+
+                            {/* Event-Level Bulk Waiver Button */}
+                            <Button
+                              size="xs"
+                              variant={group.pendingAmount > 0 ? 'destructive' : 'outline'}
+                              disabled={isProcessing}
+                              onClick={() => handleToggleEventWaiver(group.itemId, group.pendingAmount > 0)}
+                              className={`h-6 px-2 text-[11px] font-semibold cursor-pointer ${
+                                group.pendingAmount > 0
+                                  ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                              }`}
+                              title={
+                                group.pendingAmount > 0
+                                  ? `Waive fines for all entries in ${group.itemCode}`
+                                  : `Reinstate fines for ${group.itemCode}`
+                              }
+                            >
+                              {group.pendingAmount > 0 ? (
+                                <>Waive Event (₹{group.pendingAmount.toLocaleString('en-IN')})</>
+                              ) : (
+                                <>Reinstate Event</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Itemized Participant Entries under Event */}
+                        <div className="space-y-1.5 pt-1.5 border-t border-[var(--border-subtle)]/60">
+                          {group.entries.map((entry, idx) => (
+                            <div
+                              key={entry.id || `${group.itemId}-${entry.chestNo}-${idx}`}
+                              className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-[var(--bg-subtle)]/60 hover:bg-[var(--bg-subtle)] transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono font-bold text-[11px] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
+                                  {entry.chestNo}
+                                </span>
+                                {entry.studentName && (
+                                  <span className="font-medium text-[var(--text-primary)] truncate max-w-[180px] sm:max-w-[240px]">
+                                    {entry.studentName}
+                                  </span>
+                                )}
+                                <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono font-bold uppercase ${
+                                  entry.fineTier === 'super_fine'
+                                    ? 'bg-orange-500/15 text-orange-600 border border-orange-500/30'
+                                    : 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
+                                }`}>
+                                  {entry.fineTier === 'super_fine' ? 'Super Fine' : 'Late Fine'}
+                                </span>
+                                {entry.registeredAt && (
+                                  <span className="text-[10px] text-[var(--text-muted)] hidden md:inline">
+                                    {formatIstDisplay(entry.registeredAt)}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`font-mono font-bold text-[11px] ${
+                                  entry.isWaived ? 'line-through text-[var(--text-muted)]' : 'text-rose-500'
+                                }`}>
+                                  ₹{entry.fineAmount.toLocaleString('en-IN')}
+                                </span>
+
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  disabled={isProcessing}
+                                  onClick={() => handleToggleEntryWaiver(entry.raw, !entry.isWaived)}
+                                  className={`h-5 px-1.5 text-[10px] font-semibold cursor-pointer ${
+                                    entry.isWaived
+                                      ? 'text-[var(--text-muted)] hover:text-amber-500'
+                                      : 'text-rose-500 hover:bg-rose-500/10'
+                                  }`}
+                                  title={entry.isWaived ? 'Reinstate fine for this entry' : 'Waive fine for this specific student entry'}
+                                >
+                                  {entry.isWaived ? 'Reinstate' : 'Waive'}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Manual Administrative Penalty Card */}
+              {(Number(collegeForWaiveModal.manual_fine_amount) || 0) > 0 && (
+                <div className="p-3.5 rounded-xl bg-amber-500/[0.04] border border-amber-500/30 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldAlert className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                        <span>Manual Administrative Fine:</span>
+                        <span className="font-mono text-rose-500 font-bold">
+                          ₹{(Number(collegeForWaiveModal.manual_fine_amount) || 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                        Reason: {collegeForWaiveModal.fine_reason || 'Administrative Committee Penalty'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={isProcessing}
+                    onClick={handleWaiveManualFine}
+                    className="border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer font-semibold shrink-0"
+                  >
+                    Waive Manual Fine
+                  </Button>
+                </div>
+              )}
+
+              {/* Modal Footer */}
+              <div className="pt-2 flex items-center justify-between border-t border-[var(--border-subtle)]">
+                <div className="text-xs text-[var(--text-secondary)]">
+                  {summary.netFine === 0 ? (
+                    <span className="text-emerald-500 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> All institution fines cleared
+                    </span>
+                  ) : (
+                    <span>
+                      Pending Net Total: <strong className="font-mono text-rose-500">₹{summary.netFine.toLocaleString('en-IN')}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCollegeForWaiveModal(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

@@ -47,6 +47,7 @@ const liveSb = createClient(liveEnv.NEXT_PUBLIC_SUPABASE_URL, liveEnv.SUPABASE_S
 const testSb = createClient(testEnv.NEXT_PUBLIC_SUPABASE_URL, testEnv.SUPABASE_SERVICE_ROLE_KEY);
 
 function runRemoteSql(projectRef, sql, isReadOnly = false) {
+  if (!sql || !sql.trim()) return [];
   const tmpFile = path.resolve(process.cwd(), `.temp_sql_${Date.now()}_${Math.random().toString(36).slice(2)}.sql`);
   try {
     fs.writeFileSync(tmpFile, sql, 'utf8');
@@ -54,9 +55,11 @@ function runRemoteSql(projectRef, sql, isReadOnly = false) {
     const cmd = `npx supabase db query --remote=${projectRef} ${flag} --file "${tmpFile}"`;
     const out = execSync(cmd, { stdio: 'pipe' }).toString();
     const jsonStart = out.indexOf('{');
-    if (jsonStart !== -1) {
+    const jsonEnd = out.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
       try {
-        return JSON.parse(out.slice(jsonStart)).rows || [];
+        const jsonStr = out.slice(jsonStart, jsonEnd + 1);
+        return JSON.parse(jsonStr).rows || [];
       } catch {
         return [];
       }
@@ -331,7 +334,9 @@ async function cloneDatabase() {
       updated_at = EXCLUDED.updated_at;
   `).join('\n');
 
-  runRemoteSql(TEST_REF, userStatements, false);
+  if (userStatements.trim()) {
+    runRemoteSql(TEST_REF, userStatements, false);
+  }
 
   const identityStatements = identities.map(i => `
     INSERT INTO auth.identities (
@@ -347,7 +352,9 @@ async function cloneDatabase() {
       updated_at = EXCLUDED.updated_at;
   `).join('\n');
 
-  runRemoteSql(TEST_REF, identityStatements, false);
+  if (identityStatements.trim()) {
+    runRemoteSql(TEST_REF, identityStatements, false);
+  }
   console.log(`✅ Synced ${users.length} auth.users and ${identities.length} auth.identities into TEST DB.\n`);
 
   // STEP 4: Verification Matrix

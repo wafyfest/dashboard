@@ -1346,8 +1346,9 @@ class FestService {
 
     const updated = lateRegs.map(r => {
       const match =
-        (r.id && r.id === lateEntryId) ||
-        (itemId != null && chestNo && r.item_id === itemId && r.chest_no === chestNo);
+        (lateEntryId && r.id === lateEntryId) ||
+        (itemId != null && chestNo && r.item_id === itemId && r.chest_no === chestNo) ||
+        (itemId != null && !chestNo && collegeAfflNo != null && r.item_id === itemId && r.college_affl_no === collegeAfflNo);
       if (match) {
         targetAffl = targetAffl ?? r.college_affl_no;
         return {
@@ -1382,6 +1383,28 @@ class FestService {
         chestNo,
         collegeAfflNo: targetAffl,
         isWaived,
+      });
+    }
+    return true;
+  }
+
+  public async waiveCollegeManualFine(collegeAfflNo: number): Promise<boolean> {
+    const col = this.getCollege(collegeAfflNo);
+    if (!col) return false;
+
+    const lateRegs = this.getLateRegistrations(collegeAfflNo);
+    const hasRemainingUnwaived = lateRegs.some(r => !r.is_waived);
+
+    this.updateCollege(collegeAfflNo, {
+      manual_fine_amount: 0,
+      fine_reason: null,
+      fine_status: hasRemainingUnwaived,
+    });
+
+    if (supabase) {
+      await this.postServerApi('/api/admin/manage', {
+        action: 'waive_college_manual_fine',
+        afflNo: collegeAfflNo,
       });
     }
     return true;

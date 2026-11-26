@@ -235,14 +235,16 @@ export async function POST(req: NextRequest) {
         if (collegeAfflNo != null) {
           query = query.eq('college_affl_no', collegeAfflNo);
         }
+      } else if (itemId != null && collegeAfflNo != null) {
+        query = query.eq('item_id', itemId).eq('college_affl_no', collegeAfflNo);
       } else {
-        return NextResponse.json({ error: 'Entry identifier (id or itemId + chestNo) required.' }, { status: 400 });
+        return NextResponse.json({ error: 'Entry identifier (id, itemId + chestNo, or itemId + collegeAfflNo) required.' }, { status: 400 });
       }
 
-      const { data, error } = await query.select('college_affl_no').maybeSingle();
+      const { data, error } = await query.select('college_affl_no').limit(1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      const affl = collegeAfflNo ?? data?.college_affl_no;
+      const affl = collegeAfflNo ?? (data && data[0]?.college_affl_no);
       if (affl) {
         // Check if college still has any active (unwaived) late registrations or manual fine
         const [activeLateRes, colRes] = await Promise.all([
@@ -258,6 +260,34 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ success: true, isWaived });
+    }
+
+    if (action === 'waive_college_manual_fine') {
+      if (auth.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: only executive admin can waive institutional fines.' }, { status: 403 });
+      }
+      const afflNo = Number(body?.afflNo);
+      if (!afflNo || Number.isNaN(afflNo)) {
+        return NextResponse.json({ error: 'Valid college afflNo is required.' }, { status: 400 });
+      }
+
+      const { data: activeLate } = await auth.db
+        .from('late_registrations')
+        .select('id')
+        .eq('college_affl_no', afflNo)
+        .eq('is_waived', false)
+        .limit(1);
+
+      const hasActiveLate = Boolean(activeLate && activeLate.length > 0);
+
+      const { error } = await auth.db.from('colleges').update({
+        manual_fine_amount: 0,
+        fine_reason: null,
+        fine_status: hasActiveLate,
+      }).eq('affl_no', afflNo);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'clear_late_registrations') {
