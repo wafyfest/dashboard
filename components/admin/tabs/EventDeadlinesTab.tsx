@@ -29,7 +29,6 @@ import {
   User,
   Check,
   Loader2,
-  ExternalLink,
   Video
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
@@ -1299,21 +1298,6 @@ export function EventDeadlinesTab() {
                                           </span>
                                         )}
                                       </div>
-                                      {entry.youtube_url && (
-                                        <div className="mt-1">
-                                          <a
-                                            href={entry.youtube_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[10px] font-mono transition-colors"
-                                            title={entry.youtube_url}
-                                          >
-                                            <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
-                                            <span>Watch Video</span>
-                                          </a>
-                                        </div>
-                                      )}
                                     </td>
                                     <td className="py-2.5 px-3 font-mono text-[11px]">
                                       {entry.is_link_submission ? (
