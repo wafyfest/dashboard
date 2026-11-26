@@ -217,7 +217,9 @@ export async function POST(req: NextRequest) {
       if (auth.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden: only executive admin can toggle entry-level waivers.' }, { status: 403 });
       }
-      const lateEntryId = body?.id ? String(body.id) : null;
+      const isUuid = (val: any) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+      const rawId = body?.id ? String(body.id) : null;
+      const lateEntryId = rawId && isUuid(rawId) ? rawId : null;
       const itemId = body?.itemId != null ? Number(body.itemId) : null;
       const chestNo = body?.chestNo ? String(body.chestNo).trim() : null;
       const collegeAfflNo = body?.collegeAfflNo != null ? Number(body.collegeAfflNo) : null;
@@ -243,6 +245,20 @@ export async function POST(req: NextRequest) {
 
       const { data, error } = await query.select('college_affl_no').limit(1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      // If no row was updated and we have item, chest, and college, upsert the late registration record
+      if ((!data || data.length === 0) && itemId != null && collegeAfflNo != null && chestNo) {
+        await auth.db.from('late_registrations').upsert({
+          item_id: itemId,
+          college_affl_no: collegeAfflNo,
+          chest_no: chestNo,
+          is_waived: isWaived,
+          waived_at: isWaived ? new Date().toISOString() : null,
+          late_reason: 'Late Registration (Waived)',
+          fine_tier: 'fine',
+          fine_amount: Number(body?.fineAmount) || 200,
+        }, { onConflict: 'item_id,chest_no' });
+      }
 
       const affl = collegeAfflNo ?? (data && data[0]?.college_affl_no);
       if (affl) {

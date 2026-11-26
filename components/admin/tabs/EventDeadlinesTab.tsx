@@ -26,7 +26,9 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  User
+  User,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
@@ -92,8 +94,10 @@ export function EventDeadlinesTab() {
 
   // Late Registrations Filters
   const [lateTierFilter, setLateTierFilter] = useState<'all' | 'fine' | 'super_fine'>('all');
+  const [lateStatusFilter, setLateStatusFilter] = useState<'all' | 'active' | 'waived'>('all');
   const [lateSearchQuery, setLateSearchQuery] = useState<string>('');
   const [collapsedColleges, setCollapsedColleges] = useState<Record<number, boolean>>({});
+  const [waivingKeys, setWaivingKeys] = useState<Record<string, boolean>>({});
 
   // Form state for current selected category
   const currentSetting = useMemo(() => {
@@ -311,6 +315,7 @@ export function EventDeadlinesTab() {
       entriesCount: number;
       fineCount: number;
       superFineCount: number;
+      waivedCount: number;
       totalFines: number;
       entries: typeof enrichedLateEntries;
     }>();
@@ -325,17 +330,22 @@ export function EventDeadlinesTab() {
           entriesCount: 0,
           fineCount: 0,
           superFineCount: 0,
+          waivedCount: 0,
           totalFines: 0,
           entries: []
         });
       }
       const rec = map.get(affl)!;
       rec.entriesCount += 1;
-      rec.totalFines += entry.fine_amount;
-      if (entry.fine_tier === 'super_fine') {
-        rec.superFineCount += 1;
+      if (entry.is_waived) {
+        rec.waivedCount += 1;
       } else {
-        rec.fineCount += 1;
+        rec.totalFines += entry.fine_amount;
+        if (entry.fine_tier === 'super_fine') {
+          rec.superFineCount += 1;
+        } else {
+          rec.fineCount += 1;
+        }
       }
       rec.entries.push(entry);
     });
@@ -343,11 +353,17 @@ export function EventDeadlinesTab() {
     return Array.from(map.values()).sort((a, b) => b.totalFines - a.totalFines);
   }, [enrichedLateEntries]);
 
-  // Filtered College Groups based on search and tier filter
+  // Filtered College Groups based on search, tier filter, and waiver status filter
   const filteredCollegeGroups = useMemo(() => {
     return collegeGroups.map(col => {
       const filteredEntries = col.entries.filter(entry => {
         if (lateTierFilter !== 'all' && entry.fine_tier !== lateTierFilter) {
+          return false;
+        }
+        if (lateStatusFilter === 'active' && entry.is_waived) {
+          return false;
+        }
+        if (lateStatusFilter === 'waived' && !entry.is_waived) {
           return false;
         }
         if (lateSearchQuery.trim()) {
@@ -365,15 +381,17 @@ export function EventDeadlinesTab() {
 
       if (filteredEntries.length === 0) return null;
 
-      const groupTotal = filteredEntries.reduce((s, e) => s + e.fine_amount, 0);
+      const groupTotal = filteredEntries.filter(e => !e.is_waived).reduce((s, e) => s + e.fine_amount, 0);
+      const groupWaivedCount = filteredEntries.filter(e => e.is_waived).length;
 
       return {
         ...col,
         entries: filteredEntries,
-        groupTotal
+        groupTotal,
+        groupWaivedCount
       };
-    }).filter(Boolean) as (typeof collegeGroups[0] & { groupTotal: number })[];
-  }, [collegeGroups, lateTierFilter, lateSearchQuery]);
+    }).filter(Boolean) as (typeof collegeGroups[0] & { groupTotal: number; groupWaivedCount: number })[];
+  }, [collegeGroups, lateTierFilter, lateStatusFilter, lateSearchQuery]);
 
   const totalFinesOverall = useMemo(() => {
     return collegeGroups.reduce((sum, c) => sum + c.totalFines, 0);
@@ -393,6 +411,74 @@ export function EventDeadlinesTab() {
     setCollapsedColleges(allCollapsed);
   };
 
+  // Toggle waiver for individual late registration entry
+  const handleToggleWaiver = async (entry: any) => {
+    const key = entry.id || `${entry.college_affl_no}_${entry.item_id}_${entry.chest_no}`;
+    setWaivingKeys(prev => ({ ...prev, [key]: true }));
+    const nextWaived = !entry.is_waived;
+
+    try {
+      // 1. Optimistic update
+      setLateRegistrations(prev => {
+        const index = prev.findIndex(r =>
+          (entry.id && r.id === entry.id) ||
+          (Number(r.item_id) === Number(entry.item_id) && String(r.chest_no).trim() === String(entry.chest_no).trim() && Number(r.college_affl_no) === Number(entry.college_affl_no))
+        );
+
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = {
+            ...updated[index],
+            is_waived: nextWaived,
+            waived_at: nextWaived ? new Date().toISOString() : null,
+          };
+          return updated;
+        }
+
+        return [
+          ...prev,
+          {
+            id: entry.id || `late-${Date.now()}`,
+            item_id: Number(entry.item_id),
+            college_affl_no: Number(entry.college_affl_no),
+            chest_no: String(entry.chest_no),
+            cic_no: entry.cic_no || null,
+            late_reason: entry.late_reason || 'Late Registration',
+            fine_tier: entry.fine_tier || 'fine',
+            fine_amount: Number(entry.fine_amount) || 200,
+            effective_deadline: entry.effective_deadline || null,
+            registered_at: entry.registered_at || new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            is_waived: nextWaived,
+            waived_at: nextWaived ? new Date().toISOString() : null,
+            waived_by: null,
+          }
+        ];
+      });
+
+      // 2. Call service method (syncs memory storage and calls /api/admin/manage)
+      await festService.toggleLateRegistrationWaiver(
+        entry.id,
+        nextWaived,
+        Number(entry.college_affl_no),
+        Number(entry.item_id),
+        String(entry.chest_no)
+      );
+
+      // 3. Refresh colleges to reflect updated fine_status
+      setColleges(festService.getColleges());
+    } catch (err: any) {
+      console.error('Error toggling waiver:', err);
+      await loadData();
+    } finally {
+      setWaivingKeys(prev => {
+        const copy = { ...prev };
+        delete copy[key];
+        return copy;
+      });
+    }
+  };
+
   // CSV Exporter
   const handleExportLateRegistrationsCsv = () => {
     const allFilteredEntries = filteredCollegeGroups.flatMap(g => g.entries);
@@ -408,6 +494,7 @@ export function EventDeadlinesTab() {
       'Event Mode',
       'Fine Tier',
       'Fine Amount (INR)',
+      'Status',
       'Registered At (IST)',
       'Effective Deadline (IST)',
       'Late Reason'
@@ -423,7 +510,8 @@ export function EventDeadlinesTab() {
       `"${e.event_category || ''}"`,
       `"${e.event_mode || ''}"`,
       `"${e.fine_tier || 'fine'}"`,
-      e.fine_amount || 0,
+      e.is_waived ? 0 : (e.fine_amount || 0),
+      `"${e.is_waived ? 'Waived' : 'Active Fine'}"`,
       `"${e.registered_at ? formatIstDisplay(e.registered_at) : ''}"`,
       `"${e.effective_deadline ? formatIstDisplay(e.effective_deadline) : ''}"`,
       `"${(e.late_reason || '').replace(/"/g, '""')}"`
@@ -1031,8 +1119,18 @@ export function EventDeadlinesTab() {
               className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-medium"
             >
               <option value="all">All Fine Tiers</option>
-              <option value="fine">Late Fine Only (₹500)</option>
+              <option value="fine">Late Fine Only</option>
               <option value="super_fine">Super Fine Only (₹1,000)</option>
+            </select>
+
+            <select
+              value={lateStatusFilter}
+              onChange={e => setLateStatusFilter(e.target.value as any)}
+              className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--border-medium)] bg-[var(--bg-surface)] text-[var(--text-primary)] font-medium"
+            >
+              <option value="all">All Statuses (Active & Waived)</option>
+              <option value="active">Active Fines Only</option>
+              <option value="waived">Waived Only</option>
             </select>
           </div>
 
@@ -1044,7 +1142,7 @@ export function EventDeadlinesTab() {
                 No matching college late registration records found.
               </p>
               <p className="text-[11px] text-[var(--text-muted)]">
-                Try adjusting your search query or tier filter.
+                Try adjusting your search query or tier/status filters.
               </p>
             </div>
           ) : (
@@ -1083,10 +1181,19 @@ export function EventDeadlinesTab() {
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-xs font-semibold text-[var(--text-secondary)] hidden md:inline">
                           {college.entries.length} Late Entry{college.entries.length > 1 ? 's' : ''}
+                          {college.groupWaivedCount > 0 && (
+                            <span className="ml-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                              ({college.groupWaivedCount} Waived)
+                            </span>
+                          )}
                         </span>
 
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-black bg-amber-500 text-black shadow-xs whitespace-nowrap">
-                          ₹{college.groupTotal.toLocaleString()}
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-black shadow-xs whitespace-nowrap ${
+                          college.groupTotal > 0
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        }`}>
+                          {college.groupTotal > 0 ? `₹${college.groupTotal.toLocaleString()}` : 'All Waived'}
                         </span>
 
                         <div className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -1099,7 +1206,7 @@ export function EventDeadlinesTab() {
                     {!isCollapsed && (
                       <div className="p-0">
                         <div className="overflow-x-auto scrollbar-thin">
-                          <table className="w-full text-xs text-left min-w-[640px]">
+                          <table className="w-full text-xs text-left min-w-[700px]">
                             <thead className="bg-[var(--bg-surface)] text-[var(--text-secondary)] font-semibold border-b border-[var(--border-subtle)]">
                               <tr>
                                 <th className="py-2.5 px-3 w-8">#</th>
@@ -1109,67 +1216,125 @@ export function EventDeadlinesTab() {
                                 <th className="py-2.5 px-3">Deadline Cutoff (IST)</th>
                                 <th className="py-2.5 px-3">Fine Tier & Amount</th>
                                 <th className="py-2.5 px-3">Late Reason</th>
+                                <th className="py-2.5 px-3 text-right">Action</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border-subtle)]">
-                              {college.entries.map((entry, idx) => (
-                                <tr key={entry.id || idx} className="hover:bg-[var(--bg-hover)] transition-colors">
-                                  <td className="py-2.5 px-3 font-mono text-[var(--text-muted)] text-[11px]">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                                      <User className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                                      {entry.student_name ? (
-                                        <span>{entry.student_name}</span>
+                              {college.entries.map((entry, idx) => {
+                                const entryKey = entry.id || `${entry.college_affl_no}_${entry.item_id}_${entry.chest_no}`;
+                                const isWaiving = Boolean(waivingKeys[entryKey]);
+
+                                return (
+                                  <tr key={entry.id || idx} className="hover:bg-[var(--bg-hover)] transition-colors">
+                                    <td className="py-2.5 px-3 font-mono text-[var(--text-muted)] text-[11px]">
+                                      {idx + 1}
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                                        <User className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                        {entry.student_name ? (
+                                          <span>{entry.student_name}</span>
+                                        ) : (
+                                          <span className="text-[var(--text-muted)] font-normal italic text-[11px]">
+                                            Unmapped Participant
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-mono text-[var(--text-muted)] ml-5">
+                                        Chest #{entry.chest_no}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                                        <span className="font-mono text-amber-500 text-[11px] font-bold">
+                                          {entry.event_code}
+                                        </span>
+                                        <span>{entry.event_name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                                          Cat {entry.event_category}
+                                        </span>
+                                        <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)] uppercase">
+                                          {entry.event_mode}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-primary)]">
+                                      {entry.registered_at ? formatIstDisplay(entry.registered_at) : '—'}
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-muted)]">
+                                      {entry.effective_deadline ? formatIstDisplay(entry.effective_deadline) : '—'}
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      {entry.is_waived ? (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold border inline-block whitespace-nowrap bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 line-through opacity-70">
+                                            ₹{entry.fine_amount}
+                                          </span>
+                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                            Waived
+                                          </span>
+                                        </div>
                                       ) : (
-                                        <span className="text-[var(--text-muted)] font-normal italic text-[11px]">
-                                          Unmapped Participant
+                                        <span
+                                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border inline-block whitespace-nowrap ${
+                                            entry.fine_tier === 'super_fine'
+                                              ? 'bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                                              : 'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                                          }`}
+                                        >
+                                          ₹{entry.fine_amount} {entry.fine_tier === 'super_fine' ? 'Super Fine' : 'Late Fine'}
                                         </span>
                                       )}
-                                    </div>
-                                    <span className="text-[10px] font-mono text-[var(--text-muted)] ml-5">
-                                      Chest #{entry.chest_no}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <div className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                                      <span className="font-mono text-amber-500 text-[11px] font-bold">
-                                        {entry.event_code}
-                                      </span>
-                                      <span>{entry.event_name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-                                        Cat {entry.event_category}
-                                      </span>
-                                      <span className="text-[9px] px-1 py-0 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)] uppercase">
-                                        {entry.event_mode}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-primary)]">
-                                    {entry.registered_at ? formatIstDisplay(entry.registered_at) : '—'}
-                                  </td>
-                                  <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-muted)]">
-                                    {entry.effective_deadline ? formatIstDisplay(entry.effective_deadline) : '—'}
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <span
-                                      className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border inline-block whitespace-nowrap ${
-                                        entry.fine_tier === 'super_fine'
-                                          ? 'bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                                          : 'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                                      }`}
-                                    >
-                                      ₹{entry.fine_amount} {entry.fine_tier === 'super_fine' ? 'Super Fine' : 'Late Fine'}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-[11px] text-[var(--text-secondary)] max-w-xs truncate" title={entry.late_reason}>
-                                    {entry.late_reason || 'Registered In Late Window'}
-                                  </td>
-                                </tr>
-                              ))}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-[11px] text-[var(--text-secondary)] max-w-xs truncate" title={entry.late_reason}>
+                                      {entry.late_reason?.includes('Link Submission') ? (
+                                        <span className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-medium">
+                                          <LinkIcon className="w-3 h-3 flex-shrink-0" />
+                                          <span>{entry.late_reason}</span>
+                                        </span>
+                                      ) : (
+                                        <span>{entry.late_reason || 'Registered In Late Window'}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                      <Button
+                                        size="xs"
+                                        variant={entry.is_waived ? 'secondary' : 'outline'}
+                                        disabled={isWaiving}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleWaiver(entry);
+                                        }}
+                                        className={`h-7 px-2.5 text-[11px] font-semibold cursor-pointer transition-all ${
+                                          entry.is_waived
+                                            ? 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40'
+                                            : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500'
+                                        }`}
+                                        title={entry.is_waived ? 'Reinstate fine for this entry' : 'Waive fine for this specific entry'}
+                                      >
+                                        {isWaiving ? (
+                                          <span className="flex items-center gap-1">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            <span>Saving...</span>
+                                          </span>
+                                        ) : entry.is_waived ? (
+                                          <span className="flex items-center gap-1">
+                                            <RefreshCw className="w-3 h-3" />
+                                            <span>Reinstate</span>
+                                          </span>
+                                        ) : (
+                                          <span className="flex items-center gap-1">
+                                            <Check className="w-3 h-3" />
+                                            <span>Waive (₹{entry.fine_amount})</span>
+                                          </span>
+                                        )}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -1178,16 +1343,18 @@ export function EventDeadlinesTab() {
                         <div className="px-3 py-2 bg-[var(--bg-subtle)]/40 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-[var(--text-secondary)]">
                           <div className="flex items-center gap-3 text-[11px]">
                             <span>
-                              Late Fine Count: <strong>{college.entries.filter(e => e.fine_tier !== 'super_fine').length}</strong>
+                              Active Late Fines: <strong className="text-[var(--text-primary)]">{college.entries.filter(e => !e.is_waived).length}</strong>
                             </span>
-                            {college.entries.filter(e => e.fine_tier === 'super_fine').length > 0 && (
-                              <span>
-                                Super Fine Count: <strong>{college.entries.filter(e => e.fine_tier === 'super_fine').length}</strong>
+                            {college.groupWaivedCount > 0 && (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                Waived: <strong>{college.groupWaivedCount}</strong>
                               </span>
                             )}
                           </div>
                           <span className="font-mono font-bold text-[var(--text-primary)]">
-                            Subtotal: <span className="text-amber-500 font-black">₹{college.groupTotal.toLocaleString()}</span>
+                            Subtotal: <span className={college.groupTotal > 0 ? "text-amber-500 font-black" : "text-emerald-500 font-bold"}>
+                              {college.groupTotal > 0 ? `₹${college.groupTotal.toLocaleString()}` : '₹0 (All Waived)'}
+                            </span>
                           </span>
                         </div>
                       </div>

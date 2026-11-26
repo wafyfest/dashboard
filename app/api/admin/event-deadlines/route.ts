@@ -124,12 +124,12 @@ export async function POST(req: NextRequest) {
         await auth.db.from('events').update({
           reg_deadline: cleanRow.no_fine_deadline,
           fine_deadline: cleanRow.fine_deadline,
-        }).or('is_screening.eq.true,mode.eq.screening');
+        }).eq('is_screening', true);
       } else if (payload.event_kind === 'submission') {
         await auth.db.from('events').update({
           reg_deadline: cleanRow.no_fine_deadline,
           fine_deadline: cleanRow.fine_deadline,
-        }).or('is_submission.eq.true,mode.eq.submission');
+        }).eq('is_submission', true);
       } else if (payload.event_kind === 'onstage') {
         await auth.db.from('events').update({
           reg_deadline: cleanRow.no_fine_deadline,

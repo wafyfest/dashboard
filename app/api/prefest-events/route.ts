@@ -450,6 +450,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Check YouTube submission deadlines if not admin
+      let currentLinkEval: any = null;
+      let activeDlSetting: any = null;
       if (auth.role !== 'admin') {
         // 1. Check primary event_deadline_settings table
         const eventKind = reg.event_type === 'SCREENING' ? 'screening' : 'submission';
@@ -459,8 +461,11 @@ export async function POST(req: NextRequest) {
           .eq('event_kind', eventKind)
           .maybeSingle();
 
+        activeDlSetting = dlSetting;
+
         if (dlSetting) {
           const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
+          currentLinkEval = linkEval;
           if (!linkEval.canSubmitLink) {
             return NextResponse.json({
               error: `Link submission is closed: ${linkEval.timeRemainingText}. (Status: ${linkEval.label})`
@@ -512,7 +517,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: subErr.message }, { status: 500 });
       }
 
-      // Also mirror into public.submission_entries for universal festival reporting
+      // Also mirror into public.submission_entries and public.late_registrations if submitted during late window
       try {
         const { data: eventItem } = await auth.db
           .from('events')
@@ -523,12 +528,16 @@ export async function POST(req: NextRequest) {
         if (eventItem?.item_id) {
           const { data: mainReg } = await auth.db
             .from('registrations')
-            .select('chest_no')
+            .select('chest_no, cic_no')
             .eq('item_id', eventItem.item_id)
             .eq('college_affl_no', reg.college_affl_no)
             .order('created_at', { ascending: true })
             .limit(1)
             .maybeSingle();
+
+          const submissionStatus = currentLinkEval && (currentLinkEval.tier === 'fine' || currentLinkEval.tier === 'super_fine')
+            ? 'fine'
+            : 'on_time';
 
           if (mainReg?.chest_no) {
             await auth.db.from('submission_entries').upsert(
@@ -536,16 +545,40 @@ export async function POST(req: NextRequest) {
                 college_affl_no: reg.college_affl_no,
                 chest_no: mainReg.chest_no,
                 item_id: eventItem.item_id,
-                status: 'on_time',
+                status: submissionStatus,
                 file_url: cleanUrl,
                 submitted_at: new Date().toISOString()
               },
               { onConflict: 'item_id,chest_no' }
             );
+
+            // If link submission was submitted in late window, stamp into late_registrations
+            if (currentLinkEval && (currentLinkEval.tier === 'fine' || currentLinkEval.tier === 'super_fine')) {
+              const fineTier = currentLinkEval.tier;
+              const fineAmount = Number(currentLinkEval.fineAmount) || (fineTier === 'super_fine' ? 1000 : 500);
+              const lateReason = `Late Link Submission (₹${fineAmount}) — within link fine window`;
+
+              await auth.db.from('late_registrations').upsert(
+                {
+                  item_id: eventItem.item_id,
+                  college_affl_no: reg.college_affl_no,
+                  chest_no: mainReg.chest_no,
+                  cic_no: mainReg.cic_no || null,
+                  late_reason: lateReason,
+                  fine_tier: fineTier,
+                  fine_amount: fineAmount,
+                  effective_deadline: activeDlSetting?.link_no_fine_deadline || null,
+                  registered_at: new Date().toISOString()
+                },
+                { onConflict: 'item_id,chest_no' }
+              );
+
+              await auth.db.from('colleges').update({ fine_status: true }).eq('affl_no', reg.college_affl_no);
+            }
           }
         }
       } catch (mirrorErr) {
-        console.warn('Notice: submission_entries mirror error:', mirrorErr);
+        console.warn('Notice: submission_entries/late_registrations mirror error:', mirrorErr);
       }
 
       return NextResponse.json({
