@@ -205,11 +205,16 @@ export function isSpecialEvent(
 }
 
 /**
- * Returns true for Special Group Events (e.g. SE090 Campaign Setting, SE091 Moral Video Making)
+ * Returns true for Special Group Events (e.g. SE091 Moral Video Making)
  * which are registered as an institutional delegation under the College Name.
+ * SE090 Campaign Setting is excluded (it is a standard 5-student group event).
  */
 export function isSpecialGroupEvent(
   item?: {
+    item_id?: number | string | null;
+    id?: number | string | null;
+    name_eng?: string | null;
+    name?: string | null;
     phase?: string | null;
     category?: string | null;
     item_code?: string | null;
@@ -219,6 +224,16 @@ export function isSpecialGroupEvent(
   } | null
 ): boolean {
   if (!item) return false;
+  const code = (item.item_code || item.code || '').trim().toUpperCase();
+  const idNum = Number(item.item_id || item.id);
+  const name = (item.name_eng || item.name || '').trim().toLowerCase();
+
+  // SE090 Campaign Setting is a standard student group registration (5 participants),
+  // NOT an institutional college delegation.
+  if (code === 'SE090' || idNum === 90 || name === 'campaign setting') {
+    return false;
+  }
+
   const isGroup = item.point_type === 'group' || item.item_type === 'Group';
   return isGroup && isSpecialEvent(item);
 }
