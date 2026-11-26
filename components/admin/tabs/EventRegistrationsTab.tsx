@@ -583,9 +583,17 @@ export function EventRegistrationsTab() {
   };
 
   const handleExportScreeningSubmissionLinksCsv = (itm: Item, participants: EnrolledParticipantRow[]) => {
-    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const headers = ['Item Code', 'Chest No', 'Link', 'Event Name', 'Category', 'Mode'];
     const eventName = itm.name_eng || itm.name || itm.code || `Item #${itm.item_id}`;
     const category = itm.category ? `${itm.phase || ''} (${itm.category})` : itm.phase || 'General';
+    const itemCode = itm.item_code || itm.code || `ITM-${itm.item_id}`;
+    const modeLabel = getEffectiveStageMode(itm) === 'onstage'
+      ? isScreeningEvent(itm) || itm.is_screening
+        ? 'On Stage (Screening)'
+        : 'On Stage'
+      : isSubmissionEvent(itm) || itm.is_submission
+      ? 'Off Stage (Submission)'
+      : 'Off Stage';
 
     const rows = participants.map(p => {
       const chestNo = p.registration.chest_no || getCanonicalChestNo(p.student) || '—';
@@ -593,10 +601,12 @@ export function EventRegistrationsTab() {
       const link = sub?.file_url || 'Not Submitted';
 
       return [
+        itemCode,
         String(chestNo),
         link,
         eventName,
-        category
+        category,
+        modeLabel
       ];
     });
 
@@ -608,7 +618,7 @@ export function EventRegistrationsTab() {
   };
 
   const handleExportAllScreeningSubmissionLinksCsv = () => {
-    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const headers = ['Item Code', 'Chest No', 'Link', 'Event Name', 'Category', 'Mode'];
     const rows: string[][] = [];
 
     const targetItems = items.filter(
@@ -631,14 +641,26 @@ export function EventRegistrationsTab() {
       );
 
       const link = sub?.file_url || 'Not Submitted';
+      const itemCode = itm?.item_code || itm?.code || (itm?.item_id ? `ITM-${itm.item_id}` : `ITM-${reg.item_id}`);
       const eventName = itm?.name_eng || itm?.name || (itm?.code ? `Event ${itm.code}` : `Item #${reg.item_id}`);
       const category = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
+      const modeLabel = itm
+        ? getEffectiveStageMode(itm) === 'onstage'
+          ? isScreeningEvent(itm) || itm.is_screening
+            ? 'On Stage (Screening)'
+            : 'On Stage'
+          : isSubmissionEvent(itm) || itm.is_submission
+          ? 'Off Stage (Submission)'
+          : 'Off Stage'
+        : '—';
 
       rows.push([
+        itemCode,
         String(chestNo),
         link,
         eventName,
-        category
+        category,
+        modeLabel
       ]);
     });
 

@@ -409,7 +409,7 @@ export function ExportModal({
     try {
       // 1. PRE-FEST SCREENING & SUBMISSION LINKS CSV / ZIP
       if (category === 'prefest') {
-        const headers = ['Chest No', 'Link', 'Event Name', 'Category', 'College'];
+        const headers = ['Item Code', 'Chest No', 'Link', 'Event Name', 'Category', 'Mode'];
 
         const targetItems = scope === 'specific' && currentEvent
           ? [currentEvent]
@@ -434,7 +434,6 @@ export function ExportModal({
             const rows: string[][] = [];
             eventRegs.forEach(reg => {
               const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
-              const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
               const chestNo = reg.chest_no || getCanonicalChestNo(stu) || (stu?.chest_no ? String(stu.chest_no) : `COL-${reg.college_affl_no}`);
 
               const sub = submissions.find(
@@ -445,19 +444,28 @@ export function ExportModal({
               );
 
               const link = sub?.file_url || 'Not Submitted';
+              const itemCode = itm?.item_code || itm?.code || (itm?.item_id ? `ITM-${itm.item_id}` : '—');
               const eventName = itm?.name_eng || itm?.name || (itm?.item_code ? `Event ${itm.item_code}` : `Item #${reg.item_id}`);
               const categoryName = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
-              const collegeLabel = col?.name ? `${col.name} (#${col.affl_no})` : `College #${reg.college_affl_no}`;
+              const modeLabel = itm
+                ? getEffectiveStageMode(itm) === 'onstage'
+                  ? isScreeningEvent(itm) || itm.is_screening
+                    ? 'On Stage (Screening)'
+                    : 'On Stage'
+                  : isSubmissionEvent(itm) || itm.is_submission
+                  ? 'Off Stage (Submission)'
+                  : 'Off Stage'
+                : '—';
 
-              rows.push([String(chestNo), link, eventName, categoryName, collegeLabel]);
+              rows.push([itemCode, String(chestNo), link, eventName, categoryName, modeLabel]);
             });
 
             // Sort: valid submitted links first, then chest no
             rows.sort((a, b) => {
-              const aHas = a[1] !== 'Not Submitted' ? 0 : 1;
-              const bHas = b[1] !== 'Not Submitted' ? 0 : 1;
+              const aHas = a[2] !== 'Not Submitted' ? 0 : 1;
+              const bHas = b[2] !== 'Not Submitted' ? 0 : 1;
               if (aHas !== bHas) return aHas - bHas;
-              return a[0].localeCompare(b[0]);
+              return a[1].localeCompare(b[1]);
             });
 
             const codeStr = itm.item_code || itm.code || `ITM_${itm.item_id}`;
@@ -483,7 +491,6 @@ export function ExportModal({
         const rows: string[][] = [];
         targetRegs.forEach(reg => {
           const itm = items.find(i => Number(i.item_id) === Number(reg.item_id));
-          const col = colleges.find(c => Number(c.affl_no) === Number(reg.college_affl_no));
           const stu = findStudentByIdentifier(students, reg.cic_no || reg.chest_no);
           const chestNo = reg.chest_no || getCanonicalChestNo(stu) || (stu?.chest_no ? String(stu.chest_no) : `COL-${reg.college_affl_no}`);
 
@@ -495,19 +502,28 @@ export function ExportModal({
           );
 
           const link = sub?.file_url || 'Not Submitted';
+          const itemCode = itm?.item_code || itm?.code || (itm?.item_id ? `ITM-${itm.item_id}` : (reg.item_id ? `ITM-${reg.item_id}` : '—'));
           const eventName = itm?.name_eng || itm?.name || (itm?.item_code ? `Event ${itm.item_code}` : `Item #${reg.item_id}`);
           const categoryName = itm?.category ? `${itm.phase || ''} (${itm.category})` : itm?.phase || 'General';
-          const collegeLabel = col?.name ? `${col.name} (#${col.affl_no})` : `College #${reg.college_affl_no}`;
+          const modeLabel = itm
+            ? getEffectiveStageMode(itm) === 'onstage'
+              ? isScreeningEvent(itm) || itm.is_screening
+                ? 'On Stage (Screening)'
+                : 'On Stage'
+              : isSubmissionEvent(itm) || itm.is_submission
+              ? 'Off Stage (Submission)'
+              : 'Off Stage'
+            : '—';
 
-          rows.push([String(chestNo), link, eventName, categoryName, collegeLabel]);
+          rows.push([itemCode, String(chestNo), link, eventName, categoryName, modeLabel]);
         });
 
-        // Sort: valid submitted links first, then by event name and chest no
+        // Sort: valid submitted links first, then by item code, event name and chest no
         rows.sort((a, b) => {
-          const aHas = a[1] !== 'Not Submitted' ? 0 : 1;
-          const bHas = b[1] !== 'Not Submitted' ? 0 : 1;
+          const aHas = a[2] !== 'Not Submitted' ? 0 : 1;
+          const bHas = b[2] !== 'Not Submitted' ? 0 : 1;
           if (aHas !== bHas) return aHas - bHas;
-          return a[2].localeCompare(b[2]) || a[0].localeCompare(b[0]);
+          return a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]) || a[1].localeCompare(b[1]);
         });
 
         downloadCsv(previewFilename, headers, rows);
@@ -1572,7 +1588,7 @@ export function ExportModal({
             <span>Included Columns:</span>
             <span className="font-mono text-[var(--text-secondary)]">
               {category === 'prefest'
-                ? 'Chest No, Link, Event Name, Category, College'
+                ? 'Item Code, Chest No, Link, Event Name, Category, Mode'
                 : category === 'college_wise'
                 ? 'College #, Name, Chest #, CIC, Student, Class, Event Code, Name...'
                 : category === 'event_wise'

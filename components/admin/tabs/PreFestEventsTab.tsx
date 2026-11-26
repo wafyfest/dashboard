@@ -41,7 +41,8 @@ import {
   SpecialEventSettings,
   ScreeningStatus,
   isSubmissionEvent,
-  isScreeningEvent
+  isScreeningEvent,
+  getEffectiveStageMode
 } from '@/lib/types/fest';
 import {
   formatIstDisplay,
@@ -383,7 +384,7 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
   }, [sectionRegistrations, sectionEvents, collegesList, submissionsMap, filterEventId, filterMode, filterSubmissionStatus, filterScreeningStatus, searchQuery, activeSection, registrationsList]);
 
   const handleDownloadScreeningCsv = () => {
-    const headers = ['Chest No', 'Link', 'Event Name', 'Category'];
+    const headers = ['Item Code', 'Chest No', 'Link', 'Event Name', 'Category', 'Mode'];
     const rows: string[][] = [];
 
     filteredRegistrations.forEach(reg => {
@@ -408,8 +409,18 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
         if (found && !rosterParticipants.some(rp => rp.id === found.id)) rosterParticipants.push(found);
       }
 
+      const itemCode = ev?.item_code || ev?.code || `ITM-${itmId}`;
       const eventName = ev?.name_eng || ev?.name || (ev?.item_code ? `Event ${ev.item_code}` : `Item #${itmId}`);
       const category = ev?.category ? `${ev.phase || ''} (${ev.category})` : ev?.phase || 'General';
+      const modeLabel = ev
+        ? getEffectiveStageMode(ev) === 'onstage'
+          ? isScreeningEvent(ev) || ev.is_screening
+            ? 'On Stage (Screening)'
+            : 'On Stage'
+          : isSubmissionEvent(ev) || ev.is_submission
+          ? 'Off Stage (Submission)'
+          : 'Off Stage'
+        : '—';
       const link = sub?.file_url || 'Not Submitted';
 
       if (rosterParticipants.length > 0) {
@@ -417,19 +428,23 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
           const chest = getCanonicalChestNo(p);
           const finalChest = chest !== '—' ? chest : (reg.chest_no || `COL-${colAffl}`);
           rows.push([
+            itemCode,
             String(finalChest),
             link,
             eventName,
-            category
+            category,
+            modeLabel
           ]);
         });
       } else {
         const finalChest = reg.chest_no && reg.chest_no !== '—' ? reg.chest_no : (sub?.chest_no && sub.chest_no !== '—' ? sub.chest_no : `COL-${colAffl}`);
         rows.push([
+          itemCode,
           String(finalChest),
           link,
           eventName,
-          category
+          category,
+          modeLabel
         ]);
       }
     });
