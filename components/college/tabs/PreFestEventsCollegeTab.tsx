@@ -86,7 +86,7 @@ export function PreFestEventsCollegeTab({
   const [activeSection, setActiveSection] = useState<SpecialEventType>('SCREENING');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'enrolled' | 'link_submitted' | 'link_pending' | 'not_enrolled'>('All');
-  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage'>('All');
+  const [selectedMode, setSelectedMode] = useState<'All' | 'onstage' | 'offstage' | 'screening' | 'submission'>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   // YouTube Submission Modal State
@@ -245,6 +245,8 @@ export function PreFestEventsCollegeTab({
 
       if (selectedMode !== 'All') {
         const m = (ev.mode || '').toLowerCase();
+        if (selectedMode === 'screening' && !isScreeningEvent(ev)) return false;
+        if (selectedMode === 'submission' && !isSubmissionEvent(ev)) return false;
         if (selectedMode === 'onstage' && m !== 'onstage') return false;
         if (selectedMode === 'offstage' && m !== 'offstage') return false;
       }
@@ -484,9 +486,11 @@ export function PreFestEventsCollegeTab({
               onChange={(e) => setSelectedMode(e.target.value as any)}
               className="w-full appearance-none bg-[var(--bg-surface)] border border-[var(--border-medium)] text-[var(--text-primary)] text-xs font-semibold rounded-xl px-3 py-2 pr-7 shadow-2xs hover:border-[var(--f-saffron)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 cursor-pointer font-sans"
             >
-              <option value="All">All Stage Modes</option>
+              <option value="All">All Modes</option>
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
+              <option value="screening">Screening Round</option>
+              <option value="submission">Digital Submission</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>

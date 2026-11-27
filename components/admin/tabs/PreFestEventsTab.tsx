@@ -359,7 +359,12 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
       const col = collegesList.find(c => Number(c.affl_no) === colAffl);
 
       if (filterEventId !== 'all' && String(itmId) !== filterEventId) return false;
-      if (filterMode !== 'all' && ev && (ev.mode || '').toLowerCase() !== filterMode.toLowerCase()) return false;
+      if (filterMode !== 'all') {
+        if (filterMode === 'screening' && (!ev || !isScreeningEvent(ev))) return false;
+        if (filterMode === 'submission' && (!ev || !isSubmissionEvent(ev))) return false;
+        if (filterMode === 'onstage' && (!ev || (ev.mode || '').toLowerCase() !== 'onstage')) return false;
+        if (filterMode === 'offstage' && (!ev || (ev.mode || '').toLowerCase() !== 'offstage')) return false;
+      }
 
       const subKey = `${colAffl}:${itmId}`;
       const sub = submissionsMap.get(subKey);
@@ -879,6 +884,8 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                 <option value="all">All Modes</option>
                 <option value="onstage">On-stage</option>
                 <option value="offstage">Off-stage</option>
+                <option value="screening">Screening</option>
+                <option value="submission">Digital Submission</option>
               </select>
 
               <select
