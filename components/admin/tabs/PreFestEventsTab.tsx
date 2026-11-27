@@ -328,7 +328,8 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
     let totalSubs = 0;
     for (const r of sectionRegistrations) {
       const key = `${r.college_affl_no}:${r.item_id}`;
-      if (submissionsMap.has(key)) totalSubs++;
+      const sub = submissionsMap.get(key);
+      if (sub && Boolean(sub.file_url)) totalSubs++;
     }
     const pendingSubs = Math.max(0, totalRegs - totalSubs);
 
@@ -764,10 +765,11 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
               <TableBody>
                 {sectionEvents.map((ev, idx) => {
                   const itmId = Number(ev.item_id || ev.id);
-                  const regCount = sectionRegistrations.filter(r => Number(r.item_id) === itmId).length;
-                  const ytCount = sectionRegistrations.filter(r => {
-                    const key = `${r.college_affl_no}:${itmId}`;
-                    return submissionsMap.has(key) && Boolean(submissionsMap.get(key)?.file_url);
+                  const eventRegs = sectionRegistrations.filter(r => Number(r.item_id) === itmId);
+                  const regCount = eventRegs.length;
+                  const ytCount = eventRegs.filter(r => {
+                    const sub = submissionsMap.get(`${r.college_affl_no}:${itmId}`);
+                    return Boolean(sub?.file_url);
                   }).length;
                   const isLinkLocked = Boolean(ev.is_link_locked);
 
