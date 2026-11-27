@@ -46,6 +46,9 @@ export function LocksMatrixTab() {
     return festService.isVolunteerRegistrationLocked();
   }, [refreshKey]);
 
+  // Lock domain switcher: 'registration' (roster registration) vs 'link' (YouTube/Drive submissions)
+  const [lockDomain, setLockDomain] = useState<'registration' | 'link'>('registration');
+
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
@@ -128,90 +131,157 @@ export function LocksMatrixTab() {
       {/* Header Panel - Minimalist Card */}
       <Card className="border-[var(--border-subtle)] bg-[var(--bg-surface)] [box-shadow:var(--shadow-card),var(--glass-highlight)] rounded-2xl shadow-sm">
         <CardHeader className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-heading font-bold text-[var(--text-primary)]">
-                Registration Lock
-              </CardTitle>
-              <Badge variant="saffron" size="sm" className="font-heading font-medium">
-                Permissions Grid
-              </Badge>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg font-heading font-bold text-[var(--text-primary)]">
+                  {lockDomain === 'registration' ? 'Registration Lock' : 'Link Submission Lock'}
+                </CardTitle>
+                <Badge variant={lockDomain === 'registration' ? 'saffron' : 'destructive'} size="sm" className="font-heading font-medium">
+                  {lockDomain === 'registration' ? 'Roster Permissions' : 'Pre-Fest Link Submissions'}
+                </Badge>
+              </div>
+              <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
+                {lockDomain === 'registration'
+                  ? 'Select an event to open or lock participant registration and roster access per college.'
+                  : 'Independently open or lock YouTube / Drive link submission per event and college.'}
+              </CardDescription>
             </div>
-            <CardDescription className="text-xs text-[var(--text-muted)] font-sans mt-1">
-              Select an event to open or lock registration access per college.
-            </CardDescription>
+
+            {/* Segmented Domain Switcher */}
+            <div className="flex items-center p-1 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setLockDomain('registration')}
+                className={`px-3 py-1 rounded-lg text-xs font-heading font-semibold transition-all ${
+                  lockDomain === 'registration'
+                    ? 'bg-[var(--bg-surface)] text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Registration Locks
+              </button>
+              <button
+                type="button"
+                onClick={() => setLockDomain('link')}
+                className={`px-3 py-1 rounded-lg text-xs font-heading font-semibold transition-all ${
+                  lockDomain === 'link'
+                    ? 'bg-[var(--bg-surface)] text-rose-500 shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Link Submission Locks
+              </button>
+            </div>
           </div>
 
           {/* Master Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="xs"
-              variant="outline"
-              className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-              onClick={async () => {
-                await festService.setAllEntryLocks(true);
-                startTransition(() => {
-                  triggerRefresh();
-                });
-              }}
-            >
-              <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> Open All
-            </Button>
-            <Button
-              size="xs"
-              variant="outline"
-              className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-rose-500/40 hover:bg-rose-500/10 text-rose-700 dark:text-rose-400"
-              onClick={async () => {
-                await festService.setAllEntryLocks(false);
-                startTransition(() => {
-                  triggerRefresh();
-                });
-              }}
-            >
-              <Lock className="w-3.5 h-3.5 mr-1 text-rose-600 dark:text-rose-400" /> Lock All
-            </Button>
+            {lockDomain === 'registration' ? (
+              <>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  onClick={async () => {
+                    await festService.setAllEntryLocks(true);
+                    startTransition(() => {
+                      triggerRefresh();
+                    });
+                  }}
+                >
+                  <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> Open All
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-xs font-heading font-semibold border-[var(--border-subtle)] hover:border-rose-500/40 hover:bg-rose-500/10 text-rose-700 dark:text-rose-400"
+                  onClick={async () => {
+                    await festService.setAllEntryLocks(false);
+                    startTransition(() => {
+                      triggerRefresh();
+                    });
+                  }}
+                >
+                  <Lock className="w-3.5 h-3.5 mr-1 text-rose-600 dark:text-rose-400" /> Lock All
+                </Button>
 
-            <div className="h-4 w-px bg-[var(--border-subtle)] mx-1 hidden sm:block" />
+                <div className="h-4 w-px bg-[var(--border-subtle)] mx-1 hidden sm:block" />
 
-            {/* Universal Volunteer Registration Lock Control */}
-            <Button
-              size="xs"
-              variant="outline"
-              className={`text-xs font-heading font-semibold border transition-all ${
-                isVolunteerRegLocked
-                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 hover:border-rose-500'
-                  : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500'
-              }`}
-              title={
-                isVolunteerRegLocked
-                  ? 'Volunteer registration is LOCKED for all colleges. Click to unlock.'
-                  : 'Volunteer registration is UNLOCKED for all colleges. Click to lock.'
-              }
-              onClick={async () => {
-                const next = !isVolunteerRegLocked;
-                const msg = next
-                  ? 'Lock volunteer registration for all colleges?\n\nColleges will no longer be able to register, edit, or remove volunteers.'
-                  : 'Unlock volunteer registration for all colleges?\n\nColleges will be able to register and manage their volunteers.';
-                const confirmed = await (window as any).showThemedConfirm?.({
-                  title: next ? 'Lock Volunteer Registration' : 'Unlock Volunteer Registration',
-                  message: msg,
-                  type: 'warning',
-                  confirmText: next ? 'Lock Registration' : 'Unlock Registration',
-                }) ?? window.confirm(msg);
-                if (!confirmed) return;
-                await festService.setVolunteerRegistrationLocked(next);
-                startTransition(() => {
-                  triggerRefresh();
-                });
-              }}
-            >
-              {isVolunteerRegLocked ? (
-                <Lock className="w-3.5 h-3.5 mr-1 text-rose-500" />
-              ) : (
-                <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-              )}
-              Volunteers: {isVolunteerRegLocked ? 'Locked' : 'Open'}
-            </Button>
+                {/* Universal Volunteer Registration Lock Control */}
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className={`text-xs font-heading font-semibold border transition-all ${
+                    isVolunteerRegLocked
+                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 hover:border-rose-500'
+                      : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500'
+                  }`}
+                  title={
+                    isVolunteerRegLocked
+                      ? 'Volunteer registration is LOCKED for all colleges. Click to unlock.'
+                      : 'Volunteer registration is UNLOCKED for all colleges. Click to lock.'
+                  }
+                  onClick={async () => {
+                    const next = !isVolunteerRegLocked;
+                    const msg = next
+                      ? 'Lock volunteer registration for all colleges?\n\nColleges will no longer be able to register, edit, or remove volunteers.'
+                      : 'Unlock volunteer registration for all colleges?\n\nColleges will be able to register and manage their volunteers.';
+                    const confirmed = await (window as any).showThemedConfirm?.({
+                      title: next ? 'Lock Volunteer Registration' : 'Unlock Volunteer Registration',
+                      message: msg,
+                      type: 'warning',
+                      confirmText: next ? 'Lock Registration' : 'Unlock Registration',
+                    }) ?? window.confirm(msg);
+                    if (!confirmed) return;
+                    await festService.setVolunteerRegistrationLocked(next);
+                    startTransition(() => {
+                      triggerRefresh();
+                    });
+                  }}
+                >
+                  {isVolunteerRegLocked ? (
+                    <Lock className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                  ) : (
+                    <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                  )}
+                  Volunteers: {isVolunteerRegLocked ? 'Locked' : 'Open'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-xs font-heading font-semibold border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  onClick={async () => {
+                    const confirmed = window.confirm('Unlock link submission for all eligible pre-fest events?');
+                    if (!confirmed) return;
+                    await festService.setAllPreFestLinkLocks(false);
+                    startTransition(() => {
+                      triggerRefresh();
+                    });
+                  }}
+                >
+                  <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" /> Open All Links
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-xs font-heading font-semibold border-rose-500/30 hover:bg-rose-500/10 text-rose-700 dark:text-rose-400"
+                  onClick={async () => {
+                    const confirmed = window.confirm('Lock link submission for all pre-fest events?');
+                    if (!confirmed) return;
+                    await festService.setAllPreFestLinkLocks(true);
+                    startTransition(() => {
+                      triggerRefresh();
+                    });
+                  }}
+                >
+                  <Lock className="w-3.5 h-3.5 mr-1 text-rose-600 dark:text-rose-400" /> Lock All Links
+                </Button>
+              </>
+            )}
             <Button
               size="xs"
               variant="ghost"
@@ -304,10 +374,19 @@ export function LocksMatrixTab() {
             const itemCodeDisplay = item.item_code || item.code || `ITM-${String(item.item_id).padStart(2, '0')}`;
             const itemIdDisplay = `#${String(item.item_id).padStart(2, '0')}`;
 
+            const isRegDomain = lockDomain === 'registration';
+            const isLinkRowLocked = Boolean(item.is_link_locked);
+
             // Compute college permissions summary for this event directly from locks
             const openCollegesCount = colleges.filter(col => {
               const cell = lockMap.get(`${item.item_id}:${col.affl_no}`);
-              return cell ? cell.is_open : !item.is_locked;
+              if (isRegDomain) {
+                return cell ? cell.is_open : !item.is_locked;
+              } else {
+                if (cell && cell.is_link_open === false) return false;
+                if (cell && cell.is_link_open === true) return true;
+                return !isLinkRowLocked;
+              }
             }).length;
 
             const isAllOpen = openCollegesCount === colleges.length;
@@ -376,33 +455,39 @@ export function LocksMatrixTab() {
                         ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30'
                         : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
                       }`}>
-                      {openCollegesCount}/{colleges.length} Unlocked
+                      {openCollegesCount}/{colleges.length} {isRegDomain ? 'Unlocked' : 'Links Open'}
                     </span>
 
                     {/* Row Toggle */}
                     <button
                       type="button"
                       onClick={async () => {
-                        const targetOpen = openCollegesCount === 0;
-                        await festService.setEntryLockRow(item.item_id, targetOpen);
+                        if (isRegDomain) {
+                          const targetOpen = openCollegesCount === 0;
+                          await festService.setEntryLockRow(item.item_id, targetOpen);
+                        } else {
+                          const nextLocked = !isLinkRowLocked;
+                          await festService.setEventLinkLock(item.item_id, nextLocked);
+                        }
                         startTransition(() => {
                           triggerRefresh();
                         });
                       }}
-                      className={`px-2.5 py-1 rounded-xl border text-xs font-heading font-semibold flex items-center gap-1 transition-all cursor-pointer ${openCollegesCount > 0
-                        ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-400 hover:border-rose-500/30'
-                        : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-500/30'
+                      className={`px-2.5 py-1 rounded-xl border text-xs font-heading font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                        (isRegDomain ? openCollegesCount > 0 : !isLinkRowLocked)
+                          ? 'bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-400 hover:border-rose-500/30'
+                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-500/30'
                         }`}
                     >
-                      {openCollegesCount > 0 ? (
+                      {(isRegDomain ? openCollegesCount > 0 : !isLinkRowLocked) ? (
                         <>
                           <Unlock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          <span>Unlocked ({openCollegesCount})</span>
+                          <span>{isRegDomain ? `Unlocked (${openCollegesCount})` : 'Links Open'}</span>
                         </>
                       ) : (
                         <>
                           <Lock className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                          <span>Locked</span>
+                          <span>{isRegDomain ? 'Locked' : 'Links Locked'}</span>
                         </>
                       )}
                     </button>
@@ -444,26 +529,34 @@ export function LocksMatrixTab() {
                           type="button"
                           className="text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer"
                           onClick={async () => {
-                            await festService.setEntryLockRow(item.item_id, true);
+                            if (isRegDomain) {
+                              await festService.setEntryLockRow(item.item_id, true);
+                            } else {
+                              await festService.setEventLinkLock(item.item_id, false);
+                            }
                             startTransition(() => {
                               triggerRefresh();
                             });
                           }}
                         >
-                          Open All
+                          {isRegDomain ? 'Open All' : 'Open Links for All'}
                         </button>
                         <span className="text-[var(--border-subtle)]">•</span>
                         <button
                           type="button"
                           className="text-xs font-heading font-semibold text-[var(--text-secondary)] hover:text-rose-700 dark:hover:text-rose-400 transition-colors cursor-pointer"
                           onClick={async () => {
-                            await festService.setEntryLockRow(item.item_id, false);
+                            if (isRegDomain) {
+                              await festService.setEntryLockRow(item.item_id, false);
+                            } else {
+                              await festService.setEventLinkLock(item.item_id, true);
+                            }
                             startTransition(() => {
                               triggerRefresh();
                             });
                           }}
                         >
-                          Lock All
+                          {isRegDomain ? 'Lock All' : 'Lock Links for All'}
                         </button>
                       </div>
                     </div>
@@ -472,7 +565,22 @@ export function LocksMatrixTab() {
                     <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-2 space-y-2">
                       {filteredCollegesForEvent.map(col => {
                         const cell = lockMap.get(`${item.item_id}:${col.affl_no}`);
-                        const isOpen = cell ? cell.is_open : !item.is_locked;
+                        let isOpen = false;
+                        let isOverride = false;
+
+                        if (isRegDomain) {
+                          isOpen = cell ? cell.is_open : !item.is_locked;
+                        } else {
+                          if (cell && cell.is_link_open === false) {
+                            isOpen = false;
+                            isOverride = true;
+                          } else if (cell && cell.is_link_open === true) {
+                            isOpen = true;
+                            isOverride = true;
+                          } else {
+                            isOpen = !isLinkRowLocked;
+                          }
+                        }
 
                         return (
                           <div
@@ -489,13 +597,22 @@ export function LocksMatrixTab() {
                               <span className="text-xs font-sans font-medium text-[var(--text-primary)] truncate" title={col.name}>
                                 {col.short_name || col.code || col.name}
                               </span>
+                              {!isRegDomain && isOverride && (
+                                <span className="text-[9.5px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono">
+                                  override
+                                </span>
+                              )}
                             </div>
 
                             {/* College Toggle Button */}
                             <button
                               type="button"
                               onClick={async () => {
-                                await festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
+                                if (isRegDomain) {
+                                  await festService.setEntryLockCell(item.item_id, col.affl_no, !isOpen);
+                                } else {
+                                  await festService.setCollegeLinkLockCell(item.item_id, col.affl_no, !isOpen);
+                                }
                                 startTransition(() => {
                                   triggerRefresh();
                                 });

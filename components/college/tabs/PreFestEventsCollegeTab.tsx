@@ -266,10 +266,9 @@ export function PreFestEventsCollegeTab({
   // Handle open submission modal
   const handleOpenSubmissionModal = (item: Item, roster: Student[]) => {
     const itmId = Number(item.item_id || item.id);
-    const lockCheck = registrationStatusByItem?.get(itmId)
-      || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
-    if (!lockCheck.canRegister) {
-      alert(`Event is locked (${lockCheck.reason || 'Event Locked'}). Link submission is not permitted.`);
+    const linkLockCheck = festService.isLinkSubmissionOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+    if (!linkLockCheck.canSubmitLink) {
+      alert(`Link submission is locked (${linkLockCheck.reason || 'Locked by Administration'}).`);
       return;
     }
     const existingSub = submissionsByItemId.get(itmId);
@@ -284,8 +283,8 @@ export function PreFestEventsCollegeTab({
       rosterParticipants: roster,
       registrationId: pfReg?.id,
       existingUrl: existingSub?.url || null,
-      isLocked: !lockCheck.canRegister,
-      lockReason: lockCheck.reason
+      isLocked: !linkLockCheck.canSubmitLink,
+      lockReason: linkLockCheck.reason
     });
     setYoutubeInputUrl(existingSub?.url || '');
     setSubmitError(null);
@@ -297,10 +296,9 @@ export function PreFestEventsCollegeTab({
     if (!submissionModalTarget) return;
 
     const itmId = Number(submissionModalTarget.item.item_id || submissionModalTarget.item.id);
-    const lockCheck = registrationStatusByItem?.get(itmId)
-      || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
-    if (!lockCheck.canRegister) {
-      setSubmitError(`Cannot submit link: ${lockCheck.reason || 'Event is locked by administration.'}`);
+    const linkLockCheck = festService.isLinkSubmissionOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+    if (!linkLockCheck.canSubmitLink) {
+      setSubmitError(`Cannot submit link: ${linkLockCheck.reason || 'Link submission is locked by administration.'}`);
       return;
     }
 
@@ -618,11 +616,16 @@ export function PreFestEventsCollegeTab({
                   ? rosterParticipants
                   : rosterParticipants.filter(p => !String(p.chest_no || '').startsWith('COL-') && !String(p.id || '').startsWith('col-entry-'));
 
-                // Lock check via registration locks matrix
-                const lockCheck = registrationStatusByItem?.get(itmId)
+                // Registration lock check (controls Register Entry, Edit Roster, and Cancel Registration)
+                const regLockCheck = registrationStatusByItem?.get(itmId)
                   || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
-                const isLocked = !lockCheck.canRegister;
-                const lockReason = lockCheck.reason || 'Registration Closed (Locked)';
+                const isRegLocked = !regLockCheck.canRegister;
+                const regLockReason = regLockCheck.reason || 'Registration Closed (Locked)';
+
+                // Dedicated Link Submission lock check (controls Submit Link, Edit Link)
+                const linkLockCheck = festService.isLinkSubmissionOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+                const isLinkLocked = !linkLockCheck.canSubmitLink;
+                const linkLockReason = linkLockCheck.reason || 'Link Submission Locked';
 
                 // Submission entry for this item
                 const subEntry = submissionsByItemId.get(itmId);
@@ -746,8 +749,8 @@ export function PreFestEventsCollegeTab({
                         </div>
                       ) : (
                         <span
-                          className={`font-mono font-bold text-xs ${isLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
-                          title={isLocked ? lockReason : 'Not enrolled'}
+                          className={`font-mono font-bold text-xs ${isRegLocked ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}
+                          title={isRegLocked ? regLockReason : 'Not enrolled'}
                         >
                           {isSpecialGroupEvent(item) ? 'Not Enrolled' : `0/${isOpenParticipants ? 'Open' : maxCount}`}
                         </span>
@@ -785,9 +788,9 @@ export function PreFestEventsCollegeTab({
                               {subEntry.status === 'late' ? 'Late' : subEntry.status === 'fine' ? 'Late Fine' : 'Submitted'}
                             </span>
                           </div>
-                        ) : isLocked ? (
+                        ) : isLinkLocked ? (
                           <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                            Event Locked
+                            Link Locked
                           </span>
                         ) : linkScheduleStatus.tier === 'upcoming' ? (
                           <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -816,12 +819,12 @@ export function PreFestEventsCollegeTab({
                             <Button
                               size="xs"
                               variant="outline"
-                              disabled={isLocked || !linkScheduleStatus.canSubmitLink}
-                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${isLocked || !linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
+                              disabled={isLinkLocked || !linkScheduleStatus.canSubmitLink}
+                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${isLinkLocked || !linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                               title={
-                                isLocked
-                                  ? `Event is Locked (${lockReason})`
+                                isLinkLocked
+                                  ? `Link Submission is Locked (${linkLockReason})`
                                   : linkScheduleStatus.tier === 'upcoming'
                                     ? `Link submission opens on ${formatIstDisplay(linkScheduleStatus.deadlineIso)}`
                                     : !linkScheduleStatus.canSubmitLink
@@ -830,14 +833,14 @@ export function PreFestEventsCollegeTab({
                                         ? 'Edit Submitted YouTube Link'
                                         : 'Submit YouTube Video Link'
                               }
-                              onClick={() => !isLocked && linkScheduleStatus.canSubmitLink && handleOpenSubmissionModal(item, rosterParticipants)}
+                              onClick={() => !isLinkLocked && linkScheduleStatus.canSubmitLink && handleOpenSubmissionModal(item, rosterParticipants)}
                             >
-                              {isLocked ? (
+                              {isLinkLocked ? (
                                 <Lock className="w-3.5 h-3.5 mr-1 text-[var(--text-muted)]" />
                               ) : (
                                 <YouTubeIcon className="w-3.5 h-3.5 mr-1 text-rose-500" />
                               )}
-                              {isLocked
+                              {isLinkLocked
                                 ? 'Locked'
                                 : subEntry?.url
                                   ? 'Edit Link'
@@ -853,11 +856,11 @@ export function PreFestEventsCollegeTab({
                               size="xs"
                               variant="outline"
                               className="h-8 px-2 rounded-lg text-xs font-heading font-semibold hover:border-[var(--f-saffron)] hover:text-[var(--f-saffron-text)]"
-                              title={isLocked ? 'Registration Closed (Locked)' : 'Edit Participant Roster'}
-                              disabled={isLocked}
-                              onClick={() => !isLocked && onOpenRegistrationModal(item)}
+                              title={isRegLocked ? 'Registration Closed (Locked)' : 'Edit Participant Roster'}
+                              disabled={isRegLocked}
+                              onClick={() => !isRegLocked && onOpenRegistrationModal(item)}
                             >
-                              {isLocked ? (
+                              {isRegLocked ? (
                                 <Lock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                               ) : (
                                 <>
@@ -872,10 +875,10 @@ export function PreFestEventsCollegeTab({
                               size="xs"
                               variant="outline"
                               className="h-8 w-8 p-0 rounded-lg border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
-                              title={isLocked ? 'Registration Closed (Locked)' : 'Cancel / Remove Event Entry'}
-                              disabled={isLocked}
+                              title={isRegLocked ? 'Registration Closed (Locked)' : 'Cancel / Remove Event Entry'}
+                              disabled={isRegLocked}
                               onClick={() => {
-                                if (isLocked) return;
+                                if (isRegLocked) return;
                                 onUnregisterRegistration?.(item);
                               }}
                             >
@@ -886,13 +889,13 @@ export function PreFestEventsCollegeTab({
                           /* Register Button */
                           <Button
                             size="xs"
-                            variant={isLocked ? 'secondary' : 'saffron'}
-                            disabled={isLocked}
+                            variant={isRegLocked ? 'secondary' : 'saffron'}
+                            disabled={isRegLocked}
                             className="h-8 px-2.5 rounded-lg text-xs font-heading font-bold transition-all"
-                            title={!isLocked ? 'Register Entry' : lockReason}
-                            onClick={() => !isLocked && onOpenRegistrationModal(item)}
+                            title={!isRegLocked ? 'Register Entry' : regLockReason}
+                            onClick={() => !isRegLocked && onOpenRegistrationModal(item)}
                           >
-                            {isLocked ? (
+                            {isRegLocked ? (
                               <>
                                 <Lock className="w-3.5 h-3.5 text-[var(--text-muted)] mr-1" />
                                 Locked

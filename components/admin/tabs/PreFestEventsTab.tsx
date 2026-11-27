@@ -25,7 +25,9 @@ import {
   SlidersHorizontal,
   Play,
   RotateCcw,
-  Download
+  Download,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { festService } from '@/lib/services/festService';
 import { useFest } from '@/lib/context/FestContext';
@@ -700,19 +702,47 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
       {(mode === 'all' || mode === 'setup') && (
       <Card className="bg-[var(--bg-surface)] border-[var(--border-subtle)]">
         <CardHeader className="pb-3 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Layers className="w-4 h-4 text-indigo-400" />
                 <span>{activeSection} Events Catalog</span>
               </CardTitle>
               <CardDescription className="text-xs">
-                Catalog overview of eligible {activeSection.toLowerCase()} events. Individual event locks are managed under the Registration Locks tab.
+                Catalog overview of eligible {activeSection.toLowerCase()} events with independent link submission locks.
               </CardDescription>
             </div>
-            <span className="text-xs font-mono font-bold text-[var(--text-secondary)]">
-              {sectionEvents.length} Events Total
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="xs"
+                variant="outline"
+                className="text-xs font-heading font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                onClick={async () => {
+                  const confirmed = window.confirm(`Unlock link submission for all ${activeSection} events?`);
+                  if (!confirmed) return;
+                  await festService.setAllPreFestLinkLocks(false, activeSection);
+                  triggerRefresh();
+                }}
+              >
+                <Unlock className="w-3.5 h-3.5 mr-1 text-emerald-500" /> Open All Links
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                className="text-xs font-heading font-semibold border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+                onClick={async () => {
+                  const confirmed = window.confirm(`Lock link submission for all ${activeSection} events?`);
+                  if (!confirmed) return;
+                  await festService.setAllPreFestLinkLocks(true, activeSection);
+                  triggerRefresh();
+                }}
+              >
+                <Lock className="w-3.5 h-3.5 mr-1 text-rose-500" /> Lock All Links
+              </Button>
+              <span className="text-xs font-mono font-bold text-[var(--text-secondary)] pl-2 border-l border-[var(--border-subtle)]">
+                {sectionEvents.length} Events
+              </span>
+            </div>
           </div>
         </CardHeader>
 
@@ -728,6 +758,7 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                   <TableHead className="w-32">Phase & Category</TableHead>
                   <TableHead className="w-28 text-center">Registered Colleges</TableHead>
                   <TableHead className="w-28 text-center">Submitted Links</TableHead>
+                  <TableHead className="w-32 text-center">Link Submission</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -738,6 +769,7 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                     const key = `${r.college_affl_no}:${itmId}`;
                     return submissionsMap.has(key) && Boolean(submissionsMap.get(key)?.file_url);
                   }).length;
+                  const isLinkLocked = Boolean(ev.is_link_locked);
 
                   return (
                     <TableRow key={ev.id} className="border-b border-[var(--border-subtle)]/40 hover:bg-[var(--bg-hover)]">
@@ -758,6 +790,34 @@ export function PreFestEventsTab({ mode = 'all', onNavigateTab }: PreFestEventsT
                       </TableCell>
                       <TableCell className="text-center font-mono font-bold text-indigo-400">{regCount}</TableCell>
                       <TableCell className="text-center font-mono font-bold text-emerald-400">{ytCount}</TableCell>
+                      <TableCell className="text-center">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const next = !isLinkLocked;
+                            await festService.setEventLinkLock(itmId, next);
+                            triggerRefresh();
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-heading font-semibold border transition-all cursor-pointer ${
+                            isLinkLocked
+                              ? 'border-rose-500/40 bg-rose-500/15 text-rose-500 hover:bg-rose-500/25'
+                              : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                          }`}
+                          title={isLinkLocked ? 'Link submissions locked. Click to unlock.' : 'Link submissions open. Click to lock.'}
+                        >
+                          {isLinkLocked ? (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Locked</span>
+                            </>
+                          ) : (
+                            <>
+                              <Unlock className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Open</span>
+                            </>
+                          )}
+                        </button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}

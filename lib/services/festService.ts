@@ -5,6 +5,7 @@ import {
   FestSettings,
   EntryLock,
   CollegeItemLock,
+  LinkLockStatus,
   Registration,
   RegistrationLog,
   CodeLetter,
@@ -1199,6 +1200,86 @@ class FestService {
     return this.evaluateRegistrationStatus(settings, college, item, cell, new Date());
   }
 
+  /**
+   * Dedicated Link Submission Lock check.
+   * Completely decoupled and independent from registration / event locks.
+   */
+  public isLinkSubmissionOpen(
+    collegeAfflNoOrId: number | string,
+    itemIdOrCode: number | string
+  ): LinkLockStatus {
+    const college = this.getCollege(collegeAfflNoOrId);
+    const item = this.getItem(itemIdOrCode);
+    const afflNo = college ? college.affl_no : Number(collegeAfflNoOrId) || 0;
+
+    if (!item) {
+      return {
+        canSubmitLink: false,
+        isLocked: true,
+        lockType: 'admin_locked',
+        reason: 'Event not found',
+        tier: 'closed',
+      };
+    }
+
+    // 1. Check college matrix cell override for link submission
+    const explicitLocks = this.getExplicitEntryLocks();
+    const cell = explicitLocks.find(l => l.college_affl_no === afflNo && l.item_id === item.item_id);
+
+    // If explicit college override is false -> strictly locked for this college
+    if (cell && cell.is_link_open === false) {
+      return {
+        canSubmitLink: false,
+        isLocked: true,
+        lockType: 'admin_locked',
+        reason: `Link submission is locked for college #${afflNo}`,
+        tier: 'closed',
+      };
+    }
+
+    // If explicit college override is true -> unlocked, bypassing global event link lock
+    const isExplicitlyUnlocked = cell?.is_link_open === true;
+
+    // 2. Check global event link lock
+    const isEventLinkLocked = Boolean(item.is_link_locked);
+    if (isEventLinkLocked && !isExplicitlyUnlocked) {
+      return {
+        canSubmitLink: false,
+        isLocked: true,
+        lockType: 'admin_locked',
+        reason: `Link submission for event ${item.item_code || item.item_id} is locked by administration`,
+        tier: 'closed',
+      };
+    }
+
+    // 3. Category / kind deadline check
+    const kind = getEventKind(item);
+    if (kind === 'screening' || kind === 'submission') {
+      const dlSetting = this.getEventDeadlineSetting(kind);
+      const linkEval = evaluateLinkSubmissionDeadline(dlSetting);
+      if (!linkEval.canSubmitLink && !isExplicitlyUnlocked) {
+        return {
+          canSubmitLink: false,
+          isLocked: true,
+          lockType: linkEval.tier === 'upcoming' ? 'upcoming' : 'deadline_expired',
+          reason: linkEval.label || `Link submission is closed: ${linkEval.timeRemainingText}`,
+          deadlineIso: linkEval.deadlineIso,
+          tier: linkEval.tier,
+          timeRemainingText: linkEval.timeRemainingText,
+          fineAmount: linkEval.fineAmount,
+        };
+      }
+    }
+
+    return {
+      canSubmitLink: true,
+      isLocked: false,
+      lockType: 'open',
+      reason: 'Link submission is open',
+      tier: 'none',
+    };
+  }
+
   // --- Colleges ---
   public getColleges(): College[] {
     const cols = this.getStorage<College[]>('colleges', []);
@@ -1799,7 +1880,8 @@ class FestService {
           locks.push({
             item_id: item.item_id,
             college_affl_no: col.affl_no,
-            is_open: !item.is_locked
+            is_open: !item.is_locked,
+            is_link_open: item.is_link_locked ? false : null,
           });
           existingKeys.add(key);
         }
@@ -1987,6 +2069,129 @@ class FestService {
     const affl = college ? college.affl_no : Number(collegeAfflNoOrId) || 0;
     const itmId = item ? item.item_id : Number(itemIdOrCode) || 0;
     return this.setEntryLockCell(itmId, affl, isUnlocked);
+  }
+
+  // --- Link Submission Lock Methods (Decoupled from Registration Locks) ---
+
+  /**
+   * Set global event link lock (events.is_link_locked).
+   */
+  public async setEventLinkLock(itemId: number, isLocked: boolean): Promise<boolean> {
+    const items = this.getStorage<Item[]>('items', []);
+    const itm = items.find(i => Number(i.item_id) === Number(itemId));
+    const now = new Date().toISOString();
+    if (itm) {
+      itm.is_link_locked = isLocked;
+      (itm as any).updated_at = now;
+      this.setStorage('items', items);
+    }
+    this.broadcastGlobalSync('link_locks', { itemId, isLocked });
+
+    if (supabase) {
+      try {
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_link_row',
+          itemId,
+          isLinkLocked: isLocked,
+        });
+      } catch (err) {
+        console.warn('Supabase setEventLinkLock error:', err);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Set college matrix link lock cell override (entry_locks.is_link_open).
+   * null = inherit event default, true = explicit unlock, false = explicit lock
+   */
+  public async setCollegeLinkLockCell(
+    itemId: number,
+    collegeAfflNo: number,
+    isLinkOpen: boolean | null
+  ): Promise<EntryLock> {
+    const locks = this.getEntryLocks();
+    const idx = locks.findIndex(l => Number(l.item_id) === Number(itemId) && Number(l.college_affl_no) === Number(collegeAfflNo));
+    const now = new Date().toISOString();
+
+    let resultLock: EntryLock;
+    if (idx >= 0) {
+      locks[idx].is_link_open = isLinkOpen;
+      locks[idx].updated_at = now;
+      resultLock = locks[idx];
+    } else {
+      resultLock = {
+        item_id: itemId,
+        college_affl_no: collegeAfflNo,
+        is_open: true,
+        is_link_open: isLinkOpen,
+        updated_at: now,
+      };
+      locks.push(resultLock);
+    }
+    this.setStorage('entryLocks', locks);
+    this.broadcastGlobalSync('link_locks', { itemId, collegeAfflNo, isLinkOpen });
+
+    if (supabase) {
+      try {
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_link_cell',
+          itemId,
+          collegeAfflNo,
+          isLinkOpen,
+        });
+      } catch (err) {
+        console.warn('Supabase setCollegeLinkLockCell error:', err);
+      }
+    }
+    return resultLock;
+  }
+
+  /**
+   * Bulk lock or unlock link submission for all pre-fest events (or a specific section).
+   */
+  public async setAllPreFestLinkLocks(
+    isLocked: boolean,
+    section?: 'SCREENING' | 'SUBMISSION'
+  ): Promise<void> {
+    const items = this.getStorage<Item[]>('items', []);
+    const now = new Date().toISOString();
+
+    items.forEach(itm => {
+      const mode = (itm.mode || '').toLowerCase();
+      const isScreening = Boolean(itm.is_screening || mode === 'screening');
+      const isSubmission = Boolean(itm.is_submission || mode === 'submission');
+
+      let matches = false;
+      if (section === 'SCREENING') {
+        matches = isScreening;
+      } else if (section === 'SUBMISSION') {
+        matches = isSubmission;
+      } else {
+        matches = isScreening || isSubmission;
+      }
+
+      if (matches) {
+        itm.is_link_locked = isLocked;
+        (itm as any).updated_at = now;
+      }
+    });
+
+    this.setStorage('items', items);
+    this.broadcastGlobalSync('link_locks', { isLocked, section, all: true });
+
+    if (supabase) {
+      try {
+        await this.postServerApi('/api/admin/locks', {
+          action: 'set_link_all',
+          isLinkLocked: isLocked,
+          section,
+        });
+      } catch (err) {
+        console.warn('Supabase setAllPreFestLinkLocks error:', err);
+      }
+    }
   }
 
   // --- Students ---
@@ -4325,12 +4530,12 @@ class FestService {
       return { success: false, error: 'This event does not require a pre-fest submission link.' };
     }
 
-    // ─── Event / College Lock Guard ──────────────────────────────────────────────────
-    const lockCheck = this.isRegistrationOpen(numAffl, numItemId);
-    if (!lockCheck.canRegister) {
+    // ─── Dedicated Link Submission Lock Guard ──────────────────────────────────────────
+    const linkLockCheck = this.isLinkSubmissionOpen(numAffl, numItemId);
+    if (!linkLockCheck.canSubmitLink) {
       return {
         success: false,
-        error: `Link submission is locked: ${lockCheck.reason || 'This event is locked by administration.'}`,
+        error: `Link submission is locked for this event: ${linkLockCheck.reason || 'Link Submission Locked by Administration'}.`,
       };
     }
 

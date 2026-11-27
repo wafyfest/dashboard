@@ -33,17 +33,13 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isEventLocked = useMemo(() => {
-    if (!target) return false;
-    const lockCheck = festService.isRegistrationOpen(target.collegeAfflNo, target.itemId);
-    return !lockCheck.canRegister;
+  const linkLockStatus = useMemo(() => {
+    if (!target) return null;
+    return festService.isLinkSubmissionOpen(target.collegeAfflNo, target.itemId);
   }, [target]);
 
-  const lockReason = useMemo(() => {
-    if (!target) return '';
-    const lockCheck = festService.isRegistrationOpen(target.collegeAfflNo, target.itemId);
-    return lockCheck.reason || 'Event Locked';
-  }, [target]);
+  const isLinkLocked = Boolean(linkLockStatus?.isLocked);
+  const linkLockReason = linkLockStatus?.reason || 'Link Submission Locked';
 
   const linkEval = useMemo(() => {
     if (!target) return null;
@@ -60,7 +56,7 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
     }
   }, [target]);
 
-  const canSubmit = !isSaving && !isEventLocked && Boolean(linkEval?.canSubmitLink);
+  const canSubmit = !isSaving && !isLinkLocked && (linkEval ? Boolean(linkEval.canSubmitLink) : true);
 
   return (
     <Modal
@@ -77,7 +73,7 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            if (isEventLocked || (linkEval && !linkEval.canSubmitLink)) return;
+            if (isLinkLocked || (linkEval && !linkEval.canSubmitLink)) return;
             setIsSaving(true);
             setError(null);
             const res = await festService.submitEntryLink({
@@ -102,12 +98,12 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
             </div>
           )}
 
-          {/* Event Locked Notice */}
-          {isEventLocked && (
+          {/* Link Submission Locked Notice */}
+          {isLinkLocked && (
             <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 font-semibold flex items-center gap-2">
               <Lock className="w-4 h-4 text-rose-500 shrink-0" />
               <span>
-                This event is locked by administration ({lockReason}). Link submission is closed.
+                Link submission for this event is locked by administration ({linkLockReason}).
               </span>
             </div>
           )}
@@ -148,7 +144,7 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
               type="url"
               placeholder="https://drive.google.com/..."
               value={urlInput}
-              disabled={isEventLocked || (linkEval !== null && !linkEval.canSubmitLink)}
+              disabled={isLinkLocked || (linkEval !== null && !linkEval.canSubmitLink)}
               onChange={(e) => setUrlInput(e.target.value)}
               className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
               required
@@ -187,7 +183,7 @@ export function SubmissionLinkModal({ target, onClose, onSaved }: SubmissionLink
               className="font-heading font-bold gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {isEventLocked ? 'Event Locked' : linkEval?.tier === 'upcoming' ? 'Window Not Open' : 'Save Submission Link'}
+              {isLinkLocked ? 'Link Locked' : linkEval?.tier === 'upcoming' ? 'Window Not Open' : 'Save Submission Link'}
             </Button>
           </div>
         </form>

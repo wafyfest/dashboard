@@ -564,6 +564,7 @@ export interface Item {
   l_star: boolean;
   em_star: boolean;
   is_locked: boolean;
+  is_link_locked?: boolean;
   created_at?: string;
 }
 
@@ -816,7 +817,19 @@ export interface EntryLock {
   item_id: number;
   college_affl_no: number;
   is_open: boolean;
+  is_link_open?: boolean | null;
   updated_at?: string;
+}
+
+export interface LinkLockStatus {
+  canSubmitLink: boolean;
+  isLocked: boolean;
+  lockType: 'admin_locked' | 'deadline_expired' | 'upcoming' | 'open';
+  reason: string;
+  deadlineIso?: string | null;
+  tier: 'open' | 'none' | 'fine' | 'super_fine' | 'upcoming' | 'closed';
+  timeRemainingText?: string;
+  fineAmount?: number;
 }
 
 // Backwards-compatibility alias

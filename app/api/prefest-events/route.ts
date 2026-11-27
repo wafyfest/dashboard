@@ -453,8 +453,8 @@ export async function POST(req: NextRequest) {
       let currentLinkEval: any = null;
       let activeDlSetting: any = null;
       if (auth.role !== 'admin') {
-        // 0. Verify Event and College Lock Status
-        let eventQuery = auth.db.from('events').select('id, item_id, item_code, is_locked');
+        // 0. Verify Dedicated Link Lock Status (Completely decoupled from event registration locks)
+        let eventQuery = auth.db.from('events').select('id, item_id, item_code, is_link_locked');
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reg.event_id)) {
           eventQuery = eventQuery.eq('id', reg.event_id);
         } else if (!isNaN(Number(reg.event_id))) {
@@ -464,40 +464,30 @@ export async function POST(req: NextRequest) {
         }
         const { data: eventRow } = await eventQuery.maybeSingle();
 
-        // Check global event lock
-        if (eventRow && eventRow.is_locked) {
-          return NextResponse.json({
-            error: `Link submission is locked: Event ${eventRow.item_code || ''} is locked by administration.`
-          }, { status: 403 });
-        }
-
-        // Check college-level lock
-        const { data: collegeRow } = await auth.db
-          .from('colleges')
-          .select('manual_lock_override')
-          .eq('affl_no', reg.college_affl_no)
-          .maybeSingle();
-
-        if (collegeRow && collegeRow.manual_lock_override === false) {
-          return NextResponse.json({
-            error: `Link submission is locked: Your institution (#${reg.college_affl_no}) has been locked by administration.`
-          }, { status: 403 });
-        }
-
-        // Check matrix entry lock
+        // Check matrix entry lock override for link submission
+        let entryLock: { is_link_open: boolean | null } | null = null;
         if (eventRow?.item_id) {
-          const { data: entryLock } = await auth.db
+          const { data: lockRow } = await auth.db
             .from('entry_locks')
-            .select('is_open')
+            .select('is_link_open')
             .eq('item_id', eventRow.item_id)
             .eq('college_affl_no', reg.college_affl_no)
             .maybeSingle();
+          entryLock = lockRow;
+        }
 
-          if (entryLock && entryLock.is_open === false) {
-            return NextResponse.json({
-              error: `Link submission is locked: Event ${eventRow.item_code || ''} is locked for your college.`
-            }, { status: 403 });
-          }
+        // If college has an explicit link lockout override
+        if (entryLock && entryLock.is_link_open === false) {
+          return NextResponse.json({
+            error: `Link submission is locked: Event ${eventRow?.item_code || ''} link submission is locked for your college.`
+          }, { status: 403 });
+        }
+
+        // If event link is locked globally and this college does not have an explicit unlock override (is_link_open = true)
+        if (eventRow && eventRow.is_link_locked && entryLock?.is_link_open !== true) {
+          return NextResponse.json({
+            error: `Link submission is locked: Event ${eventRow.item_code || ''} link submission is locked by administration.`
+          }, { status: 403 });
         }
 
         // 1. Check primary event_deadline_settings table

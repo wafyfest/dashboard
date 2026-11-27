@@ -278,39 +278,29 @@ export async function POST(req: NextRequest) {
       if (auth.role !== 'admin') {
         const { data: itmRow } = await auth.db
           .from('events')
-          .select('mode, is_screening, is_submission, is_locked, item_code')
+          .select('mode, is_screening, is_submission, is_link_locked, item_code')
           .eq('item_id', itemId)
           .maybeSingle();
 
-        // 0. Verify Event and College Lock Status
-        if (itmRow && itmRow.is_locked) {
-          return NextResponse.json({
-            error: `Link submission is locked: Event ${itmRow.item_code || itemId} is locked by administration.`
-          }, { status: 403 });
-        }
-
-        const { data: collegeRow } = await auth.db
-          .from('colleges')
-          .select('manual_lock_override')
-          .eq('affl_no', collegeAfflNo)
-          .maybeSingle();
-
-        if (collegeRow && collegeRow.manual_lock_override === false) {
-          return NextResponse.json({
-            error: `Link submission is locked: Your institution (#${collegeAfflNo}) has been locked by administration.`
-          }, { status: 403 });
-        }
-
+        // 0. Verify Dedicated Link Lock Status (Completely decoupled from event registration locks)
         const { data: entryLock } = await auth.db
           .from('entry_locks')
-          .select('is_open')
+          .select('is_link_open')
           .eq('item_id', itemId)
           .eq('college_affl_no', collegeAfflNo)
           .maybeSingle();
 
-        if (entryLock && entryLock.is_open === false) {
+        // If college has an explicit link lockout override
+        if (entryLock && entryLock.is_link_open === false) {
           return NextResponse.json({
-            error: `Link submission is locked: Event ${itmRow?.item_code || itemId} is locked for your college.`
+            error: `Link submission is locked: Event ${itmRow?.item_code || itemId} link submission is locked for your college.`
+          }, { status: 403 });
+        }
+
+        // If event link is locked globally and this college doesn't have an explicit unlock override (is_link_open = true)
+        if (itmRow && itmRow.is_link_locked && entryLock?.is_link_open !== true) {
+          return NextResponse.json({
+            error: `Link submission is locked: Event ${itmRow.item_code || itemId} link submission is locked by administration.`
           }, { status: 403 });
         }
 
