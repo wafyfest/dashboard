@@ -4325,6 +4325,15 @@ class FestService {
       return { success: false, error: 'This event does not require a pre-fest submission link.' };
     }
 
+    // ─── Event / College Lock Guard ──────────────────────────────────────────────────
+    const lockCheck = this.isRegistrationOpen(numAffl, numItemId);
+    if (!lockCheck.canRegister) {
+      return {
+        success: false,
+        error: `Link submission is locked: ${lockCheck.reason || 'This event is locked by administration.'}`,
+      };
+    }
+
     // ─── Link Submission Deadline Guard (for screening & submission events) ───────────
     const kind = getEventKind(item);
     if (kind === 'screening' || kind === 'submission') {

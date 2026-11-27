@@ -77,6 +77,7 @@ const TABLES_IN_ORDER = [
   'colleges',
   'profiles',
   'events',
+  'topics',
   'students',
   'chest_no',
   'max_participation',
@@ -176,12 +177,18 @@ async function cloneDatabase() {
     END $$;
 
     -- Disable user triggers during bulk migration
-    ALTER TABLE public.registrations DISABLE TRIGGER USER;
-    ALTER TABLE public.students DISABLE TRIGGER USER;
-    ALTER TABLE public.entry_locks DISABLE TRIGGER USER;
+    DO $$ 
+    DECLARE
+      r RECORD;
+    BEGIN
+      FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' DISABLE TRIGGER USER;';
+      END LOOP;
+    END $$;
 
     -- Clean truncation in reverse dependency order
     TRUNCATE TABLE 
+      public.topics,
       public.system_audit_logs,
       public.rate_limit_entries,
       public.fest_committee,
@@ -252,9 +259,39 @@ async function cloneDatabase() {
 
   // Re-enable triggers & sync sequences
   runRemoteSql(TEST_REF, `
-    ALTER TABLE public.registrations ENABLE TRIGGER USER;
-    ALTER TABLE public.students ENABLE TRIGGER USER;
-    ALTER TABLE public.entry_locks ENABLE TRIGGER USER;
+    DO $$ 
+    DECLARE
+      r RECORD;
+    BEGIN
+      FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' ENABLE TRIGGER USER;';
+      END LOOP;
+    END $$;
+
+    DO $$
+    DECLARE
+      seq RECORD;
+    BEGIN
+      FOR seq IN (
+        SELECT 
+          s.relname AS seq_name,
+          t.relname AS table_name,
+          a.attname AS col_name
+        FROM pg_class s
+        JOIN pg_depend d ON d.objid = s.oid AND d.classid = 'pg_class'::regclass AND d.deptype IN ('a', 'i')
+        JOIN pg_class t ON d.refobjid = t.oid
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE s.relkind = 'S' AND n.nspname = 'public'
+      ) LOOP
+        BEGIN
+          EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(%I) FROM %I), 1))', 
+            seq.seq_name, seq.col_name, seq.table_name);
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+      END LOOP;
+    END $$;
 
     DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'chest_no_id_seq') THEN

@@ -95,6 +95,8 @@ export function PreFestEventsCollegeTab({
     rosterParticipants: Student[];
     registrationId?: string;
     existingUrl?: string | null;
+    isLocked?: boolean;
+    lockReason?: string;
   } | null>(null);
   const [youtubeInputUrl, setYoutubeInputUrl] = useState<string>('');
   const [isSubmittingLink, setIsSubmittingLink] = useState<boolean>(false);
@@ -264,6 +266,12 @@ export function PreFestEventsCollegeTab({
   // Handle open submission modal
   const handleOpenSubmissionModal = (item: Item, roster: Student[]) => {
     const itmId = Number(item.item_id || item.id);
+    const lockCheck = registrationStatusByItem?.get(itmId)
+      || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+    if (!lockCheck.canRegister) {
+      alert(`Event is locked (${lockCheck.reason || 'Event Locked'}). Link submission is not permitted.`);
+      return;
+    }
     const existingSub = submissionsByItemId.get(itmId);
 
     // Find prefest_registration id if exists
@@ -275,7 +283,9 @@ export function PreFestEventsCollegeTab({
       item,
       rosterParticipants: roster,
       registrationId: pfReg?.id,
-      existingUrl: existingSub?.url || null
+      existingUrl: existingSub?.url || null,
+      isLocked: !lockCheck.canRegister,
+      lockReason: lockCheck.reason
     });
     setYoutubeInputUrl(existingSub?.url || '');
     setSubmitError(null);
@@ -285,6 +295,14 @@ export function PreFestEventsCollegeTab({
   const handleSaveYouTubeLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!submissionModalTarget) return;
+
+    const itmId = Number(submissionModalTarget.item.item_id || submissionModalTarget.item.id);
+    const lockCheck = registrationStatusByItem?.get(itmId)
+      || festService.isRegistrationOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+    if (!lockCheck.canRegister) {
+      setSubmitError(`Cannot submit link: ${lockCheck.reason || 'Event is locked by administration.'}`);
+      return;
+    }
 
     const trimmedUrl = youtubeInputUrl.trim();
     if (!isValidYouTubeUrl(trimmedUrl)) {
@@ -767,6 +785,10 @@ export function PreFestEventsCollegeTab({
                               {subEntry.status === 'late' ? 'Late' : subEntry.status === 'fine' ? 'Late Fine' : 'Submitted'}
                             </span>
                           </div>
+                        ) : isLocked ? (
+                          <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                            Event Locked
+                          </span>
                         ) : linkScheduleStatus.tier === 'upcoming' ? (
                           <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400">
                             Upload Opens {formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}
@@ -794,28 +816,36 @@ export function PreFestEventsCollegeTab({
                             <Button
                               size="xs"
                               variant="outline"
-                              disabled={!linkScheduleStatus.canSubmitLink}
-                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${!linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
+                              disabled={isLocked || !linkScheduleStatus.canSubmitLink}
+                              className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${isLocked || !linkScheduleStatus.canSubmitLink ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                               title={
-                                linkScheduleStatus.tier === 'upcoming'
-                                  ? `Link submission opens on ${formatIstDisplay(linkScheduleStatus.deadlineIso)}`
-                                  : !linkScheduleStatus.canSubmitLink
-                                    ? 'Link submission deadline has passed (Locked)'
-                                    : subEntry?.url
-                                      ? 'Edit Submitted YouTube Link'
-                                      : 'Submit YouTube Video Link'
+                                isLocked
+                                  ? `Event is Locked (${lockReason})`
+                                  : linkScheduleStatus.tier === 'upcoming'
+                                    ? `Link submission opens on ${formatIstDisplay(linkScheduleStatus.deadlineIso)}`
+                                    : !linkScheduleStatus.canSubmitLink
+                                      ? 'Link submission deadline has passed (Locked)'
+                                      : subEntry?.url
+                                        ? 'Edit Submitted YouTube Link'
+                                        : 'Submit YouTube Video Link'
                               }
-                              onClick={() => linkScheduleStatus.canSubmitLink && handleOpenSubmissionModal(item, rosterParticipants)}
+                              onClick={() => !isLocked && linkScheduleStatus.canSubmitLink && handleOpenSubmissionModal(item, rosterParticipants)}
                             >
-                              <YouTubeIcon className="w-3.5 h-3.5 mr-1 text-rose-500" />
-                              {subEntry?.url
-                                ? 'Edit Link'
-                                : linkScheduleStatus.tier === 'upcoming'
-                                  ? `Opens ${formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}`
-                                  : !linkScheduleStatus.canSubmitLink
-                                    ? 'Closed'
-                                    : 'Submit Link'}
+                              {isLocked ? (
+                                <Lock className="w-3.5 h-3.5 mr-1 text-[var(--text-muted)]" />
+                              ) : (
+                                <YouTubeIcon className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                              )}
+                              {isLocked
+                                ? 'Locked'
+                                : subEntry?.url
+                                  ? 'Edit Link'
+                                  : linkScheduleStatus.tier === 'upcoming'
+                                    ? `Opens ${formatIstDisplay(linkScheduleStatus.deadlineIso, { showDateOnly: true, includeTzLabel: false })}`
+                                    : !linkScheduleStatus.canSubmitLink
+                                      ? 'Closed'
+                                      : 'Submit Link'}
                             </Button>
 
                             {/* Edit Roster Button */}
@@ -926,10 +956,11 @@ export function PreFestEventsCollegeTab({
               <input
                 type="url"
                 required
+                disabled={Boolean(submissionModalTarget.isLocked) || !linkScheduleStatus.canSubmitLink}
                 placeholder={YOUTUBE_UI.PLACEHOLDER}
                 value={youtubeInputUrl}
                 onChange={e => setYoutubeInputUrl(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30"
+                className="w-full px-3 py-2 text-xs border border-[var(--border-medium)] rounded-xl bg-[var(--bg-surface)] text-[var(--text-primary)] font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--f-saffron)] focus:ring-2 focus:ring-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -960,6 +991,16 @@ export function PreFestEventsCollegeTab({
                     Enter a valid YouTube URL to see the live video preview.
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Event Locked Notice */}
+            {submissionModalTarget.isLocked && (
+              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
+                <Lock className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>
+                  This event is locked by administration ({submissionModalTarget.lockReason || 'Event Locked'}). Link submissions and edits are locked.
+                </span>
               </div>
             )}
 
@@ -1002,10 +1043,10 @@ export function PreFestEventsCollegeTab({
                 type="submit"
                 variant="saffron"
                 size="sm"
-                disabled={isSubmittingLink || !isValidYouTubeUrl(youtubeInputUrl) || !linkScheduleStatus.canSubmitLink}
+                disabled={isSubmittingLink || Boolean(submissionModalTarget.isLocked) || !isValidYouTubeUrl(youtubeInputUrl) || !linkScheduleStatus.canSubmitLink}
                 className="font-heading font-bold"
               >
-                {isSubmittingLink ? 'Saving...' : YOUTUBE_UI.BUTTON_SUBMIT}
+                {isSubmittingLink ? 'Saving...' : submissionModalTarget.isLocked ? 'Event Locked' : YOUTUBE_UI.BUTTON_SUBMIT}
               </Button>
             </div>
           </form>

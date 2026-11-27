@@ -449,10 +449,57 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Forbidden: You cannot submit for another college.' }, { status: 403 });
       }
 
-      // Check YouTube submission deadlines if not admin
+      // Check YouTube submission deadlines and event lock status if not admin
       let currentLinkEval: any = null;
       let activeDlSetting: any = null;
       if (auth.role !== 'admin') {
+        // 0. Verify Event and College Lock Status
+        let eventQuery = auth.db.from('events').select('id, item_id, item_code, is_locked');
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reg.event_id)) {
+          eventQuery = eventQuery.eq('id', reg.event_id);
+        } else if (!isNaN(Number(reg.event_id))) {
+          eventQuery = eventQuery.eq('item_id', Number(reg.event_id));
+        } else {
+          eventQuery = eventQuery.eq('id', reg.event_id);
+        }
+        const { data: eventRow } = await eventQuery.maybeSingle();
+
+        // Check global event lock
+        if (eventRow && eventRow.is_locked) {
+          return NextResponse.json({
+            error: `Link submission is locked: Event ${eventRow.item_code || ''} is locked by administration.`
+          }, { status: 403 });
+        }
+
+        // Check college-level lock
+        const { data: collegeRow } = await auth.db
+          .from('colleges')
+          .select('manual_lock_override')
+          .eq('affl_no', reg.college_affl_no)
+          .maybeSingle();
+
+        if (collegeRow && collegeRow.manual_lock_override === false) {
+          return NextResponse.json({
+            error: `Link submission is locked: Your institution (#${reg.college_affl_no}) has been locked by administration.`
+          }, { status: 403 });
+        }
+
+        // Check matrix entry lock
+        if (eventRow?.item_id) {
+          const { data: entryLock } = await auth.db
+            .from('entry_locks')
+            .select('is_open')
+            .eq('item_id', eventRow.item_id)
+            .eq('college_affl_no', reg.college_affl_no)
+            .maybeSingle();
+
+          if (entryLock && entryLock.is_open === false) {
+            return NextResponse.json({
+              error: `Link submission is locked: Event ${eventRow.item_code || ''} is locked for your college.`
+            }, { status: 403 });
+          }
+        }
+
         // 1. Check primary event_deadline_settings table
         const eventKind = reg.event_type === 'SCREENING' ? 'screening' : 'submission';
         const { data: dlSetting } = await auth.db
