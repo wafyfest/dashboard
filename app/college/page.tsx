@@ -88,7 +88,7 @@ export default function CollegePortalPage() {
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     { id: 'topics', label: 'Topics', icon: FileText },
     { id: 'results', label: 'Results', icon: Trophy },
-    { id: 'admit_card', label: 'Admit Card', icon: Contact },
+    { id: 'admit_card', label: 'Hall Ticket', icon: Contact },
     { id: 'appeals', label: 'Appeals', icon: ShieldAlert },
     { id: 'replacements', label: 'Replacements', icon: UserPlus }
   ];
@@ -180,9 +180,9 @@ export default function CollegePortalPage() {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All Categories');
 
-  // Normal events for CollegeRegistrationTab (exclude submission & screening pre-fest events)
-  const normalCollegeItems = useMemo(
-    () => collegeEligibleItems.filter(item => !requiresPreFestSubmission(item)),
+  // All eligible events for CollegeRegistrationTab (includes Onstage, Offstage, Submission, Screening)
+  const allCollegeEligibleItems = useMemo(
+    () => collegeEligibleItems,
     [collegeEligibleItems]
   );
 
@@ -190,17 +190,17 @@ export default function CollegePortalPage() {
     () =>
       Array.from(
         new Set(
-          normalCollegeItems
+          allCollegeEligibleItems
             .map(item => item.phase || item.category)
             .filter(Boolean)
         )
       ),
-    [normalCollegeItems]
+    [allCollegeEligibleItems]
   );
 
   const filteredItems = useMemo(
     () =>
-      normalCollegeItems
+      allCollegeEligibleItems
         .filter(item => {
           if (selectedCategory === 'All Categories') return true;
           return normalizeCategoryKey(item.phase || item.category) === normalizeCategoryKey(selectedCategory);
@@ -210,7 +210,7 @@ export default function CollegePortalPage() {
           const codeB = b.item_code || b.code || '';
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         }),
-    [normalCollegeItems, selectedCategory]
+    [allCollegeEligibleItems, selectedCategory]
   );
 
   const registrationStatusByItem = useMemo(
@@ -677,7 +677,7 @@ export default function CollegePortalPage() {
               onUnregisterRegistration={handleUnregisterRegistration}
               onRefresh={triggerRefresh}
               onOpenParticipantsTab={() => setActiveTab('participants')}
-              allItemsCount={normalCollegeItems.length}
+              allItemsCount={allCollegeEligibleItems.length}
               registrationStatusByItem={registrationStatusByItem}
             />
           )}
@@ -759,7 +759,7 @@ export default function CollegePortalPage() {
             <CollegeTopicsTab />
           )}
 
-          {/* TAB 6: ADMIT CARD */}
+          {/* TAB 6: HALL TICKET */}
           {activeTab === 'admit_card' && (
             <AdmitCardTable
               students={students}

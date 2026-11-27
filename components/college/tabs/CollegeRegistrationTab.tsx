@@ -14,13 +14,16 @@ import {
   getEffectiveStageMode,
   getItemParticipantBounds,
   isSpecialGroupEvent,
-  requiresPreFestSubmission
+  requiresPreFestSubmission,
+  isSubmissionEvent,
+  isScreeningEvent
 } from '@/lib/types/fest';
 import { festService, RegistrationStatus } from '@/lib/services/festService';
 import { getCanonicalChestNo, findStudentByIdentifier } from '@/lib/utils/studentIdentity';
 import { useFest } from '@/lib/context/FestContext';
 import { evaluateEventDeadlineSetting, formatIstDisplay } from '@/lib/utils/istDate';
-import { ChevronDown, Plus, Lock, Unlock, Clock, SquarePen, Trash2, CalendarCheck, AlertTriangle, Search, X, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, Plus, Lock, Unlock, Clock, SquarePen, Trash2, CalendarCheck, AlertTriangle, Search, X, CheckCircle2, Link2 } from 'lucide-react';
+import { SubmissionLinkModal, SubmissionLinkTarget } from '@/components/college/SubmissionLinkModal';
 
 interface CollegeRegistrationTabProps {
   filteredItems: Item[];
@@ -58,9 +61,10 @@ export function CollegeRegistrationTab({
   registrationStatusByItem
 }: CollegeRegistrationTabProps) {
   const { timeTick } = useFest();
-  const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage'>('All');
+  const [selectedMode, setSelectedMode] = React.useState<'All' | 'onstage' | 'offstage' | 'screening' | 'submission'>('All');
   const [statusFilter, setStatusFilter] = React.useState<'All' | 'enrolled' | 'not_enrolled'>('All');
   const [eventSearch, setEventSearch] = React.useState<string>('');
+  const [selectedSubmissionTarget, setSelectedSubmissionTarget] = React.useState<SubmissionLinkTarget | null>(null);
 
   const onstageSetting = festService.getEventDeadlineSetting('onstage');
   const offstageSetting = festService.getEventDeadlineSetting('offstage');
@@ -80,7 +84,6 @@ export function CollegeRegistrationTab({
   const registrationByItemId = React.useMemo(() => {
     const byItem = new Map<number, Registration>();
     for (const reg of registrations) {
-      if (reg.item && requiresPreFestSubmission(reg.item)) continue;
       const itmId = Number(reg.item_id);
       if (!isNaN(itmId) && !byItem.has(itmId)) {
         byItem.set(itmId, reg);
@@ -90,14 +93,18 @@ export function CollegeRegistrationTab({
   }, [registrations]);
 
   const displayedItems = React.useMemo(() => {
-    // Strictly exclude Screening and Submission pre-fest events from the normal registration tab
-    let list = filteredItems.filter(item => !requiresPreFestSubmission(item));
+    // List all types of events (Onstage, Offstage, Screening, Submission)
+    let list = [...filteredItems];
 
     if (selectedMode !== 'All') {
       list = list.filter(item => {
         const m = getEffectiveStageMode(item);
-        if (selectedMode === 'onstage') return m === 'onstage';
-        if (selectedMode === 'offstage') return m === 'offstage';
+        const isSub = isSubmissionEvent(item);
+        const isScr = isScreeningEvent(item);
+        if (selectedMode === 'onstage') return m === 'onstage' && !isSub && !isScr;
+        if (selectedMode === 'offstage') return m === 'offstage' && !isSub && !isScr;
+        if (selectedMode === 'screening') return isScr;
+        if (selectedMode === 'submission') return isSub;
         return true;
       });
     }
@@ -215,9 +222,11 @@ export function CollegeRegistrationTab({
               onChange={(e) => setSelectedMode(e.target.value as any)}
               className="py-1.5 font-semibold"
             >
-              <option value="All">All Stage Modes</option>
+              <option value="All">All Event Types</option>
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
+              <option value="screening">Screening Round</option>
+              <option value="submission">Digital Submission</option>
             </Select>
           </div>
 
@@ -368,6 +377,20 @@ export function CollegeRegistrationTab({
                         )}
                       </div>
                     )}
+                    {requiresPreFestSubmission(item) && isRegistered && (() => {
+                      const itmId = Number(item.item_id || item.id);
+                      const sub = _submissions.find(s => Number(s.item_id) === itmId);
+                      return sub?.file_url ? (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                          <Link2 className="w-3 h-3 shrink-0" />
+                          <span className="font-mono truncate max-w-xs">{sub.file_url}</span>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                          <Clock className="w-3 h-3 shrink-0" /> Pre-Fest Video / Link pending submission
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <CategoryBadge category={itemCategory} />
@@ -376,6 +399,8 @@ export function CollegeRegistrationTab({
                     <ItemTypeBadge
                       type={itemType}
                       mode={item.mode}
+                      isSubmission={isSubmissionEvent(item)}
+                      isScreening={isScreeningEvent(item)}
                     />
                   </TableCell>
                   <TableCell className="font-mono font-bold text-xs text-[var(--f-saffron-text)] dark:text-[var(--f-saffron)]">
@@ -408,9 +433,58 @@ export function CollegeRegistrationTab({
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
                       {isRegistered ? (
                         <>
+                          {/* Pre-fest Video/File link button */}
+                          {requiresPreFestSubmission(item) && (() => {
+                            const itmId = Number(item.item_id || item.id);
+                            const sub = _submissions.find(s => Number(s.item_id) === itmId);
+                            const linkCheck = festService.isLinkSubmissionOpen(currentCollegeAfflNo || currentCollegeId || 0, itmId);
+                            const isLinkLocked = !linkCheck.canSubmitLink;
+                            return (
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className={`h-8 px-2.5 rounded-lg text-xs font-heading font-semibold hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 ${
+                                  isLinkLocked ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                title={
+                                  isLinkLocked
+                                    ? `Link submission is locked (${linkCheck.reason || 'Locked'})`
+                                    : sub?.file_url
+                                      ? 'Edit Submitted Video/File Link'
+                                      : 'Submit Video/File Link'
+                                }
+                                disabled={isLinkLocked}
+                                onClick={() => {
+                                  if (isLinkLocked) return;
+                                  const targetChest = rosterParticipants[0]?.chest_no || '—';
+                                  const targetName = isSpecialGroup
+                                    ? (festService.getCollege(currentCollegeAfflNo || currentCollegeId)?.name || 'College')
+                                    : (rosterParticipants[0]?.full_name || rosterParticipants[0]?.name || 'Participant');
+                                  setSelectedSubmissionTarget({
+                                    collegeAfflNo: Number(currentCollegeAfflNo || currentCollegeId),
+                                    chestNo: targetChest,
+                                    studentName: targetName,
+                                    itemId: itmId,
+                                    itemCode: item.item_code || item.code || '',
+                                    itemName: item.name_eng || item.name || '',
+                                    isScreening: isScreeningEvent(item),
+                                    existingUrl: sub?.file_url,
+                                  });
+                                }}
+                              >
+                                {isLinkLocked ? (
+                                  <Lock className="w-3.5 h-3.5 mr-1 text-[var(--text-muted)]" />
+                                ) : (
+                                  <Link2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                                )}
+                                {isLinkLocked ? 'Link Locked' : sub?.file_url ? 'Edit Link' : 'Submit Link'}
+                              </Button>
+                            );
+                          })()}
+
                           <Button
                             size="xs"
                             variant="outline"
@@ -513,6 +587,15 @@ export function CollegeRegistrationTab({
           </TableBody>
         </Table>
       </CardContent>
+
+      {/* Pre-fest Submission Link Modal */}
+      {selectedSubmissionTarget && (
+        <SubmissionLinkModal
+          target={selectedSubmissionTarget}
+          onClose={() => setSelectedSubmissionTarget(null)}
+          onSaved={_onRefresh}
+        />
+      )}
     </Card>
   );
 }
