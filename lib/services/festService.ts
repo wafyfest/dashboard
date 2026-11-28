@@ -979,7 +979,8 @@ class FestService {
       fest_name: '14TH WAFY ARTS FEST',
       reg_deadline: defaultRegIso,
       fine_deadline: defaultRegIso,
-      volunteer_reg_locked: false
+      volunteer_reg_locked: false,
+      hall_ticket_download_enabled: false
     };
     return this.getStorage('festSettings', defaultSettings);
   }
@@ -990,6 +991,14 @@ class FestService {
 
   public async setVolunteerRegistrationLocked(locked: boolean): Promise<FestSettings> {
     return this.updateFestSettings({ volunteer_reg_locked: locked });
+  }
+
+  public isHallTicketDownloadEnabled(): boolean {
+    return Boolean(this.getFestSettings().hall_ticket_download_enabled);
+  }
+
+  public async setHallTicketDownloadEnabled(enabled: boolean): Promise<FestSettings> {
+    return this.updateFestSettings({ hall_ticket_download_enabled: enabled });
   }
 
   private async postServerApi<T = { success: boolean; error?: string }>(

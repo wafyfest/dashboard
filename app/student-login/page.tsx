@@ -259,7 +259,7 @@ export default function StudentLoginPage() {
             Student Login
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5 font-sans leading-relaxed">
-            Access your personalized Admit Card, Venue Timings &amp; Results
+            Access your personalized Hall Ticket, Venue Timings &amp; Results
           </p>
         </div>
 

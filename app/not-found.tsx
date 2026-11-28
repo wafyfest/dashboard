@@ -66,7 +66,7 @@ export default function NotFound() {
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-[var(--text-primary)] truncate">Student Login</div>
-                <div className="text-[11px] text-[var(--text-muted)] truncate">Check admits & schedule</div>
+                <div className="text-[11px] text-[var(--text-muted)] truncate">Check hall tickets & schedule</div>
               </div>
             </div>
           </Link>

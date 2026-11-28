@@ -52,12 +52,14 @@ import { AppealsTab } from '../admin/tabs/AppealsTab';
 import { ReplacementsTab } from '../admin/tabs/ReplacementsTab';
 import { ResultsTab } from '../admin/tabs/ResultsTab';
 import { TopicsTab } from '../admin/tabs/TopicsTab';
+import { FestSettingsTab } from '../admin/tabs/FestSettingsTab';
 
 export type AdminTab =
   | 'overview'
   | 'schedule'
   | 'locks_matrix'
   | 'settings'
+  | 'fest_settings'
   | 'event_deadlines'
   | 'items'
   | 'prefest_setup'
@@ -321,6 +323,9 @@ export function AdminView({ activeTab: controlledTab, onTabChange }: AdminViewPr
 
       {/* 2. UNIVERSAL DEADLINES & FINES POLICY TAB */}
       {(activeTab === 'settings' || activeTab === 'event_deadlines') && <EventDeadlinesTab />}
+
+      {/* 2.1. FEST GLOBAL SETTINGS TAB */}
+      {activeTab === 'fest_settings' && <FestSettingsTab />}
 
       {/* 3. ITEMS CATALOG TAB */}
       {activeTab === 'items' && <EventsCatalogTab />}

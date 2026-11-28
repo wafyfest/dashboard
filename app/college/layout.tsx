@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'College Dashboard',
-  description: 'Manage institutional student registrations, category quotas, participant rosters, and print official admit cards.',
+  description: 'Manage institutional student registrations, category quotas, participant rosters, and print official hall tickets.',
 };
 
 export default function CollegeLayout({

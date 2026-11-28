@@ -900,6 +900,7 @@ export interface FestSettings {
   fine_deadline: string;
   rulebook_url?: string | null;
   volunteer_reg_locked?: boolean;
+  hall_ticket_download_enabled?: boolean;
 }
 
 export type NoticePriority = 'urgent' | 'warning' | 'info' | 'success';

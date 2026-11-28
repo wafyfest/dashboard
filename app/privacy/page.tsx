@@ -63,7 +63,7 @@ export default function PrivacyPolicyPage() {
           <div className="space-y-3 text-sm text-[var(--text-secondary)]">
             <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-1.5">
               <strong className="text-[var(--text-primary)] block">Participant & Student Information:</strong>
-              <p>Official CIC Admission Number, full name, affiliated college name, competition category, enrolled arts events, and official Admit Card portrait photograph.</p>
+              <p>Official CIC Admission Number, full name, affiliated college name, competition category, enrolled arts events, and official Hall Ticket portrait photograph.</p>
             </div>
             <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-1.5">
               <strong className="text-[var(--text-primary)] block">Institutional Officer Information:</strong>

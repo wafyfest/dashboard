@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Student Dashboard & Admit Card',
-  description: 'View registered arts events, competition stage timings, live score updates, and download your Admit Card.',
+  title: 'Student Dashboard & Hall Ticket',
+  description: 'View registered arts events, competition stage timings, live score updates, and download your Hall Ticket.',
 };
 
 export default function StudentLayout({

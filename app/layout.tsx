@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     default: '14th Wafy Arts Fest | Official Fest Management Portal',
     template: '%s | 14th Wafy Arts Fest',
   },
-  description: 'Official enterprise management portal for the 14th Wafy Arts Fest, organized by Wafy Students Federation (WSF) under Coordination of Islamic Colleges (CIC). Featuring live stage calls, blind judging, admit cards, and real-time tabulation.',
+  description: 'Official enterprise management portal for the 14th Wafy Arts Fest, organized by Wafy Students Federation (WSF) under Coordination of Islamic Colleges (CIC). Featuring live stage calls, blind judging, hall tickets, and real-time tabulation.',
   keywords: [
     'Wafy Arts Fest',
     'WSF',
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     'Coordination of Islamic Colleges',
     'Arts Fest Management',
     'Student Login',
-    'Admit Card',
+    'Hall Ticket',
     'Live Stage Tracking',
     'Inter-College Fest',
   ],
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     url: 'https://wafyfest.org',
     siteName: '14th Wafy Arts Fest',
     title: '14th Wafy Arts Fest | Official Fest Management Portal',
-    description: 'Enterprise multi-tenant Arts Fest Management System organized by WSF under CIC with live stage calls, blind judging, and instant admit cards.',
+    description: 'Enterprise multi-tenant Arts Fest Management System organized by WSF under CIC with live stage calls, blind judging, and instant hall tickets.',
   },
   twitter: {
     card: 'summary_large_image',

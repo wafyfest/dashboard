@@ -411,7 +411,7 @@ export function CollegeView() {
             variant="outline"
             onClick={() => setActiveTab('admit_cards')}
           >
-            <Printer className="w-3.5 h-3.5" /> Batch Admit Cards
+            <Printer className="w-3.5 h-3.5" /> Batch Hall Tickets
           </Button>
           <Button
             size="sm"
@@ -460,7 +460,7 @@ export function CollegeView() {
           { id: 'students', label: `Student Directory`, badge: students.length },
           { id: 'volunteers', label: 'Volunteers', badge: null },
           { id: 'schedules', label: 'Stage Schedule', badge: null },
-          { id: 'admit_cards', label: 'Admit Cards', badge: 'PDF' },
+          { id: 'admit_cards', label: 'Hall Tickets', badge: 'PDF' },
           { id: 'appeals', label: `Appeals`, badge: appeals.length || null },
           { id: 'replacements', label: `Replacements`, badge: replacements.length || null }
         ].map(tab => {
@@ -691,7 +691,7 @@ export function CollegeView() {
         />
       )}
 
-      {/* 4. BATCH ADMIT CARDS TAB */}
+      {/* 4. BATCH HALL TICKETS TAB */}
       {activeTab === 'admit_cards' && (
         <AdmitCardTable
           students={students}

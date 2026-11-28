@@ -119,7 +119,7 @@ export default async function OpenGraphImage() {
               fontWeight: 400,
             }}
           >
-            Admit Cards • Blind Tabulation • Stage Schedules • Real-Time Scoreboards
+            Hall Tickets • Blind Tabulation • Stage Schedules • Real-Time Scoreboards
           </div>
         </div>
 

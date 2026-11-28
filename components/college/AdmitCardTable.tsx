@@ -47,9 +47,17 @@ export function AdmitCardTable({
     return getCanonicalChestNo(student);
   };
 
-  // Filter students to ONLY those who have active registrations (O(1) Set lookup)
+  // Filter registrations strictly to OFF-STAGE events for the Off Stage Hall Ticket
+  const offstageRegistrations = useMemo(() => {
+    return (registrations || []).filter(r => {
+      const mode = (r.item?.mode || (r as any).mode || '').toLowerCase().trim();
+      return mode !== 'onstage' && mode !== 'on_stage' && mode !== 'on stage';
+    });
+  }, [registrations]);
+
+  // Filter students to ONLY those who have active offstage registrations (O(1) Set lookup)
   const registeredStudents = useMemo(() => {
-    if (!students || students.length === 0 || !registrations || registrations.length === 0) {
+    if (!students || students.length === 0 || !offstageRegistrations || offstageRegistrations.length === 0) {
       return [];
     }
 
@@ -62,7 +70,7 @@ export function AdmitCardTable({
       if (stripped) registeredKeys.add(stripped);
     };
 
-    registrations.forEach(r => {
+    offstageRegistrations.forEach(r => {
       addKey(r.chest_no);
       if (r.student?.id) registeredKeys.add(r.student.id);
       addKey(r.student?.chest_no);
@@ -84,7 +92,7 @@ export function AdmitCardTable({
       if (cic && registeredKeys.has(cic)) return true;
       return false;
     });
-  }, [students, registrations]);
+  }, [students, offstageRegistrations]);
 
   // Search filter across Name, CIC No, or Chest No for registered students only
   const filteredStudents = useMemo(() => {
@@ -106,20 +114,29 @@ export function AdmitCardTable({
     });
   }, [registeredStudents, searchQuery]);
 
-  // Temporary flag to control Admit Card downloads
-  const IS_ADMIT_CARD_DOWNLOAD_ENABLED = false;
+  // Dynamic flag from FestSettings controlling Hall Ticket downloads
+  const isAdmitCardDownloadEnabled = Boolean(festSettings?.hall_ticket_download_enabled);
 
   // Handle single student PDF download
   const handleDownload = async (student: Student, idx: number) => {
-    if (!IS_ADMIT_CARD_DOWNLOAD_ENABLED) return;
+    if (!isAdmitCardDownloadEnabled) return;
     try {
       setDownloadingId(student.id || `idx-${idx}`);
 
-      // Filter registrations specifically for this student
-      const studentRegs = registrations.filter(r => registrationContainsStudent(r, student, students));
+      // Filter registrations specifically for this student (offstage only and deduplicated by item)
+      const studentOffstage = offstageRegistrations.filter(r => registrationContainsStudent(r, student, students));
+      const seenItems = new Set<string | number>();
+      const studentRegs: Registration[] = [];
+      for (const r of studentOffstage) {
+        const key = r.item_id || r.item?.item_code || r.item?.id;
+        if (key && !seenItems.has(key)) {
+          seenItems.add(key);
+          studentRegs.push(r);
+        }
+      }
       const chestNo = getChestNo(student);
 
-      const doc = generateAdmitCardPdf({
+      const doc = await generateAdmitCardPdf({
         student,
         college,
         registrations: studentRegs,
@@ -130,10 +147,10 @@ export function AdmitCardTable({
       const cleanName = (student.name || student.full_name || 'student')
         .replace(/[^a-zA-Z0-9]/g, '_')
         .toLowerCase();
-      const cic = student.admission_no ?? student.cic_no ?? 'admit';
+      const cic = student.admission_no ?? student.cic_no ?? 'hall_ticket';
 
       const timestamp = getFilenameTimestamp();
-      doc.save(`Admit_Card_${cleanName}_${cic}_${timestamp}.pdf`);
+      doc.save(`Hall_Ticket_${cleanName}_${cic}_${timestamp}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
     } finally {
@@ -143,9 +160,9 @@ export function AdmitCardTable({
     }
   };
 
-  // Handle download all filtered admit cards into individual files
+  // Handle download all filtered hall tickets into individual files
   const handleDownloadAll = async () => {
-    if (!IS_ADMIT_CARD_DOWNLOAD_ENABLED || filteredStudents.length === 0) return;
+    if (!isAdmitCardDownloadEnabled || filteredStudents.length === 0) return;
     for (let i = 0; i < Math.min(filteredStudents.length, 25); i++) {
       const stu = filteredStudents[i];
       await handleDownload(stu, i);
@@ -163,11 +180,11 @@ export function AdmitCardTable({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--f-saffron)] shadow-[0_0_8px_var(--f-saffron)]" />
             </span>
             <CardTitle className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-[var(--text-primary)]">
-              Admit Card Generation
+              Hall Ticket Generation
             </CardTitle>
           </div>
           <CardDescription className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 font-sans">
-            Download the official admit card for any registered participant from your college.
+            Download the official hall ticket for any registered participant from your college.
           </CardDescription>
         </div>
 
@@ -176,14 +193,14 @@ export function AdmitCardTable({
             {registeredStudents.length} Registered
           </Badge>
           <Button
-            variant={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'saffron' : 'secondary'}
+            variant={isAdmitCardDownloadEnabled ? 'saffron' : 'secondary'}
             size="sm"
             onClick={handleDownloadAll}
-            disabled={!IS_ADMIT_CARD_DOWNLOAD_ENABLED || filteredStudents.length === 0 || downloadingId !== null}
-            title={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? "Batch Download Filtered Admit Cards" : "Admit Card download is temporarily disabled"}
-            className={`font-heading font-bold ${!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'cursor-not-allowed opacity-60' : ''}`}
+            disabled={!isAdmitCardDownloadEnabled || filteredStudents.length === 0 || downloadingId !== null}
+            title={isAdmitCardDownloadEnabled ? "Batch Download Filtered Hall Tickets" : "Hall ticket download is temporarily disabled"}
+            className={`font-heading font-bold ${!isAdmitCardDownloadEnabled ? 'cursor-not-allowed opacity-60' : ''}`}
           >
-            {!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? (
+            {!isAdmitCardDownloadEnabled ? (
               <Lock className="w-4 h-4 mr-1.5" />
             ) : (
               <Printer className="w-4 h-4 mr-1.5" />
@@ -194,11 +211,11 @@ export function AdmitCardTable({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {!IS_ADMIT_CARD_DOWNLOAD_ENABLED && (
+        {!isAdmitCardDownloadEnabled && (
           <div className="flex items-center gap-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="font-sans">
-              <strong className="font-heading font-bold">Admit Card Downloads Disabled:</strong> Official hall ticket and admit card PDF generation is temporarily disabled by fest administration.
+              <strong className="font-heading font-bold">Hall Ticket Downloads Disabled:</strong> Official hall ticket PDF generation is temporarily disabled by fest administration.
             </span>
           </div>
         )}
@@ -244,7 +261,7 @@ export function AdmitCardTable({
                     <p className="font-heading font-semibold text-[var(--text-secondary)]">
                       {searchQuery
                         ? `No registered participants matching "${searchQuery}"`
-                        : 'No registered participants found. Admit cards are generated only for students registered in events.'}
+                        : 'No registered participants found. Hall tickets are generated only for students registered in events.'}
                     </p>
                     {searchQuery && (
                       <button
@@ -287,19 +304,19 @@ export function AdmitCardTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
-                        variant={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'saffron' : 'secondary'}
+                        variant={isAdmitCardDownloadEnabled ? 'saffron' : 'secondary'}
                         size="xs"
-                        onClick={() => IS_ADMIT_CARD_DOWNLOAD_ENABLED && handleDownload(student, idx)}
-                        disabled={!IS_ADMIT_CARD_DOWNLOAD_ENABLED || isDownloading}
-                        title={IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'Download Student Admit Card PDF' : 'Admit Card download is temporarily disabled'}
-                        className={!IS_ADMIT_CARD_DOWNLOAD_ENABLED ? 'cursor-not-allowed opacity-60' : undefined}
+                        onClick={() => isAdmitCardDownloadEnabled && handleDownload(student, idx)}
+                        disabled={!isAdmitCardDownloadEnabled || isDownloading}
+                        title={isAdmitCardDownloadEnabled ? 'Download Student Hall Ticket PDF' : 'Hall ticket download is temporarily disabled'}
+                        className={!isAdmitCardDownloadEnabled ? 'cursor-not-allowed opacity-60' : undefined}
                       >
                         {isDownloading ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>Saving...</span>
                           </>
-                        ) : !IS_ADMIT_CARD_DOWNLOAD_ENABLED ? (
+                        ) : !isAdmitCardDownloadEnabled ? (
                           <>
                             <Lock className="w-3.5 h-3.5" />
                             <span>Disabled</span>
@@ -326,7 +343,7 @@ export function AdmitCardTable({
             <strong className="text-[var(--text-primary)] font-mono">{registeredStudents.length}</strong> registered participants
           </div>
           <div className="text-[11px] text-[var(--text-muted)]">
-            Admit cards include candidate identity, category, and participating events roster.
+            Hall tickets include candidate identity, category, and participating events roster.
           </div>
         </div>
       </CardContent>

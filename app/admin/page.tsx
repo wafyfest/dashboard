@@ -18,7 +18,8 @@ import {
   Sparkles,
   UserX,
   Users,
-  FileText
+  FileText,
+  SlidersHorizontal
 } from 'lucide-react';
 import { DashboardLayout, NavItem } from '@/components/layout/DashboardLayout';
 import { AdminView, AdminTab } from '@/components/roles/AdminView';
@@ -29,6 +30,7 @@ const VALID_ADMIN_TABS = new Set<string>([
   'schedule',
   'locks_matrix',
   'settings',
+  'fest_settings',
   'event_deadlines',
   'items',
   'prefest_setup',
@@ -51,6 +53,7 @@ const VALID_ADMIN_TABS = new Set<string>([
 const navItems: NavItem[] = [
   // Main Overview
   { id: 'overview', label: 'Fest Overview', icon: ShieldAlert },
+  { id: 'fest_settings', label: 'Fest Settings', icon: SlidersHorizontal },
 
   // Setup & Rules
   { id: 'items', label: 'Events Catalog', icon: Award, group: 'Setup' },

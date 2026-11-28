@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
-import { Student, College, Registration, FestSettings, getEffectiveStageMode, isSubmissionEvent, isScreeningEvent } from '../types/fest';
+import QRCode from 'qrcode';
+import { Student, College, Registration, FestSettings } from '../types/fest';
 
 interface GenerateAdmitCardOptions {
   student: Student;
@@ -9,301 +10,390 @@ interface GenerateAdmitCardOptions {
   chestNo: string;
 }
 
-export function generateAdmitCardPdf({
+// In-memory cache for the base template data URL
+let cachedTemplateDataUrl: string | null = null;
+
+/**
+ * Fits any student photo source into the exact rounded shape of the candidate photo box:
+ * 1. Preserves aspect ratio with cover crop (top-biased for head & portrait framing).
+ * 2. Clips with smooth rounded corners (rx=14, ry=14 matching the 723x1024 template).
+ * 3. Adds crisp subtle outline border matching template line art.
+ * 4. Operates in both browser (Canvas) and Node.js (Sharp) environments.
+ */
+async function prepareCandidatePhoto(photoUrl: string): Promise<string | null> {
+  if (!photoUrl || typeof photoUrl !== 'string') return null;
+
+  // Browser environment using Canvas
+  if (typeof window !== 'undefined') {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const targetW = 149;
+          const targetH = 150;
+          const r = 14;
+          const scale = 2; // 2x supersampling for crisp print
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW * scale;
+          canvas.height = targetH * scale;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+
+          // Calculate cover crop preserving aspect ratio
+          const imgRatio = img.width / img.height;
+          const targetRatio = targetW / targetH;
+          let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+          if (imgRatio > targetRatio) {
+            sw = img.height * targetRatio;
+            sx = (img.width - sw) / 2;
+          } else {
+            sh = img.width / targetRatio;
+            // Top-bias crop (15% from top) so face and cap remain centered
+            sy = Math.max(0, (img.height - sh) * 0.15);
+          }
+
+          const cr = r * scale;
+          ctx.beginPath();
+          if (typeof (ctx as any).roundRect === 'function') {
+            (ctx as any).roundRect(0, 0, canvas.width, canvas.height, cr);
+          } else {
+            ctx.moveTo(cr, 0);
+            ctx.lineTo(canvas.width - cr, 0);
+            ctx.quadraticCurveTo(canvas.width, 0, canvas.width, cr);
+            ctx.lineTo(canvas.width, canvas.height - cr);
+            ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - cr, canvas.height);
+            ctx.lineTo(cr, canvas.height);
+            ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - cr);
+            ctx.lineTo(0, cr);
+            ctx.quadraticCurveTo(0, 0, cr, 0);
+            ctx.closePath();
+          }
+          ctx.clip();
+
+          // Draw cropped photo
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+          // Draw subtle crisp border
+          ctx.strokeStyle = '#718096';
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          if (typeof (ctx as any).roundRect === 'function') {
+            (ctx as any).roundRect(1.2, 1.2, canvas.width - 2.4, canvas.height - 2.4, cr);
+          } else {
+            ctx.moveTo(cr, 1.2);
+            ctx.lineTo(canvas.width - cr, 1.2);
+            ctx.quadraticCurveTo(canvas.width - 1.2, 1.2, canvas.width - 1.2, cr);
+            ctx.lineTo(canvas.width - 1.2, canvas.height - cr);
+            ctx.quadraticCurveTo(canvas.width - 1.2, canvas.height - 1.2, canvas.width - cr, canvas.height - 1.2);
+            ctx.lineTo(cr, canvas.height - 1.2);
+            ctx.quadraticCurveTo(1.2, canvas.height - 1.2, 1.2, canvas.height - cr);
+            ctx.lineTo(1.2, cr);
+            ctx.quadraticCurveTo(1.2, 1.2, cr, 1.2);
+            ctx.closePath();
+          }
+          ctx.stroke();
+
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = photoUrl;
+    });
+  }
+
+  // Server-side / Node.js environment fallback
+  if (typeof window === 'undefined' && typeof process !== 'undefined' && process.versions?.node) {
+    try {
+      const nodeRequire = eval('require');
+      const sharp = nodeRequire('sharp');
+      let inputBuffer: Buffer;
+      if (photoUrl.startsWith('data:')) {
+        const base64Data = photoUrl.replace(/^data:image\/\w+;base64,/, '');
+        inputBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        const fs = nodeRequire('fs');
+        if (fs.existsSync(photoUrl)) {
+          inputBuffer = fs.readFileSync(photoUrl);
+        } else {
+          return null;
+        }
+      }
+
+      const targetW = 149;
+      const targetH = 150;
+      const r = 14;
+
+      const maskSvg = Buffer.from(`
+        <svg width="${targetW}" height="${targetH}" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="${targetW}" height="${targetH}" rx="${r}" ry="${r}" fill="#000000" />
+        </svg>
+      `);
+
+      const borderSvg = Buffer.from(`
+        <svg width="${targetW}" height="${targetH}" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0.5" y="0.5" width="${targetW - 1}" height="${targetH - 1}" rx="${r}" ry="${r}" fill="none" stroke="#718096" stroke-width="1.2" />
+        </svg>
+      `);
+
+      const resized = await sharp(inputBuffer)
+        .ensureAlpha()
+        .resize(targetW, targetH, { fit: 'cover', position: 'north' })
+        .png()
+        .toBuffer();
+
+      const finalPhoto = await sharp(resized)
+        .composite([
+          { input: maskSvg, blend: 'dest-in' },
+          { input: borderSvg, blend: 'over' }
+        ])
+        .png()
+        .toBuffer();
+
+      return 'data:image/png;base64,' + finalPhoto.toString('base64');
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function getBaseTemplateDataUrl(): Promise<string> {
+  if (cachedTemplateDataUrl) return cachedTemplateDataUrl;
+
+  // Browser environment: fetch from static public directory
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/images/hall_ticket_base_template.png');
+      const blob = await res.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          cachedTemplateDataUrl = reader.result as string;
+          resolve(cachedTemplateDataUrl);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn('Failed to fetch template from /images, will render vector fallback if needed', e);
+    }
+  }
+
+  // Server-side / Node.js environment fallback (for scripts / tests)
+  if (typeof window === 'undefined' && typeof process !== 'undefined' && process.versions?.node) {
+    try {
+      const nodeRequire = eval('require');
+      const fs = nodeRequire('fs');
+      const path = nodeRequire('path');
+      const templatePath = path.resolve('public/images/hall_ticket_base_template.png');
+      if (fs.existsSync(templatePath)) {
+        const b64 = fs.readFileSync(templatePath).toString('base64');
+        cachedTemplateDataUrl = 'data:image/png;base64,' + b64;
+        return cachedTemplateDataUrl;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return '';
+}
+
+export async function generateAdmitCardPdf({
   student,
   college,
   registrations,
   festSettings,
   chestNo
-}: GenerateAdmitCardOptions): jsPDF {
+}: GenerateAdmitCardOptions): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
-  const margin = 14;
-  const contentWidth = pageWidth - margin * 2; // 182mm
+  // Base template coordinate scaling:
+  // Original template resolution: 723 x 1024
+  // Standard A4 dimensions in mm: 210 x 297
+  const sx = 210 / 723;
+  const sy = 297 / 1024;
 
-  // Outer Decorative Border
-  doc.setDrawColor(200, 210, 225);
-  doc.setLineWidth(0.6);
-  doc.rect(margin - 4, margin - 4, contentWidth + 8, 275);
-
-  doc.setDrawColor(9, 13, 26);
-  doc.setLineWidth(0.3);
-  doc.rect(margin - 2, margin - 2, contentWidth + 4, 271);
-
-  // 1. Header Banner
-  doc.setFillColor(9, 13, 26); // Midnight #090D1A
-  doc.rect(margin, margin, contentWidth, 26, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  const festTitle = (festSettings?.fest_name || 'WSF ARTS FEST 2025').toUpperCase();
-  doc.text(festTitle, pageWidth / 2, margin + 7.5, { align: 'center' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(190, 210, 235);
-  doc.text(
-    'COORDINATION OF ISLAMIC COLLEGES (CIC) • ARTS & CULTURAL FEST',
-    pageWidth / 2,
-    margin + 13,
-    { align: 'center' }
-  );
-
-  doc.setFillColor(217, 119, 6); // Amber #D97706 accent pill
-  doc.roundedRect(pageWidth / 2 - 40, margin + 17, 80, 6, 2, 2, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('OFFICIAL PARTICIPANT ADMIT CARD', pageWidth / 2, margin + 21.2, { align: 'center' });
-
-  // 2. Student Profile Card
-  let currentY = margin + 31;
-
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(margin, currentY, contentWidth, 38, 2, 2, 'FD');
-
-  // Chest Number Highlight Box (Top Right of Student Card)
-  doc.setFillColor(9, 13, 26);
-  doc.roundedRect(margin + contentWidth - 42, currentY + 4, 38, 18, 2, 2, 'F');
-  doc.setTextColor(180, 200, 225);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text('CHEST NUMBER', margin + contentWidth - 23, currentY + 9, { align: 'center' });
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(chestNo, margin + contentWidth - 23, currentY + 18, { align: 'center' });
-
-  // Student Details List
-  const studentName = (student.name || student.full_name || 'STUDENT').toUpperCase();
-  const cicNo = String(student.admission_no ?? student.cic_no ?? student.cic_number ?? 'N/A');
-  const collegeName = college?.name || `College #${student.college_affl_no || ''}`;
-  const afflText = college?.affl_no ? ` (Affl No: ${college.affl_no})` : '';
-  const className = student.class || 'N/A';
-  const categoryPhase = (student.phase || student.category || 'N/A').toUpperCase();
-
-  doc.setTextColor(9, 13, 26);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text(studentName, margin + 6, currentY + 8);
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('CIC Registration No:', margin + 6, currentY + 16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(cicNo, margin + 42, currentY + 16);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Institution:', margin + 6, currentY + 23);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(15, 23, 42);
-  const collegeStr = doc.splitTextToSize(`${collegeName}${afflText}`, contentWidth - 55);
-  doc.text(collegeStr, margin + 26, currentY + 23);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Class:', margin + 6, currentY + 31);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(15, 23, 42);
-  doc.text(className, margin + 18, currentY + 31);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Category / Phase:', margin + 48, currentY + 31);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(217, 119, 6);
-  doc.text(categoryPhase, margin + 78, currentY + 31);
-
-  currentY += 44;
-
-  // 3. Registered Competitions Table
-  doc.setTextColor(9, 13, 26);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('REGISTERED COMPETITIONS & SCHEDULE', margin, currentY);
-
-  currentY += 4;
-
-  // Table Header
-  const colX = {
-    idx: margin,
-    code: margin + 10,
-    name: margin + 35,
-    phase: margin + 105,
-    mode: margin + 128,
-    status: margin + 155
-  };
-
-  doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, currentY, contentWidth, 7, 'FD');
-
-  doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('#', colX.idx + 3, currentY + 4.8);
-  doc.text('EVENT CODE', colX.code + 2, currentY + 4.8);
-  doc.text('COMPETITION EVENT', colX.name + 2, currentY + 4.8);
-  doc.text('CATEGORY', colX.phase + 2, currentY + 4.8);
-  doc.text('MODE', colX.mode + 2, currentY + 4.8);
-  doc.text('STAGE / STATUS', colX.status + 2, currentY + 4.8);
-
-  currentY += 7;
-
-  // Table Rows
-  if (registrations.length === 0) {
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, currentY, contentWidth, 10, 'FD');
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.text('No registered competitions currently assigned to this student.', margin + contentWidth / 2, currentY + 6, {
-      align: 'center'
-    });
-    currentY += 10;
-  } else {
-    registrations.forEach((reg, i) => {
-      const rowHeight = 8;
-      const isEven = i % 2 === 0;
-
-      doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 252, isEven ? 255 : 255);
-      doc.setDrawColor(226, 232, 240);
-      doc.rect(margin, currentY, contentWidth, rowHeight, 'FD');
-
-      const itemCode = reg.item?.item_code || reg.item?.code || `ITM-${reg.item_id}`;
-      const itemName = reg.item?.name_eng || reg.item?.name || `Event #${reg.item_id}`;
-      const itemPhase = reg.item?.phase || student.phase || 'General';
-      const itemMode = `${getEffectiveStageMode(reg.item).toUpperCase()}${isSubmissionEvent(reg.item) ? ' (SUB)' : ''}${isScreeningEvent(reg.item) ? ' (SCR)' : ''}`;
-      let itemStatus = reg.code_letter ? `Code: ${reg.code_letter}` : 'Confirmed';
-      if (isScreeningEvent(reg.item)) {
-        if (reg.screening_status === 'qualified') {
-          itemStatus = reg.code_letter ? `Finalist (${reg.code_letter})` : 'Finalist';
-        } else if (reg.screening_status === 'eliminated') {
-          itemStatus = 'Not Shortlisted';
-        } else {
-          itemStatus = 'Screening Pending';
-        }
-      }
-
-      doc.setTextColor(71, 85, 105);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.text(String(i + 1), colX.idx + 3, currentY + 5.2);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(itemCode, colX.code + 2, currentY + 5.2);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      const truncatedName = itemName.length > 36 ? itemName.slice(0, 34) + '...' : itemName;
-      doc.text(truncatedName, colX.name + 2, currentY + 5.2);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(71, 85, 105);
-      doc.text(itemPhase, colX.phase + 2, currentY + 5.2);
-      doc.text(itemMode, colX.mode + 2, currentY + 5.2);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(217, 119, 6);
-      doc.text(itemStatus, colX.status + 2, currentY + 5.2);
-
-      currentY += rowHeight;
-    });
+  const baseImg = await getBaseTemplateDataUrl();
+  if (baseImg) {
+    doc.addImage(baseImg, 'PNG', 0, 0, 210, 297);
   }
 
-  currentY += 8;
+  // 1. Dynamic QR Code: Encodes ONLY the student's CIC Number
+  const cicNumber = String(student.admission_no ?? student.cic_no ?? student.cic_number ?? chestNo);
+  try {
+    const qrDataUrl = await QRCode.toDataURL(cicNumber, {
+      width: 250,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    });
+    // QR position on 723x1024: x=534, y=93, w=61, h=61
+    doc.addImage(qrDataUrl, 'PNG', 534 * sx, 93 * sy, 61 * sx, 61 * sy);
+  } catch (err) {
+    console.error('Failed to generate QR code:', err);
+  }
 
-  // 4. Important Guidelines Section
-  doc.setFillColor(254, 252, 232); // Subtle amber/yellow notice box
-  doc.setDrawColor(254, 240, 138);
-  doc.roundedRect(margin, currentY, contentWidth, 28, 1.5, 1.5, 'FD');
+  // 2. Candidate Table Values
+  const studentName = (student.name || student.full_name || 'STUDENT').toUpperCase();
+  const collegeName = (college?.name || `College #${student.college_affl_no || ''}`).toUpperCase();
+  const phaseName = (student.phase || student.category || 'GENERAL').toUpperCase();
 
-  doc.setTextColor(133, 77, 14);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('RULES & INSTRUCTIONS FOR CANDIDATE:', margin + 4, currentY + 5);
+  doc.setTextColor(0, 0, 0);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.8);
-  doc.setTextColor(113, 63, 18);
-  const rules = [
-    '1. The student must bring and present this official Admit Card along with valid college photo ID card.',
-    '2. Participants must report to the backstage stage desk at least 30 minutes prior to the scheduled item call.',
-    '3. Group event members must assemble simultaneously with their respective college manager.',
-    '4. Code letters and lots will be assigned anonymously before the commencement of the onstage stage call.',
-    '5. Any substitution or medical replacement requires prior authorization through the institutional committee.'
-  ];
+  // CHEST NO (Row 1)
+  doc.setFontSize(10);
+  doc.text(String(chestNo), 180 * sx, 369 * sy);
 
-  rules.forEach((rule, idx) => {
-    doc.text(rule, margin + 4, currentY + 9.5 + idx * 3.6);
+  // CIC NO (Row 2)
+  doc.text(cicNumber, 180 * sx, 400 * sy);
+
+  // NAME (Row 3 - with sizing safety if long)
+  const nameFontSize = studentName.length > 28 ? 8 : studentName.length > 22 ? 9 : 9.5;
+  doc.setFontSize(nameFontSize);
+  doc.text(studentName, 180 * sx, 431 * sy);
+
+  // PHASE (Row 4)
+  doc.setFontSize(10);
+  doc.text(phaseName, 180 * sx, 462 * sy);
+
+  // COLLEGE (Row 5 - with sizing safety)
+  const collegeFontSize = collegeName.length > 35 ? 7.5 : collegeName.length > 25 ? 8 : 8.5;
+  doc.setFontSize(collegeFontSize);
+  const collegeText = doc.splitTextToSize(collegeName, (515 - 180) * sx);
+  doc.text(collegeText, 180 * sx, 492 * sy);
+
+  // 3. Candidate Photo (Fitted accurately to the rounded placeholder box: 534, 345, 149, 150)
+  if (student.photo_url) {
+    try {
+      const fittedPhotoDataUrl = await prepareCandidatePhoto(student.photo_url);
+      if (fittedPhotoDataUrl) {
+        doc.addImage(fittedPhotoDataUrl, 'PNG', 534 * sx, 345 * sy, 149 * sx, 150 * sy);
+      }
+    } catch (err) {
+      console.warn('Could not render candidate photo:', err);
+    }
+  }
+
+  // 4. Events Table (Strictly Off-Stage events, deduplicated by item)
+  // Ensure clean white canvas under the dark header
+  doc.setFillColor(255, 255, 255);
+  doc.rect(33 * sx, 593 * sy, 658 * sx, 182 * sy, 'F');
+
+  // Filter strictly to off-stage events (the template is "OFF STAGE HALLTICKET")
+  const offstageRegs = registrations.filter(r => {
+    const m = (r.item?.mode || (r as any).mode || '').toLowerCase().trim();
+    return m !== 'onstage' && m !== 'on_stage' && m !== 'on stage';
   });
 
-  currentY += 34;
+  // Deduplicate by item_id / item_code to prevent duplicate rows for the same event
+  const seenItems = new Set<string | number>();
+  const displayEvents: Registration[] = [];
+  for (const reg of offstageRegs) {
+    const key = reg.item_id || reg.item?.item_code || reg.item?.id;
+    if (key && !seenItems.has(key)) {
+      seenItems.add(key);
+      displayEvents.push(reg);
+    }
+  }
 
-  // 5. Verification & Signature Blocks
-  const boxHeight = 22;
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.3);
+  const numEvents = displayEvents.length;
+  const tableTop = 592;
+  const rowHeight = numEvents > 6 ? Math.floor(180 / numEvents) : 30;
 
-  // Box 1: Institutional Verification
-  doc.rect(margin, currentY, 55, boxHeight);
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(6.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Institution Seal / Stamp', margin + 3, currentY + 4);
-  doc.setFont('helvetica', 'bold');
-  doc.text('COLLEGE PRINCIPAL / MANAGER', margin + 3, currentY + boxHeight - 2.5);
+  // Set line styling for table borders matching template
+  doc.setDrawColor(120, 124, 128);
+  doc.setLineWidth(0.2);
 
-  // Box 2: Candidate Security Verification
-  doc.rect(margin + 62, currentY, 58, boxHeight);
-  doc.text('Candidate Identification', margin + 65, currentY + 4);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`CIC Verification ID:`, margin + 65, currentY + 10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(`${cicNo}-${chestNo}`, margin + 65, currentY + 14);
-  doc.setTextColor(100, 116, 139);
-  doc.text('CANDIDATE SIGNATURE', margin + 65, currentY + boxHeight - 2.5);
+  displayEvents.forEach((reg, i) => {
+    const yTop = tableTop + i * rowHeight;
+    const yBottom = tableTop + (i + 1) * rowHeight;
+    const yText = (yTop + Math.floor(rowHeight * 0.65)) * sy;
 
-  // Box 3: Fest Convener Authorized Signatory
-  doc.rect(margin + 127, currentY, 55, boxHeight);
-  doc.text('Fest Central Directorate', margin + 130, currentY + 4);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(9, 13, 26);
-  doc.text('FEST GENERAL CONVENER', margin + 130, currentY + boxHeight - 2.5);
+    const itemCode = reg.item?.item_code || reg.item?.code || `ITM-${reg.item_id}`;
+    const itemName = reg.item?.name_eng || reg.item?.name || `Event #${reg.item_id}`;
 
-  // 6. Security Footer
-  doc.setFontSize(6.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
+    // Format scheduled time if available
+    let timeStr = '';
+    const regAny = reg as any;
+    if (regAny.schedule?.starting) {
+      try {
+        const d = new Date(regAny.schedule.starting);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        let hours = d.getHours();
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        const hrStr = String(hours).padStart(2, '0');
+        timeStr = `${day}/${month}/${year} ${hrStr}:${minutes} ${ampm}`;
+      } catch {
+        timeStr = '';
+      }
+    }
+
+    // Horizontal bottom line closing this row
+    doc.line(34 * sx, yBottom * sy, 689 * sx, yBottom * sy);
+
+    // Vertical column divider lines
+    doc.line(34 * sx, yTop * sy, 34 * sx, yBottom * sy);
+    doc.line(100 * sx, yTop * sy, 100 * sx, yBottom * sy);
+    doc.line(188 * sx, yTop * sy, 188 * sx, yBottom * sy);
+    doc.line(386 * sx, yTop * sy, 386 * sy, yBottom * sy);
+    doc.line(578 * sx, yTop * sy, 578 * sx, yBottom * sy);
+    doc.line(689 * sx, yTop * sy, 689 * sx, yBottom * sy);
+
+    const pdfFontSize = numEvents > 6 ? 7.5 : 8.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(pdfFontSize);
+
+    // Sl No (center of col 34-100)
+    doc.text(String(i + 1), 67 * sx, yText, { align: 'center' });
+
+    // Code (center of col 100-188)
+    doc.text(itemCode, 144 * sx, yText, { align: 'center' });
+
+    // Item Name (left of col 188-386)
+    const truncatedItem = itemName.length > 27 ? itemName.slice(0, 25) + '...' : itemName;
+    doc.text(truncatedItem, 198 * sx, yText, { align: 'left' });
+
+    // Date & Time (center of col 386-578)
+    if (timeStr) {
+      doc.text(timeStr, 482 * sx, yText, { align: 'center' });
+    }
+
+    // Sign column (578-689) is left blank for stage invigilator
+  });
+
+  // 5. Place & Downloading Date
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-  const timeStr = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  const downloadDate = `${day}-${month}-${year}`;
 
-  doc.text(
-    `Generated via Wafy Arts Fest Portal • Date: ${dateStr} ${timeStr} • Unique Ref: ${student.id.slice(0, 12)}`,
-    margin,
-    285
-  );
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Pang', 140 * sx, 838 * sy);
+  doc.text(downloadDate, 140 * sx, 865 * sy);
+
+  // 6. Candidate Name under Signature (centered along the candidate signature block axis at x=527)
+  doc.setFontSize(9);
+  doc.text(studentName, 527 * sx, 871 * sy, { align: 'center' });
 
   return doc;
 }

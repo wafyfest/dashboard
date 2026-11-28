@@ -128,8 +128,9 @@ export function CollegeRegistrationTab({
 
     if (selectedType !== 'All') {
       list = list.filter(item => {
-        const itemType = (item.point_type || (item as any).type || 'individual').toLowerCase();
-        const isGroup = itemType === 'group' || Boolean((item as any).is_group);
+        const itemAny = item as any;
+        const itemType = (item.point_type || itemAny.type || 'individual').toLowerCase();
+        const isGroup = itemType === 'group' || Boolean(itemAny.is_group);
         return selectedType === 'group' ? isGroup : !isGroup;
       });
     }
@@ -211,44 +212,8 @@ export function CollegeRegistrationTab({
       </CardHeader>
 
       <CardContent className="space-y-4 pt-4">
-        {/* Mode Filter Pills with live event counts */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {[
-            { id: 'All', label: 'All Modes', count: modeCounts.all },
-            { id: 'onstage', label: 'On Stage', count: modeCounts.onstage },
-            { id: 'offstage', label: 'Off Stage', count: modeCounts.offstage },
-            { id: 'screening', label: 'Screening Round', count: modeCounts.screening },
-            { id: 'submission', label: 'Digital Submission', count: modeCounts.submission },
-          ].map(pill => {
-            const isActive = selectedMode === pill.id;
-            return (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => setSelectedMode(pill.id as any)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-heading font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                  isActive
-                    ? 'bg-[var(--f-saffron)] text-[#090d1a] shadow-xs'
-                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)]'
-                }`}
-              >
-                <span>{pill.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                    isActive
-                      ? 'bg-black/15 text-[#090d1a]'
-                      : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'
-                  }`}
-                >
-                  {pill.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
         {/* Full-width Filters Toolbar matching all other tabs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 p-3 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 p-3 rounded-xl bg-[var(--bg-subtle)]/50 border border-[var(--border-subtle)]">
           {/* Event Search */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -271,7 +236,7 @@ export function CollegeRegistrationTab({
           </div>
 
           {/* Status Filter */}
-          <div className="min-w-[150px]">
+          <div className="min-w-[160px]">
             <Select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as any)}
@@ -280,36 +245,21 @@ export function CollegeRegistrationTab({
               <option value="All">All Status (Enrolled & Pending)</option>
               <option value="enrolled">Enrolled Only</option>
               <option value="not_enrolled">Pending Enrolment</option>
-              <option value="link_submitted">Link Submitted</option>
-              <option value="link_pending">Pending Video/File Link</option>
             </Select>
           </div>
 
-          {/* Mode Filter */}
+          {/* Stage Mode Filter */}
           <div className="min-w-[140px]">
             <Select
               value={selectedMode}
               onChange={(e) => setSelectedMode(e.target.value as any)}
               className="py-1.5 font-semibold"
             >
-              <option value="All">All Modes</option>
+              <option value="All">All Event Types</option>
               <option value="onstage">On Stage</option>
               <option value="offstage">Off Stage</option>
               <option value="screening">Screening Round</option>
               <option value="submission">Digital Submission</option>
-            </Select>
-          </div>
-
-          {/* Participation Type Filter */}
-          <div className="min-w-[140px]">
-            <Select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value as any)}
-              className="py-1.5 font-semibold"
-            >
-              <option value="All">All Participation Types</option>
-              <option value="individual">Single / Individual</option>
-              <option value="group">Group Events</option>
             </Select>
           </div>
 
@@ -647,7 +597,7 @@ export function CollegeRegistrationTab({
                     <p className="font-heading font-semibold text-[var(--text-secondary)]">
                       No events found matching your search or filters.
                     </p>
-                    {(eventSearch || statusFilter !== 'All' || selectedMode !== 'All' || selectedType !== 'All' || selectedCategory !== 'All Categories') && (
+                    {(eventSearch || statusFilter !== 'All' || selectedMode !== 'All' || selectedCategory !== 'All Categories') && (
                       <Button
                         type="button"
                         size="xs"
@@ -657,7 +607,6 @@ export function CollegeRegistrationTab({
                           setEventSearch('');
                           setStatusFilter('All');
                           setSelectedMode('All');
-                          setSelectedType('All');
                           setSelectedCategory('All Categories');
                         }}
                       >
